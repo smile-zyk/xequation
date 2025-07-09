@@ -1,6 +1,5 @@
 #include <pybind11/embed.h>
 #include <iostream>
-#include <cstdlib>
 
 namespace py = pybind11;
 
