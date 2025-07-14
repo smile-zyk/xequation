@@ -27,6 +27,11 @@ PyExprEngine::PyExprEngine()
     }
 }
 
+void PyExprEngine::AddEquation(const std::string& name, const std::string& expression)
+{
+    equations_map_[name] = std::make_unique<Equation>(name, expression);
+}
+
 void PyExprEngine::InitializePyEnv()
 {
     PyConfig config;
