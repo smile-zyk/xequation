@@ -1,5 +1,53 @@
 @startuml ExprEngine
 
+package XExprEngine
+{
+class ValueBase
+{
+    {abstract} +~ValueBase()=default;
+    {abstract} +const typeinfo& type() const;
+    {abstract} +string ToString() const;
+    +bool IsNull() const;
+}
+
+class NullValue
+{
+    +NullValue();
+    +const typeinfo& type() const override;
+    +string ToString() const override;
+}
+
+class Value<T>
+{
+    +Value(T value);
+    +Value(const Value<T>& value);
+    +const typeinfo& type() const override;
+    +string ToString() const override;
+    +T value() const;
+    -T value_;
+}
+
+class ExprValue
+{
+    +ExprValue();
+    +ExprValue(const T&val);
+    +ExprValue(const ExprValue& value) = default;
+    +ExprValue& operator=(const ExprValue&) = default;
+    +ExprValue(ExprValue&& value);
+    +ExprValue& operator=(ExprValue&&);
+    +ExprValue Clone() const;
+    +static ExprValue Null();
+    +bool IsNull() const;
+    +const typeinfo& type() const;
+    +string ToString() const;
+    +T Cast() const;
+    -shared_ptr<ValueBase> value_ptr_;
+}
+
+Value --|> ValueBase
+NullValue --|> ValueBase
+ExprValue *-- ValueBase
+
 class ExprEngine
 {
     +ExprEvalResult Evaluate(string expression_string, ExprContext* context = nullptr);
@@ -10,97 +58,44 @@ class ExprEngine
 
 class ExprContext
 {
-    +void AddEquation(Equation equation);
-    +void AddEquation(const string& name, Expression expression);
-    +void AddEquation(const string& name, string expression_string);
-    +Equation GetEquation(string name);
-    +vector<string> GetEquationNames();
-    +bool UpdateAllEquations();
-    +bool UpdateEquation(string name);
-    -unordered_map<string, Equation> equations_;
-}
-
-enum ExprResultType
-{
-    STRING,
-    INTEGER,
-    FLOAT,
-    BOOLEAN,
-    LIST,
-    DICT,
-    FUNCTION,
-    TUPLE,
-    SET,
-    UNKNOWN
-}
-
-class ExprResult
-{
-    +string ToString() = 0;
-    +int ToInt() = 0;
-    +float ToFloat() = 0;
-    +bool ToBool() = 0;
-    +list ToList() = 0;
-    +vector ToVector() = 0;
-    +unordered_map ToDict() = 0;
-    +functional ToFunction() = 0;
-    +unordered_set ToSet() = 0;
-    -ExprResultType type_;
-}
-
-enum ExprErrorType
-{
-    SYNTAX_ERROR,
-    TYPE_ERROR,
-    RUNTIME_ERROR,
-    EVALUATION_ERROR
-}
-
-struct ExprEvalResult
-{
-    - ExprResult result_;
-    - bool is_success_;
-    - ExprErrorType error_type_;
-    - string error_message_;
-}
-
-class Expression
-{
-    +Expression(string expression_string, ExprContext* context);
-    +string expression_string() const;
-    -ExprContext* context() const;
-    -string expression_string_;
-    -ExprContext* context_;
-    -ExprEvalResult eval_result_;
+    - unordered_map<string, Variable> variables_map_;
+    - unordered_map<string, vector<string>> variable_adjacency_list_;
 }
 
 class Variable
 {
+    +Variable(string name);
+    +Variable(string name, ExprValue value);
     +string name() const;
-    +ExprResult result() const;
-    -string name;
-    -ExprResult result_;
-}
-
-class Equation
-{
-    +string name() const;
-    +Expression expression() const;
-    +vector<string> dependencies() const;
-    +vector<string> dependent() const;
-    +bool is_dirty() const;
-    +void set_dirty(bool dirty);
+    +ExprValue value() const;
+    +void Evaluate() const;
     -string name_;
-    -Expression expression_;
-    -vector<string> dependencies_;
-    -vector<string> dependent_;
+    -ExprValue value_;
     -bool is_dirty_;
+    -ExprContext* context_;
 }
 
-class PyExprEngine;
+class ExprVariable
+{
+    +ExprVariable(string name, string expression_string);
+    +string name() const;
+    +string expression_string() const;
+    -string name_;
+    -string expression_string_;
+}
 
-class PyExprContext;
+ExprVariable --|> Variable
+Variable *-- ExprValue
+ExprContext *-- Variable
+ExprEngine *-- ExprContext
 
-class PyExprResult;
+class PyExprEngine
+
+class PyExprContext
+
+PyExprContext --|> ExprContext
+PyExprEngine --|> ExprEngine
+
+}
 
 @enduml
