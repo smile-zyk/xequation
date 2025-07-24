@@ -48,18 +48,47 @@ Value --|> ValueBase
 NullValue --|> ValueBase
 ExprValue *-- ValueBase
 
+enum ExprEvalResult::ErrorType
+{
+    None,
+    SyntaxError,
+    TypeError,
+    RuntimeError
+}
+
+struct ExprEvalResult
+{
+    bool is_success;
+    ExprValue value;
+    string error_message;
+    ErrorType error_type;
+}
+
 class ExprEngine
 {
-    +ExprEvalResult Evaluate(string expression_string, ExprContext* context = nullptr);
-    +void SetCurrentContext()
+    +ExprEvalResult Evaluate(string expression_string);
+    +void AddContext(string context_name, ExprContext context);
+    +void SetCurrentContext(ExprContext* context);
     +ExprContext* current_context() const;
+    {abstract}#ExprEvalResult EvaluateWithContext(string expression_string, ExprContext* context);
     -unordered_map<string, ExprContext> context_map_;
 }
 
+ExprEngine --> ExprEvalResult
+ExprEvalResult::ErrorType --* ExprEvalResult
+ExprEvalResult::ErrorType --* ExprVariable
+
 class ExprContext
 {
+    + ExprContext(ExprEngine* engine);
+    + ~ExprContext();
+    + bool AddVariable(string name, ExprValue value);
+    + bool AddExpressionVariable(string name, string expression_string);
+    + ExprEvalResult Evaluate(string expression_string);
     - unordered_map<string, Variable> variables_map_;
-    - unordered_map<string, vector<string>> variable_adjacency_list_;
+    - unordered_map<string, vector<string>> variable_dependencies_;
+    - unordered_map<string, vector<string>> variable_dependents_;
+    - ExprEngine* engine_;
 }
 
 class Variable
@@ -68,7 +97,6 @@ class Variable
     +Variable(string name, ExprValue value);
     +string name() const;
     +ExprValue value() const;
-    +void Evaluate() const;
     -string name_;
     -ExprValue value_;
     -bool is_dirty_;
@@ -80,8 +108,13 @@ class ExprVariable
     +ExprVariable(string name, string expression_string);
     +string name() const;
     +string expression_string() const;
+    +bool Evaluate() const;
     -string name_;
     -string expression_string_;
+    -ExprContext* context_;
+    -bool is_success_;
+    -string error_message_;
+    -ExprEvalResult::ErrorType error_type_;
 }
 
 ExprVariable --|> Variable
@@ -90,12 +123,25 @@ ExprContext *-- Variable
 ExprEngine *-- ExprContext
 
 class PyExprEngine
+{
+    +static PyExprEngine& Instance();
+    +static void SetPyEnvConfig(const PyEnvConfig& config);
+    -static PyEnvConfig config_;
+    -bool manage_python_context_ = false;
+    -void InitializePyEnv();
+    -void FinalizePyEnv();
+}
 
 class PyExprContext
 
+struct PyEnvConfig
+{
+    +string py_home;
+    +vector<string> lib_path_list;
+}
+
 PyExprContext --|> ExprContext
 PyExprEngine --|> ExprEngine
-
-}
+PyExprEngine *-- PyEnvConfig
 
 @enduml
