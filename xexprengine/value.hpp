@@ -31,7 +31,7 @@ template <typename T>
 class Value : public ValueBase {
 public:
     explicit Value(const T& val) : value_(val) {}
-    explicit Value(const char* val) : value_(std::string(val)) {}
+
     const std::type_info& Type() const override { return typeid(T); }
     std::string ToString() const override
     {

@@ -2,7 +2,7 @@
 #include <string>
 
 template<typename T>
-class CheckTypeHasToString {
+struct is_have_to_string {
 private:
     template<typename U>
     static auto test(int) -> decltype(std::declval<U>().ToString(), std::true_type());
@@ -36,7 +36,7 @@ struct ToStringHelper<T, typename std::enable_if<std::is_arithmetic<T>::value>::
 };
 
 template<typename T>
-struct ToStringHelper<T, typename std::enable_if<CheckTypeHasToString<T>::value>::type> {
+struct ToStringHelper<T, typename std::enable_if<is_have_to_string<T>::value>::type> {
     static std::string convert(const T& value) {
         return value.ToString();
     }

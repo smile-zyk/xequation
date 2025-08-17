@@ -9,7 +9,7 @@ set(XEXPRENGINE_SRC
     exprvalue.cc
 )
 
-add_library(xexprengine SHARED ${XEXPRENGINE_SRC})
+add_library(xexprengine STATIC ${XEXPRENGINE_SRC})
 
 target_include_directories(xexprengine PUBLIC . ${Python_INCLUDE_DIRS})
 target_link_libraries(xexprengine PRIVATE pybind11::embed ${Python_LIBRARIES})

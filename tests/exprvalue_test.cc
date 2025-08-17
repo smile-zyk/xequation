@@ -38,4 +38,7 @@ TEST(Value, ConvertToString)
     std::string expr_str = ConvertToString(f);
     std::string expr_expect_str = "test_expr";
     EXPECT_STREQ(expr_str.c_str(), expr_expect_str.c_str());
+
+    ExprValue g = ExprValue::Null();
+    
 }

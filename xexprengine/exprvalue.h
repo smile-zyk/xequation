@@ -10,6 +10,8 @@ public:
     template <typename T>
     ExprValue(const T& val) : value_ptr_(new Value<T>(val)) {}
 
+    ExprValue(const char* val) : value_ptr_(new Value<std::string>(val)) {}
+
     static ExprValue Null() {
         return ExprValue();
     }
