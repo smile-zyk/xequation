@@ -8,6 +8,9 @@
 #include <unordered_set>
 
 template<typename T>
+std::string ConvertToString(const T& value);
+
+template<typename T>
 struct is_have_to_string {
 private:
     template<typename U>
