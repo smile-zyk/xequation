@@ -10,6 +10,37 @@
 namespace xexprengine 
 {
     class ExprEngine;
+
+    // support for expression dependency tracking
+    // support set and reset node dependencies (e.g. SetNodeDependencies(a, {b,c}))
+    // support keep active dependencies (e.g. if b is remove, a's active dependencies will be {c}, but when b is re-added, a's active dependencies will include b again)
+    class ExprDependencyGraph
+    {
+        public:
+            void AddNode(const std::string& var_name);
+            void RemoveNode(const std::string& var_name);
+            void AddDependency(const std::string& from_var, const std::string& to_var);
+            void RemoveDependency(const std::string& from_var, const std::string& to_var);
+            void ClearNodeDependencies(const std::string& var_name);
+            void SetNodeDependencies(const std::string& var_name, const std::unordered_set<std::string>& dependency_vars);
+
+            const std::unordered_set<std::string>& GetActiveNodeDependencies(const std::string& var_name) const;
+            const std::unordered_set<std::string>& GetActiveNodeDependents(const std::string& var_name) const;
+
+            const std::unordered_set<std::string>& GetNodeDependencies(const std::string& var_name) const;
+        private:
+            struct ExprNode {
+                std::unordered_set<std::string> active_dependencies; // Variables this node depends on
+                std::unordered_set<std::string> active_dependents;   // Variables that depend on this node
+                bool is_dirty = false;
+            };
+            // store active dependencies
+            // active means the dependencies or dependents that are currently existing
+            std::unordered_map<std::string, ExprNode> nodes;
+            // store all dependencies
+            std::unordered_map<std::string, std::unordered_set<std::string>> node_dependencies_;
+    };
+
     class ExprContext
     {
         public:
@@ -44,6 +75,7 @@ namespace xexprengine
                 std::unordered_set<std::string> dependents;   // Variables that depend on this node
                 bool is_dirty = false;
             };
+
             std::unordered_map<std::string, std::unique_ptr<Expression>> expr_map_;
             std::unordered_set<std::string> var_set_;
             std::unordered_map<std::string, ExprNode> var_graph_;
