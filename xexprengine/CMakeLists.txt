@@ -6,7 +6,7 @@ message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
 message(STATUS "Python libraries: ${Python_LIBRARIES}")
 
 set(XEXPRENGINE_SRC
-    exprvalue.cc
+    expr_value.cc
 )
 
 add_library(xexprengine STATIC ${XEXPRENGINE_SRC})

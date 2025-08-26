@@ -8,11 +8,9 @@ using namespace xexprengine;
 
 struct B{};
 
-namespace xexprengine {
-    std::string ConvertToString(const B &value)
-    {
-        return "struct B";
-    }
+std::string ConvertToString(const B &value)
+{
+    return "struct B";
 }
 
 TEST(ValueHelper, ToString)

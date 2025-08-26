@@ -14,9 +14,9 @@ namespace xexprengine
     {
         public:
             ExprContext() = default;
-            ExprValue GetVariableValue(const std::string& var_name);
 
             void SetVariable(const std::string& var_name, const ExprValue& value);
+            ExprValue GetVariable(const std::string& var_name);
             void RemoveVariable(const std::string& var_name);
             void RenameVariable(const std::string& old_name, const std::string& new_name);
             
@@ -45,7 +45,7 @@ namespace xexprengine
                 bool is_dirty = false;
             };
             std::unordered_map<std::string, std::unique_ptr<Expression>> expr_map_;
-            std::unordered_map<std::string, ExprValue> var_map_;
+            std::unordered_set<std::string> var_set_;
             std::unordered_map<std::string, ExprNode> var_graph_;
             std::string name_;
             ExprEngine* engine_ = nullptr;

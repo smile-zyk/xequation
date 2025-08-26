@@ -4,6 +4,7 @@
 #include <memory>
 #include "expr_common.h"
 #include "expr_context.h"
+#include "expr_value.h"
 
 namespace xexprengine {
 
@@ -24,9 +25,10 @@ namespace xexprengine {
             ExprContext* GetCurrentContext() const;
             ExprContext* GetContext(const std::string& name) const;
         protected:
-            void SetVariable(const std::string& var_name, const ExprValue& value, ExprContext* context);
-            void RemoveVariable(const std::string& var_name, ExprContext* context);
-            void RenameVariable(const std::string& old_name, const std::string& new_name, ExprContext* context);
+            virtual void SetVariable(const std::string& var_name, const ExprValue& value, ExprContext* context) = 0;
+            virtual ExprValue GetVariable(const std::string& var_name, ExprContext* context) = 0;
+            virtual void RemoveVariable(const std::string& var_name, ExprContext* context) = 0;
+            virtual void RenameVariable(const std::string& old_name, const std::string& new_name, ExprContext* context) = 0;
             friend class ExprContext;
         private:
             std::unordered_map<std::string, std::unique_ptr<ExprContext>> context_map_;
