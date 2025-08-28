@@ -2,9 +2,15 @@
 
 using namespace xexprengine;
 
+void Value::ToNull()
+{
+    value_ptr_.reset(new ValueHolder<void>());
+}
+
 Value::Value(Value&& other) noexcept
 {
     value_ptr_ = std::move(other.value_ptr_);
+    other.ToNull();
 }
 
 Value& Value::operator=(Value&& other) noexcept
@@ -12,6 +18,7 @@ Value& Value::operator=(Value&& other) noexcept
     if(&other != this)
     {
         value_ptr_ = std::move(other.value_ptr_);
+        other.ToNull();
     }
     return *this;
 }
@@ -26,7 +33,10 @@ bool Value::operator==(const Value& other) const {
 }
 
 bool Value::operator<(const Value& other) const {
-    if (IsNull() != other.IsNull()) return IsNull();
+    if (IsNull() != other.IsNull()) 
+    {
+        return IsNull();
+    }
     
     if (IsNull()) return false;
     

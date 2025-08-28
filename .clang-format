@@ -1,0 +1,27 @@
+Format:
+  Style: file
+  BasedOnStyle: LLVM
+  AccessModifierOffset: -4
+  AlignAfterOpenBracket: AlwaysBreak
+  AlignOperands: true
+  AllowShortFunctionsOnASingleLine: InlineOnly
+  AllowShortIfStatementsOnASingleLine: Never
+  AlwaysBreakTemplateDeclarations: Yes
+  BreakBeforeBraces: Custom
+  BraceWrapping:
+    AfterClass: true
+    AfterFunction: true
+    AfterNamespace: true
+    AfterStruct: true
+  ColumnLimit: 120
+  ConstructorInitializerAllOnOneLineOrOnePerLine: true
+  ConstructorInitializerIndentWidth: 4
+  ContinuationIndentWidth: 4
+  IndentWidth: 4
+  NamespaceIndentation: None
+  PointerAlignment: Right
+  SpaceBeforeParens: ControlStatements
+  SpaceBeforeRangeBasedForLoopColon: true
+  Standard: Cpp17
+  TabWidth: 4
+  UseTab: Never

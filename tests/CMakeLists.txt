@@ -24,4 +24,4 @@ function(add_gtest_executable target_name source_file)
 
 endfunction()
 
-add_gtest_executable(exprvalue_test exprvalue_test.cc ${CMAKE_SOURCE_DIR}/xexprengine)
+add_gtest_executable(value_test value_test.cc ${CMAKE_SOURCE_DIR}/xexprengine)

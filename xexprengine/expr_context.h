@@ -41,7 +41,8 @@ namespace xexprengine
 
             const std::string& name() { return name_; }
         private:
-            struct ExprNode {
+            struct ExprNode 
+            {
                 std::unordered_set<std::string> dependencies; // Variables this node depends on
                 std::unordered_set<std::string> dependents;   // Variables that depend on this node
                 bool is_dirty = false;
