@@ -10,6 +10,8 @@
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index_container.hpp>
 
+#include "variable.h"
+
 namespace xexprengine
 {
 class DependencyCycleException : public std::runtime_error
@@ -88,6 +90,7 @@ class VariableDependencyGraph
       private:
         std::unordered_set<std::string> dependencies_;
         std::unordered_set<std::string> dependents_;
+        std::unique_ptr<Variable> variable_;
         bool is_dirty_;
         friend class VariableDependencyGraph;
     };

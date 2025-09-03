@@ -3,11 +3,10 @@
 #include "expression.h"
 #include "value.h"
 #include "variable_dependency_graph.h"
-#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
+#include "variable.h"
 
 namespace xexprengine
 {
@@ -18,29 +17,38 @@ class ExprContext
   public:
     ExprContext() = default;
 
-    void SetVariable(const std::string &var_name, const Value &value);
-    Value GetVariable(const std::string &var_name);
+    Value GetValue(std::string var_name) const;
+    Value GetValue(const Variable* var) const;
+    Variable* GetVariable(const std::string &var_name) const;
+
+    void SetVariable(const std::string &var_name, std::unique_ptr<Variable> var);
+    void SetRawVariable(const std::string& var_name, std::unique_ptr<RawVariable> var);
+    void SetRawVariable(const std::string& var_name, const Value& value);
+    void SetExprVariable(const std::string& var_name, std::unique_ptr<ExprVariable> var);
+    void SetExprVariable(const std::string& var_name, const std::string& expression);
+
     void RemoveVariable(const std::string &var_name);
     void RenameVariable(const std::string &old_name, const std::string &new_name);
 
-    void SetExpression(const std::string &expr_name, std::string expr_str);
-    Expression *GetExpression(const std::string &expr_name) const;
-
     bool IsVariableExist(const std::string &var_name) const;
 
-    void
-    TraverseVariable(const std::string &var_name, const std::function<void(ExprContext *, const std::string &)> &func);
     void UpdateVariableGraph();
 
-    EvalResult Evaluate(const std::string &expr_str);
-    Value Evaluate(Expression *expr);
+    EvalResult Evaluate(const std::string &expr);
+    Value Evaluate(const ExprVariable* expr_var);
 
-    const std::string &name() { return name_; }
+    VariableDependencyGraph* graph()
+    {
+        return graph_.get();
+    }
 
+    const std::string &name() const
+    {
+        return name_;
+    }
+    
   private:
-    std::unordered_map<std::string, std::unique_ptr<Expression>> expr_map_;
     std::unique_ptr<VariableDependencyGraph> graph_;
-
     std::string name_;
     ExprEngine *engine_ = nullptr;
 };
