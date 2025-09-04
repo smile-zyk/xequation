@@ -9,18 +9,6 @@
 
 using namespace xexprengine;
 
-#include "gtest/gtest.h"
-#include <list>
-#include <map>
-#include <set>
-#include <unordered_set>
-#include <vector>
-#include <complex>
-#include <string>
-#include "value.h"
-
-using namespace xexprengine;
-
 TEST(Value, ComparisonOperators)
 {
     Value v1 = 10;

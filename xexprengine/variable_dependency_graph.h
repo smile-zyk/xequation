@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -73,7 +74,7 @@ class VariableDependencyGraph
     class Node
     {
       public:
-        Node(bool is_dirty = false) : is_dirty_(is_dirty) {}
+        Node(std::unique_ptr<Variable> var) : variable_(std::move(var)) {}
         const std::unordered_set<std::string> &dependencies() const
         {
             return dependencies_;
@@ -99,18 +100,18 @@ class VariableDependencyGraph
 
     std::unordered_set<std::string> GetNodeDependencies(const std::string &node_name) const;
     std::unordered_set<std::string> GetNodeDependents(const std::string &node_name) const;
-    bool IsNodeExist(const std::string &node_name) const;
-    bool IsNodeDirty(const std::string &node_name) const;
 
-  protected:
     std::vector<Edge> GetEdgesByFrom(const std::string &from) const;
-    std::vector<Edge> GetEdgesByFrom(const std::vector<std::string> &from_list);
+    std::vector<Edge> GetEdgesByFrom(const std::vector<std::string> &from_list) const;
     std::vector<Edge> GetEdgesByTo(const std::string &to) const;
     std::vector<Edge> GetEdgesByTo(const std::vector<std::string> &to_list) const;
     std::vector<Edge> GetAllEdges() const;
 
-    bool AddNode(const std::string &node_name, bool is_dirty = false);
-    bool AddNodes(const std::vector<std::string> &node_list);
+  protected:
+    bool IsNodeDirty(const std::string &node_name) const;
+    bool IsNodeExist(const std::string &node_name) const;
+    bool AddNode(std::unique_ptr<Variable> var);
+    bool AddNodes(const std::vector<std::unique_ptr<Variable>> &var_list);
     bool RemoveNode(const std::string &node_name);
     bool RemoveNodes(const std::vector<std::string> &node_list);
     bool SetNodeDirty(const std::string &node_name, bool dirty);
@@ -170,7 +171,7 @@ class VariableDependencyGraph
             Type;
     };
 
-    std::unordered_map<std::string, Node> node_map_;
+    std::unordered_map<std::string, std::unique_ptr<Node>> node_map_;
     EdgeContainer::Type edges_;
 };
 } // namespace xexprengine

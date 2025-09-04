@@ -1,43 +1,57 @@
 #pragma once
-#include "expression.h"
-#include "value.h"
 #include "expr_common.h"
+#include "value.h"
 
-namespace xexprengine 
+namespace xexprengine
 {
-    class ExprContext;
-    class Variable
+class ExprContext;
+class Variable
+{
+  public:
+    Variable(const std::string& name, const ExprContext *context) : name_(name), context_(context){}
+    virtual ~Variable() = default;
+    const std::string &name() const
     {
-      public:
-        virtual ~Variable() = default;
-        const std::string &name() const { return name_; }
-        virtual Value GetValue() = 0;
-      private:
-        std::string name_;
-    };
-
-    class RawVariable : public Variable
+        return name_;
+    }
+    const ExprContext *context() const
     {
-      public:
-        RawVariable(const std::string &name, const Value &value) : name_(name), value_(value) {}
-        Value GetValue() override { return value_; }
-      private:
-        std::string name_;
-        Value value_;
-    };
+        return context_;
+    }
+    Value GetValue();
+    virtual Value Evaluate() = 0;
 
-    class ExprVariable : public Variable
+  protected:
+    std::string name_;
+    const ExprContext *context_;
+    friend class ExprContext;
+};
+
+class RawVariable : public Variable
+{
+  public:
+    RawVariable(const std::string &name, const Value &value, const ExprContext *context)
+        : Variable(name, context), value_(value)
     {
-      public:
-        ExprVariable(const std::string &name, const std::string &expression, const ExprContext* context) : name_(name), expression_(expression), context_(context) {}
-        Value GetValue() override;
+    }
+    Value Evaluate() override;
+  private:
+    Value value_;
+};
 
-      private:
-        std::string name_;
-        std::string expression_;
-        const ExprContext *context_;
-        bool is_evaluated_ = false;
-        std::string error_message_;
-        ErrorCode error_code_ = ErrorCode::Success;
-    };
-}
+class ExprVariable : public Variable
+{
+  public:
+    ExprVariable(const std::string &name, const std::string &expression, const ExprContext *context)
+        : Variable(name, context), expression_(expression)
+    {
+    }
+
+    virtual Value Evaluate();
+  private:
+    std::string expression_;
+    bool is_evaluated_ = false;
+    std::string error_message_;
+    ErrorCode error_code_ = ErrorCode::Success;
+};
+} // namespace xexprengine

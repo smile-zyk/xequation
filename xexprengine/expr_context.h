@@ -1,12 +1,7 @@
 #pragma once
 #include "expr_common.h"
-#include "expression.h"
 #include "value.h"
 #include "variable_dependency_graph.h"
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include "variable.h"
 
 namespace xexprengine
 {
@@ -17,7 +12,6 @@ class ExprContext
   public:
     ExprContext() = default;
 
-    Value GetValue(std::string var_name) const;
     Value GetValue(const Variable* var) const;
     Variable* GetVariable(const std::string &var_name) const;
 
@@ -34,8 +28,7 @@ class ExprContext
 
     void UpdateVariableGraph();
 
-    EvalResult Evaluate(const std::string &expr);
-    Value Evaluate(const ExprVariable* expr_var);
+    EvalResult Evaluate(const std::string &expr) const;
 
     VariableDependencyGraph* graph()
     {

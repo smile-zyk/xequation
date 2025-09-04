@@ -9,7 +9,6 @@
 
 namespace xexprengine
 {
-
 class ValueBase
 {
   public:
