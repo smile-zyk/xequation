@@ -101,19 +101,23 @@ class VariableDependencyGraph
     std::unordered_set<std::string> GetNodeDependencies(const std::string &node_name) const;
     std::unordered_set<std::string> GetNodeDependents(const std::string &node_name) const;
 
+    bool IsNodeDirty(const std::string &node_name) const;
+    bool IsNodeExist(const std::string &node_name) const;
+
     std::vector<Edge> GetEdgesByFrom(const std::string &from) const;
     std::vector<Edge> GetEdgesByFrom(const std::vector<std::string> &from_list) const;
     std::vector<Edge> GetEdgesByTo(const std::string &to) const;
     std::vector<Edge> GetEdgesByTo(const std::vector<std::string> &to_list) const;
     std::vector<Edge> GetAllEdges() const;
 
+    Variable* GetVariable(const std::string &node_name) const;
+
   protected:
-    bool IsNodeDirty(const std::string &node_name) const;
-    bool IsNodeExist(const std::string &node_name) const;
     bool AddNode(std::unique_ptr<Variable> var);
     bool AddNodes(const std::vector<std::unique_ptr<Variable>> &var_list);
     bool RemoveNode(const std::string &node_name);
     bool RemoveNodes(const std::vector<std::string> &node_list);
+    bool RenameNode(const std::string &old_name, const std::string &new_name);
     bool SetNodeDirty(const std::string &node_name, bool dirty);
     bool ClearNodeDependencyEdges(const std::string &node_name);
     bool AddEdge(const std::string &from, const std::string &to);

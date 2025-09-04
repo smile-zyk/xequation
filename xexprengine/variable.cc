@@ -1,13 +1,15 @@
 #include "variable.h"
 #include "expr_common.h"
-#include "value.h"
 #include "expr_context.h"
+#include "value.h"
 
 using namespace xexprengine;
 
 Value Variable::GetValue()
 {
-    return context_->GetValue(this);
+    if (context_ != nullptr)
+        return context_->GetValue(this);
+    return Value::Null();
 }
 
 Value RawVariable::Evaluate()
@@ -17,8 +19,13 @@ Value RawVariable::Evaluate()
 
 Value ExprVariable::Evaluate()
 {
-    EvalResult result = context_->Evaluate(expression_);
-    error_code_ = result.error_code;
-    error_message_ = result.error_message;
-    return result.value;
+    const ExprContext *ctx = context();
+    if (ctx != nullptr)
+    {
+        EvalResult result = ctx->Evaluate(expression_);
+        error_code_ = result.error_code;
+        error_message_ = result.error_message;
+        return result.value;
+    }
+    return Value::Null();
 }

@@ -121,6 +121,15 @@ std::vector<VariableDependencyGraph::Edge> VariableDependencyGraph::GetAllEdges(
     return std::vector<Edge>(edges_.begin(), edges_.end());
 }
 
+Variable* VariableDependencyGraph::GetVariable(const std::string &node_name) const
+{
+    if (IsNodeExist(node_name) == true)
+    {
+        return node_map_.at(node_name)->variable_.get();
+    }
+    return nullptr;
+}
+
 bool VariableDependencyGraph::AddNode(std::unique_ptr<Variable> var)
 {
     const std::string& node_name = var->name();
@@ -278,6 +287,43 @@ bool VariableDependencyGraph::RemoveNodes(const std::vector<std::string> &node_l
     for (const auto &edge : node_dependent_edges)
     {
         DeactiveEdgeToNodes(edge);
+    }
+
+    return true;
+}
+
+bool VariableDependencyGraph::RenameNode(const std::string &old_name, const std::string &new_name)
+{
+    if(IsNodeExist(old_name) == false || IsNodeExist(new_name) == true)
+    {
+        return false;
+    }
+
+    auto node_it = node_map_.find(old_name);
+    if (node_it == node_map_.end())
+    {
+        return false;
+    }
+
+    auto node_ptr = std::move(node_it->second);
+    node_map_.erase(node_it);
+    node_ptr->variable_->name_ = new_name;
+    node_map_.insert({new_name, std::move(node_ptr)});
+
+    // Update edges
+    std::vector<Edge> edges_to_update;
+
+    auto from_edges = GetEdgesByFrom(old_name);
+    edges_to_update.insert(edges_to_update.end(), from_edges.begin(), from_edges.end());
+
+    auto to_edges = GetEdgesByTo(old_name);
+    edges_to_update.insert(edges_to_update.end(), to_edges.begin(), to_edges.end());
+
+    for (const auto &edge : edges_to_update)
+    {
+        RemoveEdge(edge);
+        Edge new_edge = (edge.from_ == old_name) ? Edge(new_name, edge.to_) : Edge(edge.from_, new_name);
+        AddEdge(new_edge);
     }
 
     return true;
