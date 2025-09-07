@@ -17,7 +17,7 @@ class ExprContext
     Variable* GetVariable(const std::string &var_name) const;
 
     bool AddVariable(std::unique_ptr<Variable> var);
-    bool AddVariables(const std::vector<std::unique_ptr<Variable>> &var_list);
+    bool AddVariables(std::vector<std::unique_ptr<Variable>> var_list);
 
     bool SetRawVariable(const std::string& var_name, const Value& value);
     bool SetExprVariable(const std::string& var_name, const std::string& expression);

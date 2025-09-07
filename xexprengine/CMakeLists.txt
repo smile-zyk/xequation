@@ -10,6 +10,10 @@ message(STATUS "Python libraries: ${Python_LIBRARIES}")
 set(XEXPRENGINE_SRC
     value.cc
     variable_dependency_graph.cc
+    expr_context.cc
+    expr_engine.cc
+    variable_factory.cc
+    variable.cc
 )
 
 add_library(xexprengine STATIC ${XEXPRENGINE_SRC})

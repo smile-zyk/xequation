@@ -185,7 +185,7 @@ bool VariableDependencyGraph::AddNode(std::unique_ptr<Variable> var)
     return true;
 }
 
-bool VariableDependencyGraph::AddNodes(const std::vector<std::unique_ptr<Variable>> &var_list)
+bool VariableDependencyGraph::AddNodes(std::vector<std::unique_ptr<Variable>> var_list)
 {
     std::vector<std::unique_ptr<Variable>> unique_vars = std::move(var_list);
     // remove duplicate and nullptr
@@ -378,7 +378,7 @@ bool VariableDependencyGraph::RenameNode(const std::string &old_name, const std:
             node_map_.insert({old_name, std::move(value)});
         }
         AddEdges(old_edges);
-        throw e;
+        throw;
     }
 }
 

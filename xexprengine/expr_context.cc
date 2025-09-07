@@ -51,11 +51,11 @@ bool ExprContext::AddVariable(std::unique_ptr<Variable> var)
         {
             graph_->RemoveNode(var->name());
         }
-        throw e;
+        throw;
     }
 }
 
-bool ExprContext::AddVariables(const std::vector<std::unique_ptr<Variable>> &var_list)
+bool ExprContext::AddVariables(std::vector<std::unique_ptr<Variable>> var_list)
 {
     if (std::any_of(var_list.begin(), var_list.end(), [](const std::unique_ptr<Variable> &ptr) {
             return ptr == nullptr;
@@ -71,7 +71,7 @@ bool ExprContext::AddVariables(const std::vector<std::unique_ptr<Variable>> &var
             var->set_context(this);
         }
 
-        if (graph_->AddNodes(var_list) == false)
+        if (graph_->AddNodes(std::move(var_list)) == false)
         {
             return false;
         }
@@ -101,7 +101,7 @@ bool ExprContext::AddVariables(const std::vector<std::unique_ptr<Variable>> &var
 
             graph_->RemoveNodes(var_name_list);
         }
-        throw e;
+        throw;
     }
 }
 
@@ -120,7 +120,7 @@ bool ExprContext::SetRawVariable(const std::string &var_name, const Value &value
         }
         catch (const VariableDependencyGraph &e)
         {
-            throw e;
+            throw;
         }
     }
     else
@@ -150,7 +150,7 @@ bool ExprContext::SetExprVariable(const std::string &var_name, const std::string
         }
         catch (const VariableDependencyGraph &e)
         {
-            throw e;
+            throw;
         }
     }
     else
@@ -171,10 +171,11 @@ bool ExprContext::SetExprVariable(const std::string &var_name, const std::string
         try
         {
             graph_->AddEdges(edge_list);
+            return true;
         }
         catch (const DependencyCycleException &e)
         {
-            throw e;
+            throw;
         }
     }
 }
@@ -224,7 +225,7 @@ bool ExprContext::RenameVariable(const std::string &old_name, const std::string 
     }
     catch (const DependencyCycleException &e)
     {
-        throw e;
+        throw;
     }
 }
 

@@ -89,6 +89,15 @@ class VariableDependencyGraph
         friend class VariableDependencyGraph;
     };
 
+    VariableDependencyGraph() = default;
+    ~VariableDependencyGraph() = default;
+
+    VariableDependencyGraph(const VariableDependencyGraph&) = delete;
+    VariableDependencyGraph& operator=(const VariableDependencyGraph&) = delete;
+    
+    VariableDependencyGraph(VariableDependencyGraph&&) = default;
+    VariableDependencyGraph& operator=(VariableDependencyGraph&&) = default;
+
     std::vector<std::string> TopologicalSort() const;
 
     std::unordered_set<std::string> GetNodeDependencies(const std::string &node_name) const;
@@ -108,7 +117,7 @@ class VariableDependencyGraph
 
   protected:
     bool AddNode(std::unique_ptr<Variable> var);
-    bool AddNodes(const std::vector<std::unique_ptr<Variable>> &var_list);
+    bool AddNodes(std::vector<std::unique_ptr<Variable>> var_list);
     bool SetNode(const std::string &node_name, std::unique_ptr<Variable> var);
     bool RemoveNode(const std::string &node_name);
     bool RemoveNodes(const std::vector<std::string> &node_list);
