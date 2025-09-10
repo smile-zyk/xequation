@@ -22,8 +22,8 @@ class ExprContext
     bool AddVariable(std::unique_ptr<Variable> var);
     bool AddVariables(std::vector<std::unique_ptr<Variable>> var_list);
 
-    bool SetRawVariable(const std::string& var_name, const Value& value);
-    bool SetExprVariable(const std::string& var_name, const std::string& expression);
+    bool SetVariable(const std::string& var_name, const Value& value);
+    bool SetVariable(const std::string& var_name, const std::string& expression);
 
     bool RemoveVariable(const std::string &var_name);
     bool RemoveVariable(Variable* var);
@@ -35,12 +35,13 @@ class ExprContext
     bool SetVariableDirty(Variable* var, bool dirty);
 
     bool IsVariableExist(const std::string &var_name) const;
-    bool IsVariableDirty(const std::string &var_name) const;
 
     void Reset();
   
     void Update();
 
+    void ParseVariableDependency(Variable* var);
+    
     EvalResult Evaluate(const std::string &expr) const;
 
     ParseResult Parse(const std::string &expr) const;

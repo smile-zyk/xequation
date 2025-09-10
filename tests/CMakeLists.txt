@@ -25,3 +25,4 @@ function(add_gtest_executable target_name source_file)
 endfunction()
 
 add_gtest_executable(value_test value_test.cc ${CMAKE_SOURCE_DIR}/xexprengine)
+add_gtest_executable(dependency_graph_test dependency_graph_test.cc ${CMAKE_SOURCE_DIR}/xexprengine)

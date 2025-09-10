@@ -1,4 +1,6 @@
 #pragma once
+#include <boost/container_hash/hash_fwd.hpp>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <stack>
@@ -9,10 +11,8 @@
 #include <vector>
 
 #include <boost/multi_index/hashed_index.hpp>
-#include <boost/multi_index/member.hpp>
+#include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index_container.hpp>
-
-#include "optional.h"
 
 namespace xexprengine
 {
@@ -66,7 +66,6 @@ class DependencyGraph
       protected:
         std::string from_;
         std::string to_;
-        friend class DependencyGraph;
     };
 
     class Node
@@ -107,7 +106,10 @@ class DependencyGraph
         {
             size_t operator()(const Edge &edge) const
             {
-                return std::hash<std::string>()(edge.from()) ^ (std::hash<std::string>()(edge.to()) << 1);
+                size_t seed = 0;
+                boost::hash_combine(seed, edge.from());
+                boost::hash_combine(seed, edge.to());
+                return seed;
             }
         };
 
@@ -123,9 +125,9 @@ class DependencyGraph
             Edge, boost::multi_index::indexed_by<
                       boost::multi_index::hashed_unique<boost::multi_index::identity<Edge>, EdgeHash, EdgeEqual>,
                       boost::multi_index::hashed_non_unique<
-                          boost::multi_index::tag<ByFrom>, boost::multi_index::member<Edge, std::string, &Edge::from_>>,
+                          boost::multi_index::tag<ByFrom>, boost::multi_index::const_mem_fun<Edge, const std::string&, &Edge::from>>,
                       boost::multi_index::hashed_non_unique<
-                          boost::multi_index::tag<ByTo>, boost::multi_index::member<Edge, std::string, &Edge::to_>>>>
+                          boost::multi_index::tag<ByTo>, boost::multi_index::const_mem_fun<Edge, const std::string&, &Edge::to>>>>
             Type;
 
         typedef std::pair<
@@ -144,16 +146,20 @@ class DependencyGraph
         {
             can_update_ = graph_->BeginBatchUpdate();
         }
-        ~BatchUpdateGuard()
+        ~BatchUpdateGuard() noexcept
         {
             if (can_update_ && !committed_)
             {
-                graph_->EndBatchUpdate();
+                graph_->EndBatchUpdateNoThrow();
             }
         }
-        void commit() noexcept
+        void commit()
         {
-            committed_ = true;
+            if(can_update_)
+            {
+              committed_ = true;
+              graph_->EndBatchUpdate();
+            }
         }
 
       private:
@@ -181,13 +187,13 @@ class DependencyGraph
 
     bool BeginBatchUpdate();
     bool EndBatchUpdate();
+    bool EndBatchUpdateNoThrow() noexcept;
 
     // single operation
     bool AddNode(const std::string &node_name);
     bool RemoveNode(const std::string &node_name);
     bool AddEdge(const Edge &edge);
     bool RemoveEdge(const Edge &edge);
-    bool SetNodeDirty(const std::string &node_name, bool dirty);
 
     // batch operation
     bool AddNodes(const std::vector<std::string> &node_list);
@@ -299,7 +305,7 @@ class DependencyGraph
     void ActiveEdge(const Edge &edge);
     void DeactiveEdge(const Edge &edge);
     // use kahn's algorithm
-    Optional<std::vector<std::string>> CheckCycle();
+    bool CheckCycle(std::vector<std::string>& cycle_path);
 
     std::unordered_map<std::string, std::unique_ptr<Node>> node_map_;
     EdgeContainer::Type edge_container_;
