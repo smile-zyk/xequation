@@ -32,6 +32,16 @@ const DependencyGraph::Node *DependencyGraph::GetNode(const std::string &node_na
     return nullptr;
 }
 
+DependencyGraph::Node *DependencyGraph::GetNode(const std::string &node_name)
+{
+    auto it = node_map_.find(node_name);
+    if (it != node_map_.end())
+    {
+        return it->second.get();
+    }
+    return nullptr;
+}
+
 DependencyGraph::EdgeContainer::RangeByFrom DependencyGraph::GetEdgesByFrom(const std::string &from) const
 {
     return edge_container_.get<EdgeContainer::ByFrom>().equal_range(from);
@@ -304,7 +314,7 @@ std::vector<std::string> DependencyGraph::TopologicalSort() const
     return topo_order;
 }
 
-void DependencyGraph::Traversal(std::function<void(const std::string &)> callback)
+void DependencyGraph::Traversal(std::function<void(const std::string &)> callback) const
 {
     auto topo_order = TopologicalSort();
 
@@ -346,44 +356,55 @@ void DependencyGraph::DeactiveEdge(const DependencyGraph::Edge &edge)
     }
 }
 
-bool DependencyGraph::CheckCycle(std::vector<std::string>& cycle_path) {
+bool DependencyGraph::CheckCycle(std::vector<std::string> &cycle_path)
+{
     std::unordered_map<std::string, int> visited; // 0: unvisited, 1: visiting, 2: visited
-    std::stack<std::pair<std::string, std::unordered_set<std::string>::iterator>> stack; // Stores current node and its current iterator
+    std::stack<std::pair<std::string, std::unordered_set<std::string>::iterator>>
+        stack;                                                     // Stores current node and its current iterator
     std::unordered_map<std::string, std::string> path_predecessor; // Used to reconstruct the cycle path
 
     // Initialize all nodes as unvisited
-    for (const auto& entry : node_map_) {
+    for (const auto &entry : node_map_)
+    {
         visited[entry.first] = 0;
     }
 
     // Perform DFS for each unvisited node
-    for (const auto& entry : node_map_) {
-        const std::string& start_node = entry.first;
-        if (visited[start_node] == 0) {
+    for (const auto &entry : node_map_)
+    {
+        const std::string &start_node = entry.first;
+        if (visited[start_node] == 0)
+        {
             stack.push(std::make_pair(start_node, node_map_[start_node]->dependencies_.begin()));
-            visited[start_node] = 1; // Mark as visiting
+            visited[start_node] = 1;           // Mark as visiting
             path_predecessor[start_node] = ""; // Start node has no predecessor
 
-            while (!stack.empty()) {
+            while (!stack.empty())
+            {
                 std::string current_node = stack.top().first;
-                auto& current_iter = stack.top().second;
+                auto &current_iter = stack.top().second;
 
                 // Check if we have more neighbors to visit
-                if (current_iter != node_map_[current_node]->dependencies_.end()) {
+                if (current_iter != node_map_[current_node]->dependencies_.end())
+                {
                     std::string next_neighbor = *current_iter;
                     ++current_iter; // Move to next neighbor
 
-                    if (visited[next_neighbor] == 0) {
+                    if (visited[next_neighbor] == 0)
+                    {
                         // Encountered unvisited node, continue DFS
                         visited[next_neighbor] = 1;
                         stack.push(std::make_pair(next_neighbor, node_map_[next_neighbor]->dependencies_.begin()));
                         path_predecessor[next_neighbor] = current_node; // Record predecessor
-                    } else if (visited[next_neighbor] == 1) {
+                    }
+                    else if (visited[next_neighbor] == 1)
+                    {
                         // Found a cycle! Build cycle path based on path_predecessor
                         cycle_path.clear();
                         cycle_path.push_back(next_neighbor);
                         std::string temp = current_node;
-                        while (temp != next_neighbor) { // Backtrack until cycle start is encountered
+                        while (temp != next_neighbor)
+                        { // Backtrack until cycle start is encountered
                             cycle_path.push_back(temp);
                             temp = path_predecessor[temp];
                         }
@@ -392,7 +413,9 @@ bool DependencyGraph::CheckCycle(std::vector<std::string>& cycle_path) {
                         return true;
                     }
                     // If neighbor is already fully visited (status 2), ignore it
-                } else {
+                }
+                else
+                {
                     // All neighbors of current node have been processed
                     visited[current_node] = 2; // Mark as visited
                     stack.pop();

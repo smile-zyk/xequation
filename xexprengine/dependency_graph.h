@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/container_hash/hash_fwd.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <stack>
@@ -43,6 +44,45 @@ class DependencyCycleException : public std::runtime_error
 class DependencyGraph
 {
   public:
+    class Node
+    {
+      public:
+        Node() {}
+
+        ~Node() = default;
+        Node(const Node &) = default;
+        Node &operator=(const Node &) = default;
+        Node(Node &&) = default;
+        Node &operator=(Node &&) = default;
+
+        const std::unordered_set<std::string> &dependencies() const
+        {
+            return dependencies_;
+        }
+
+        const std::unordered_set<std::string> &dependents() const
+        {
+            return dependents_;
+        }
+
+        bool dirty_flag() const
+        {
+            return dirty_flag_;
+        }
+
+        uint64_t event_stamp() const
+        {
+            return event_stamp_;
+        }
+
+      private:
+        std::unordered_set<std::string> dependencies_;
+        std::unordered_set<std::string> dependents_;
+        bool dirty_flag_;
+        uint64_t event_stamp_;
+        friend class DependencyGraph;
+    };
+
     class Edge
     {
       public:
@@ -63,35 +103,9 @@ class DependencyGraph
             return to_;
         }
 
-      protected:
+      private:
         std::string from_;
         std::string to_;
-    };
-
-    class Node
-    {
-      public:
-        Node() {}
-
-        ~Node() = default;
-        Node(const Node &) = default;
-        Node &operator=(const Node &) = default;
-        Node(Node &&) = default;
-        Node &operator=(Node &&) = default;
-
-        const std::unordered_set<std::string> &dependencies() const
-        {
-            return dependencies_;
-        }
-        const std::unordered_set<std::string> &dependents() const
-        {
-            return dependents_;
-        }
-
-      private:
-        std::unordered_set<std::string> dependencies_;
-        std::unordered_set<std::string> dependents_;
-        friend class DependencyGraph;
     };
 
     struct EdgeContainer
@@ -178,7 +192,8 @@ class DependencyGraph
     DependencyGraph &operator=(DependencyGraph &&) = default;
 
     // get node and edge
-    const Node *GetNode(const std::string &node_name) const;
+    const Node* GetNode(const std::string& node_name) const;
+    Node* GetNode(const std::string& node_name);
     EdgeContainer::RangeByFrom GetEdgesByFrom(const std::string &from) const;
     EdgeContainer::RangeByTo GetEdgesByTo(const std::string &to) const;
     EdgeContainer::Range GetAllEdges() const;
@@ -201,7 +216,12 @@ class DependencyGraph
     bool AddEdges(const std::vector<Edge> &edge_list);
     bool RemoveEdges(const std::vector<Edge> &edge_list);
 
-    void Traversal(std::function<void(const std::string &)> callback);
+    // call when node is modified
+    bool InvalidateNode(const std::string& node_name);
+    // call when node bind data actual change
+    bool UpdateEventStamp(const std::string& node_name);
+
+    void Traversal(std::function<void(const std::string &)> callback) const;
     void Reset();
 
     // topological sort
@@ -304,7 +324,6 @@ class DependencyGraph
     void RollBack() noexcept;
     void ActiveEdge(const Edge &edge);
     void DeactiveEdge(const Edge &edge);
-    // use kahn's algorithm
     bool CheckCycle(std::vector<std::string>& cycle_path);
 
     std::unordered_map<std::string, std::unique_ptr<Node>> node_map_;

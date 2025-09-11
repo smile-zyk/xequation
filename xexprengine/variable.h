@@ -16,16 +16,16 @@ class Variable
         Func,
     };
 
-    Variable(const std::string &name, ExprContext *context = nullptr) : name_(name), context_(context) {}
+    Variable(const std::string &name, ExprContext *context = nullptr) : name_(name){}
     virtual ~Variable() = default;
     const std::string &name() const
     {
         return name_;
     }
 
-    const ExprContext *context() const
+    const Value& cached_value() const
     {
-        return context_;
+      return cached_value_;
     }
 
     template <typename T, typename std::enable_if<std::is_base_of<Variable, T>::value, int>::type = 0>
@@ -34,43 +34,21 @@ class Variable
         return dynamic_cast<T *>(this);
     }
 
-    Value GetValue() const;
-    virtual ParseResult GetParseResult() const = 0;
-    virtual Value Evaluate()  = 0;
+    virtual Value GetValue()  = 0;
     virtual Type GetType() const = 0;
 
-  protected:
     void set_name(const std::string &name)
     {
         name_ = name;
     }
-
-    void set_context(ExprContext *context)
-    {
-        context_ = context;
-    }
-    
-    friend class ExprContext;
-
   private:
+    Value cached_value_;
     std::string name_;
-    bool dirty_flag_;
-    ExprContext *context_;
 };
 
 class RawVariable : public Variable
 {
   public:
-    Value Evaluate() override
-    {
-        return value_;
-    }
-
-    ParseResult GetParseResult() const override
-    {
-        return {};
-    }
-
     Variable::Type GetType() const override
     {
         return Variable::Type::Raw;
@@ -110,27 +88,17 @@ class ExprVariable : public Variable
         return Variable::Type::Expr;
     }
 
-    Value Evaluate() override;
-
-    ParseResult GetParseResult() const override
-    {
-        return parse_result_;
-    }
-
   protected:
-    ExprVariable(const std::string &name, const std::string &expression, ExprContext *context = nullptr)
-        : Variable(name, context), expression_(expression)
+    ExprVariable(const std::string &name, const std::string &expression)
+        : Variable(name), expression_(expression)
     {
-        Parse();
     }
 
     friend class VariableFactory;
 
   private:
-    void Parse();
     std::string expression_;
     std::string error_message_;
     ErrorCode error_code_ = ErrorCode::Success;
-    ParseResult parse_result_;
 };
 } // namespace xexprengine

@@ -24,13 +24,3 @@ Value ExprVariable::Evaluate()
     }
     return Value::Null();
 }
-
-void ExprVariable::Parse()
-{
-    const ExprContext *ctx = context();
-    if (ctx != nullptr)
-    {
-        ParseResult parse_result = ctx->Parse(expression_);
-        parse_result_ = parse_result;
-    }
-}

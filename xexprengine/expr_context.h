@@ -1,11 +1,13 @@
 #pragma once
+#include <functional>
+#include <memory>
+#include <string>
+#include <unordered_map>
+
 #include "expr_common.h"
 #include "value.h"
 #include "dependency_graph.h"
 #include "variable.h"
-#include <memory>
-#include <string>
-#include <unordered_map>
 
 namespace xexprengine
 {
@@ -16,7 +18,6 @@ class ExprContext
   public:
     ExprContext(const std::string& name);
 
-    Value GetValue(const Variable* var) const;
     Variable* GetVariable(const std::string &var_name) const;
 
     bool AddVariable(std::unique_ptr<Variable> var);
@@ -37,14 +38,6 @@ class ExprContext
     bool IsVariableExist(const std::string &var_name) const;
 
     void Reset();
-  
-    void Update();
-
-    void ParseVariableDependency(Variable* var);
-    
-    EvalResult Evaluate(const std::string &expr) const;
-
-    ParseResult Parse(const std::string &expr) const;
 
     DependencyGraph* graph()
     {
@@ -59,7 +52,8 @@ class ExprContext
   private:
     std::unique_ptr<DependencyGraph> graph_;
     std::unordered_map<std::string, std::unique_ptr<Variable>> variable_map_;
+    std::function<EvalResult(const std::string&,const ExprContext*)> evaluate_callback_;
+    std::function<ParseResult(const std::string&)> parse_callback_;
     std::string name_;
-    ExprEngine *engine_ = nullptr;
 };
 } // namespace xexprengine
