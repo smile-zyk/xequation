@@ -18,9 +18,20 @@ class Variable
 
     Variable(const std::string &name, ExprContext *context = nullptr) : name_(name){}
     virtual ~Variable() = default;
+    
+    void set_name(const std::string &name)
+    {
+        name_ = name;
+    }
+
     const std::string &name() const
     {
         return name_;
+    }
+
+    void set_cached_value(const Value &value)
+    {
+        cached_value_ = value;
     }
 
     const Value& cached_value() const
@@ -34,14 +45,9 @@ class Variable
         return dynamic_cast<T *>(this);
     }
 
-    virtual Value GetValue()  = 0;
     virtual Type GetType() const = 0;
 
-    void set_name(const std::string &name)
-    {
-        name_ = name;
-    }
-  private:
+private:
     Value cached_value_;
     std::string name_;
 };
@@ -49,6 +55,17 @@ class Variable
 class RawVariable : public Variable
 {
   public:
+
+    void set_value(const Value &value)
+    {
+        value_ = value;
+    }
+
+    const Value &value() const
+    {
+        return value_;
+    }
+
     Variable::Type GetType() const override
     {
         return Variable::Type::Raw;
@@ -68,9 +85,22 @@ class RawVariable : public Variable
 class ExprVariable : public Variable
 {
   public:
+
+    void set_expression(const std::string &expression)
+    {
+        expression_ = expression;
+    }
+
     const std::string &expression() const
     {
         return expression_;
+    }
+
+    void SetEvalResult(const EvalResult& result)
+    {
+        error_code_ = result.error_code;
+        error_message_ = result.error_message;
+        set_cached_value(result.value);
     }
 
     std::string error_message() const

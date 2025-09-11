@@ -27,17 +27,19 @@ class ExprContext
     bool SetVariable(const std::string& var_name, const std::string& expression);
 
     bool RemoveVariable(const std::string &var_name);
-    bool RemoveVariable(Variable* var);
     bool RemoveVariables(const std::vector<std::string> &var_name_list);
 
     bool RenameVariable(const std::string &old_name, const std::string &new_name);
-    
-    bool SetVariableDirty(const std::string &var_name, bool dirty);
-    bool SetVariableDirty(Variable* var, bool dirty);
+    bool UpdateVariableDependencies(const std::string &var_name);
 
     bool IsVariableExist(const std::string &var_name) const;
 
     void Reset();
+
+    void Update();
+
+    virtual Value GetVariableValue(const std::string &var_name) const = 0;
+    virtual void SetVariableValue(const std::string &var_name, const Value &value) = 0;
 
     DependencyGraph* graph()
     {
