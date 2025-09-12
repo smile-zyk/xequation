@@ -356,7 +356,7 @@ void DependencyGraph::DeactiveEdge(const DependencyGraph::Edge &edge)
     }
 }
 
-bool DependencyGraph::CheckCycle(std::vector<std::string> &cycle_path)
+bool DependencyGraph::CheckCycle(std::vector<std::string> &cycle_path) const
 {
     std::unordered_map<std::string, int> visited; // 0: unvisited, 1: visiting, 2: visited
     std::stack<std::pair<std::string, std::unordered_set<std::string>::iterator>>
@@ -375,7 +375,7 @@ bool DependencyGraph::CheckCycle(std::vector<std::string> &cycle_path)
         const std::string &start_node = entry.first;
         if (visited[start_node] == 0)
         {
-            stack.push(std::make_pair(start_node, node_map_[start_node]->dependencies_.begin()));
+            stack.push(std::make_pair(start_node, node_map_.at(start_node)->dependencies_.begin()));
             visited[start_node] = 1;           // Mark as visiting
             path_predecessor[start_node] = ""; // Start node has no predecessor
 
@@ -385,7 +385,7 @@ bool DependencyGraph::CheckCycle(std::vector<std::string> &cycle_path)
                 auto &current_iter = stack.top().second;
 
                 // Check if we have more neighbors to visit
-                if (current_iter != node_map_[current_node]->dependencies_.end())
+                if (current_iter != node_map_.at(current_node)->dependencies_.end())
                 {
                     std::string next_neighbor = *current_iter;
                     ++current_iter; // Move to next neighbor
@@ -394,7 +394,7 @@ bool DependencyGraph::CheckCycle(std::vector<std::string> &cycle_path)
                     {
                         // Encountered unvisited node, continue DFS
                         visited[next_neighbor] = 1;
-                        stack.push(std::make_pair(next_neighbor, node_map_[next_neighbor]->dependencies_.begin()));
+                        stack.push(std::make_pair(next_neighbor, node_map_.at(next_neighbor)->dependencies_.begin()));
                         path_predecessor[next_neighbor] = current_node; // Record predecessor
                     }
                     else if (visited[next_neighbor] == 1)

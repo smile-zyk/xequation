@@ -1,26 +1,23 @@
 #include "variable.h"
-#include "expr_common.h"
-#include "expr_context.h"
-#include "value.h"
 
 using namespace xexprengine;
 
-Value Variable::GetValue() const
+std::unique_ptr<Variable> VariableFactory::CreateRawVariable(const std::string &name, const Value &value)
 {
-    if (context_ != nullptr)
-        return context_->GetValue(this);
-    return Value::Null();
+    return std::unique_ptr<Variable>(new RawVariable(name, value));
 }
 
-Value ExprVariable::Evaluate()
+std::unique_ptr<Variable> VariableFactory::CreateExprVariable(const std::string &name, const std::string &expression)
 {
-    const ExprContext *ctx = context();
-    if (ctx != nullptr)
-    {
-        EvalResult result = ctx->Evaluate(expression_);
-        error_code_ = result.error_code;
-        error_message_ = result.error_message;
-        return result.value;
-    }
-    return Value::Null();
+    return std::unique_ptr<Variable>(new ExprVariable(name, expression));
+}
+
+std::unique_ptr<Variable> VariableFactory::CreateVariable(const std::string &name, const Value &value)
+{
+    return CreateRawVariable(name, value);
+}
+
+std::unique_ptr<Variable> VariableFactory::CreateVariable(const std::string &name, const std::string &expression)
+{
+    return CreateExprVariable(name, expression);
 }

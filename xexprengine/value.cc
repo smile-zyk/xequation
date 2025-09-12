@@ -1,16 +1,26 @@
 #include "value.h"
+#include <memory>
 
 using namespace xexprengine;
 
-void Value::ToNull()
+Value::Value(const Value &other)
 {
-    value_ptr_.reset(new ValueHolder<void>());
+    value_ptr_ = other.value_ptr_ != nullptr ? other.value_ptr_->Clone() : nullptr;
+}
+
+Value& Value::operator=(const Value &other)
+{
+    if(&other != this)
+    {
+        Value(other).swap(*this);
+    }
+    return *this;
 }
 
 Value::Value(Value &&other) noexcept
 {
     value_ptr_ = std::move(other.value_ptr_);
-    other.ToNull();
+    other.value_ptr_.reset(new ValueHolder<void>());
 }
 
 Value &Value::operator=(Value &&other) noexcept
@@ -18,7 +28,7 @@ Value &Value::operator=(Value &&other) noexcept
     if (&other != this)
     {
         value_ptr_ = std::move(other.value_ptr_);
-        other.ToNull();
+        other.value_ptr_.reset(new ValueHolder<void>());
     }
     return *this;
 }
@@ -34,6 +44,12 @@ bool Value::operator==(const Value &other) const
         return false;
 
     return ToString() == other.ToString();
+}
+
+void Value::swap(Value& other) noexcept
+{
+    using std::swap;
+    swap(value_ptr_, other.value_ptr_);
 }
 
 bool Value::operator<(const Value &other) const

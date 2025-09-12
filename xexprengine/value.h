@@ -14,9 +14,17 @@ class ValueBase
   public:
     ValueBase() noexcept = default;
     virtual ~ValueBase() noexcept = default;
+    ValueBase(const ValueBase &) noexcept = default;
+    ValueBase &operator=(const ValueBase &) noexcept = default;
+    ValueBase(ValueBase &&) noexcept = default;
+    ValueBase &operator=(ValueBase &&) noexcept = default;
+    virtual std::unique_ptr<ValueBase> Clone() const = 0;
     virtual const std::type_info &Type() const = 0;
     virtual std::string ToString() const = 0;
-    virtual bool IsNull() const { return false; }
+    virtual bool IsNull() const
+    {
+        return false;
+    }
 };
 
 template <typename T>
@@ -25,10 +33,49 @@ class ValueHolder : public ValueBase
   public:
     explicit ValueHolder(const T &val) noexcept : value_(val) {}
     ~ValueHolder() noexcept = default;
-    const std::type_info &Type() const override { return typeid(T); }
-    std::string ToString() const override { return value_convert::StringConverter::ToString(value_); }
-    bool IsNull() const override { return false; }
-    const T &value() const { return value_; }
+    ValueHolder(const ValueHolder &other) noexcept : ValueBase(other), value_(other.value_) {}
+    ValueHolder(ValueHolder &&other) noexcept : ValueBase(std::move(other)), value_(std::move(other.value_)) {}
+    ValueHolder &operator=(const ValueHolder &other) noexcept
+    {
+        if (this != &other)
+        {
+            value_ = other.value_;
+        }
+        return *this;
+    }
+    ValueHolder &operator=(ValueHolder &&other) noexcept
+    {
+        if (this != &other)
+        {
+            value_ = std::move(other.value_);
+        }
+        return *this;
+    }
+
+    std::unique_ptr<ValueBase> Clone() const override
+    {
+        return std::unique_ptr<ValueHolder<T>>(new ValueHolder<T>(value_));
+    }
+
+    const std::type_info &Type() const override
+    {
+        return typeid(T);
+    }
+
+    std::string ToString() const override
+    {
+        return value_convert::StringConverter::ToString(value_);
+    }
+
+    bool IsNull() const override
+    {
+        return false;
+    }
+
+    const T &value() const
+    {
+        return value_;
+    }
 
   private:
     T value_;
@@ -40,9 +87,31 @@ class ValueHolder<void> : public ValueBase
   public:
     ValueHolder() noexcept = default;
     ~ValueHolder() noexcept = default;
-    const std::type_info &Type() const override { return typeid(void); }
-    std::string ToString() const override { return "null"; }
-    bool IsNull() const override { return true; }
+
+    ValueHolder(const ValueHolder &other) noexcept = default;
+    ValueHolder(ValueHolder &&other) noexcept = default;
+    ValueHolder &operator=(const ValueHolder &other) noexcept = default;
+    ValueHolder &operator=(ValueHolder &&other) noexcept = default;
+
+    std::unique_ptr<ValueBase> Clone() const override
+    {
+        return std::unique_ptr<ValueHolder<void>>(new ValueHolder<void>());
+    }
+
+    const std::type_info &Type() const override
+    {
+        return typeid(void);
+    }
+
+    std::string ToString() const override
+    {
+        return "null";
+    }
+
+    bool IsNull() const override
+    {
+        return true;
+    }
 };
 
 class Value
@@ -52,11 +121,17 @@ class Value
     ~Value() noexcept {}
 
     template <typename T>
-    Value(const T &val) noexcept : value_ptr_(new ValueHolder<T>(val))
-    {
-    }
+    Value(const T &val) noexcept : value_ptr_(new ValueHolder<T>(val)) {}
 
     Value(const char *val) noexcept : value_ptr_(new ValueHolder<std::string>(val)) {}
+
+    Value(const Value &other);
+    Value &operator=(const Value &other);
+
+    Value(Value &&) noexcept;
+    Value &operator=(Value &&) noexcept;
+
+    void swap(Value& other) noexcept;
 
     static const Value &Null()
     {
@@ -64,9 +139,10 @@ class Value
         return nullValue;
     }
 
-    void ToNull();
-
-    operator bool() const { return !IsNull(); }
+    operator bool() const
+    {
+        return !IsNull();
+    }
 
     bool operator==(const Value &other) const;
     bool operator!=(const Value &other) const;
@@ -75,11 +151,7 @@ class Value
     bool operator<=(const Value &other) const;
     bool operator>=(const Value &other) const;
 
-    Value(const Value &other) = default;
-    Value &operator=(const Value &other) = default;
 
-    Value(Value &&) noexcept;
-    Value &operator=(Value &&) noexcept;
 
     bool IsNull() const;
 
@@ -108,7 +180,7 @@ class Value
     std::string ToString() const;
 
   private:
-    std::shared_ptr<ValueBase> value_ptr_;
+    std::unique_ptr<ValueBase> value_ptr_;
 };
 } // namespace xexprengine
 
@@ -117,6 +189,9 @@ namespace std
 template <>
 struct hash<xexprengine::Value>
 {
-    size_t operator()(const xexprengine::Value &value) const { return std::hash<std::string>()(value.ToString()); }
+    size_t operator()(const xexprengine::Value &value) const
+    {
+        return std::hash<std::string>()(value.ToString());
+    }
 };
 } // namespace std

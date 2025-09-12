@@ -1,7 +1,6 @@
 #pragma once
 #include <boost/container_hash/hash_fwd.hpp>
 #include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <stack>
@@ -14,6 +13,8 @@
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index_container.hpp>
+
+#include "event_stamp.h"
 
 namespace xexprengine
 {
@@ -70,16 +71,26 @@ class DependencyGraph
             return dirty_flag_;
         }
 
-        uint64_t event_stamp() const
+        EventStamp event_stamp() const
         {
             return event_stamp_;
+        }
+
+        void set_dirty_flag(bool dirty_flag)
+        {
+            dirty_flag_ = dirty_flag;
+        }
+
+        void set_event_stamp(EventStamp event_stamp)
+        {
+            event_stamp_ = event_stamp;
         }
 
       private:
         std::unordered_set<std::string> dependencies_;
         std::unordered_set<std::string> dependents_;
         bool dirty_flag_;
-        uint64_t event_stamp_;
+        EventStamp event_stamp_;
         friend class DependencyGraph;
     };
 
@@ -216,11 +227,6 @@ class DependencyGraph
     bool AddEdges(const std::vector<Edge> &edge_list);
     bool RemoveEdges(const std::vector<Edge> &edge_list);
 
-    // call when node is modified
-    bool InvalidateNode(const std::string& node_name);
-    // call when node bind data actual change
-    bool UpdateEventStamp(const std::string& node_name);
-
     void Traversal(std::function<void(const std::string &)> callback) const;
     void Reset();
 
@@ -324,7 +330,7 @@ class DependencyGraph
     void RollBack() noexcept;
     void ActiveEdge(const Edge &edge);
     void DeactiveEdge(const Edge &edge);
-    bool CheckCycle(std::vector<std::string>& cycle_path);
+    bool CheckCycle(std::vector<std::string>& cycle_path) const;
 
     std::unordered_map<std::string, std::unique_ptr<Node>> node_map_;
     EdgeContainer::Type edge_container_;

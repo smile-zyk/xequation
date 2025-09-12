@@ -4,8 +4,6 @@
 
 namespace xexprengine
 {
-class ExprContext;
-
 class Variable
 {
   public:
@@ -16,9 +14,9 @@ class Variable
         Func,
     };
 
-    Variable(const std::string &name, ExprContext *context = nullptr) : name_(name){}
+    Variable(const std::string &name) : name_(name) {}
     virtual ~Variable() = default;
-    
+
     void set_name(const std::string &name)
     {
         name_ = name;
@@ -34,28 +32,39 @@ class Variable
         cached_value_ = value;
     }
 
-    const Value& cached_value() const
+    const Value &cached_value() const
     {
-      return cached_value_;
+        return cached_value_;
     }
 
     template <typename T, typename std::enable_if<std::is_base_of<Variable, T>::value, int>::type = 0>
-    T* As() noexcept
+    T *As() noexcept
     {
         return dynamic_cast<T *>(this);
     }
 
     virtual Type GetType() const = 0;
 
-private:
+  private:
     Value cached_value_;
     std::string name_;
+};
+
+class VariableFactory
+{
+  public:
+    static std::unique_ptr<Variable> CreateRawVariable(const std::string &name, const Value &value);
+
+    static std::unique_ptr<Variable> CreateExprVariable(const std::string &name, const std::string &expression);
+
+    static std::unique_ptr<Variable> CreateVariable(const std::string &name, const Value &value);
+
+    static std::unique_ptr<Variable> CreateVariable(const std::string &name, const std::string &expression);
 };
 
 class RawVariable : public Variable
 {
   public:
-
     void set_value(const Value &value)
     {
         value_ = value;
@@ -72,8 +81,8 @@ class RawVariable : public Variable
     }
 
   protected:
-    RawVariable(const std::string &name, const Value &value, ExprContext *context = nullptr)
-        : Variable(name, context), value_(value)
+    RawVariable(const std::string &name, const Value &value)
+        : Variable(name), value_(value)
     {
     }
     friend class VariableFactory;
@@ -85,7 +94,6 @@ class RawVariable : public Variable
 class ExprVariable : public Variable
 {
   public:
-
     void set_expression(const std::string &expression)
     {
         expression_ = expression;
@@ -96,11 +104,10 @@ class ExprVariable : public Variable
         return expression_;
     }
 
-    void SetEvalResult(const EvalResult& result)
+    void SetEvalResult(const EvalResult &result)
     {
         error_code_ = result.error_code;
         error_message_ = result.error_message;
-        set_cached_value(result.value);
     }
 
     std::string error_message() const
@@ -119,10 +126,7 @@ class ExprVariable : public Variable
     }
 
   protected:
-    ExprVariable(const std::string &name, const std::string &expression)
-        : Variable(name), expression_(expression)
-    {
-    }
+    ExprVariable(const std::string &name, const std::string &expression) : Variable(name), expression_(expression) {}
 
     friend class VariableFactory;
 
