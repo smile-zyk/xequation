@@ -78,12 +78,11 @@ class MockExprContext : public ExprContext
             {
                 result.variables.insert(match[3]);
             }
+            result.status = xexprengine::VariableStatus::kExprParseSuccess;
         }
         else
         {
-            result.success = false;
-            result.error_code = ErrorCode::ParseError;
-            result.error_message = "Invalid expression format";
+            result.status = xexprengine::VariableStatus::kExprParseSyntaxError;
         }
         return result;
     }
@@ -117,15 +116,15 @@ class MockExprContext : public ExprContext
                 }
                 else
                 {
-                    result.error_code = ErrorCode::TypeMismatch;
-                    result.error_message = "Variable " + var1 + " is not an integer";
+                    result.status = xexprengine::VariableStatus::kExprEvalTypeError;
+                    result.eval_error_message = "Variable " + var1 + " is not an integer";
                     return result;
                 }
             }
             else
             {
-                result.error_code = ErrorCode::UnknownVariable;
-                result.error_message = "Variable " + var1 + " not found";
+                result.status = xexprengine::VariableStatus::kExprEvalNameError;
+                result.eval_error_message = "Variable " + var1 + " not found";
                 return result;
             }
 
@@ -143,53 +142,55 @@ class MockExprContext : public ExprContext
                 }
                 else
                 {
-                    result.error_code = ErrorCode::TypeMismatch;
-                    result.error_message = "Variable " + var2 + " is not an integer";
+                    result.status = xexprengine::VariableStatus::kExprEvalTypeError;
+                    result.eval_error_message = "Variable " + var2 + " is not an integer";
                     return result;
                 }
             }
             else
             {
-                result.error_code = ErrorCode::UnknownVariable;
-                result.error_message = "Variable " + var2 + " not found";
+                result.status = xexprengine::VariableStatus::kExprEvalNameError;
+                result.eval_error_message = "Variable " + var2 + " not found";
                 return result;
             }
 
             // perform calculation
             if (op == "+")
             {
+                result.status = xexprengine::VariableStatus::kExprEvalSuccess;
                 result.value = Value(val1 + val2);
             }
             else if (op == "-")
             {
+                result.status = xexprengine::VariableStatus::kExprEvalSuccess;
                 result.value = Value(val1 - val2);
             }
             else if (op == "*")
             {
+                result.status = xexprengine::VariableStatus::kExprEvalSuccess;
                 result.value = Value(val1 * val2);
             }
             else if (op == "/")
             {
                 if (val2 == 0)
                 {
-                    result.error_code = ErrorCode::DivisionByZero;
-                    result.error_message = "Division by zero";
+                    result.status = xexprengine::VariableStatus::kExprEvalZeroDivisionError;
                 }
                 else
                 {
+                    result.status = xexprengine::VariableStatus::kExprEvalSuccess;
                     result.value = Value(val1 / val2);
                 }
             }
             else
             {
-                result.error_code = ErrorCode::InvalidOperation;
-                result.error_message = "Invalid operator: " + op;
+                result.status = xexprengine::VariableStatus::kExprEvalAttributeError;
+                result.eval_error_message = "Invalid operator: " + op;
             }
         }
         else
         {
-            result.error_code = ErrorCode::ParseError;
-            result.error_message = "Invalid expression format";
+            result.status = xexprengine::VariableStatus::kExprEvalSyntaxError;
         }
         return result;
     }
@@ -209,69 +210,60 @@ class ExprContextTest : public testing::Test
     MockExprContext context_;
 };
 
-TEST_F(ExprContextTest, BasicVariableOperations)
+TEST_F(ExprContextTest, BasicOperation)
 {
-    // variable value set to context util update
-
-    // Add raw variable A=10
-    context_.SetValue("A", 10);
+    context_.SetValue("A", 1);
     EXPECT_TRUE(context_.IsVariableExist("A"));
+    EXPECT_TRUE(context_.GetVariable("A")->GetType() == Variable::Type::Raw);
+    EXPECT_TRUE(context_.GetVariable("A")->As<RawVariable>()->value().Cast<int>() == 1);
     EXPECT_FALSE(context_.IsContextValueExist("A"));
-    EXPECT_EQ(context_.GetVariable("A")->GetType(), Variable::Type::Raw);
-    EXPECT_EQ(context_.GetVariable("A")->As<RawVariable>()->value().Cast<int>(), 10);
-    EXPECT_TRUE(context_.UpdateVariable("A"));
-    EXPECT_TRUE(context_.IsContextValueExist("A"));
-    EXPECT_EQ(context_.GetContextValue("A").Cast<int>(), 10);
-    EXPECT_FALSE(context_.UpdateVariable("A")); // not dirty
+    context_.Update();
+    EXPECT_TRUE(context_.IsVariableExist("A"));
+    EXPECT_TRUE(context_.GetContextValue("A").Cast<int>() == 1);
+    EXPECT_TRUE(context_.GetVariable("A")->status() == xexprengine::VariableStatus::kRawVar);
+
+    context_.RemoveVariable("A");
+    EXPECT_FALSE(context_.IsVariableExist("A"));
+    EXPECT_FALSE(context_.IsContextValueExist("A"));
 
     context_.SetExpression("B", "A + 1");
     EXPECT_TRUE(context_.IsVariableExist("B"));
+    EXPECT_TRUE(context_.GetVariable("B")->GetType() == Variable::Type::Expr);
+    EXPECT_TRUE(context_.GetVariable("B")->As<ExprVariable>()->expression() == "A + 1");
+    context_.Update();
     EXPECT_FALSE(context_.IsContextValueExist("B"));
-    EXPECT_EQ(context_.GetVariable("B")->GetType(), Variable::Type::Expr);
-    EXPECT_EQ(context_.GetVariable("B")->As<ExprVariable>()->expression(), "A + 1");
-    EXPECT_TRUE(context_.UpdateVariable("B"));
+    EXPECT_TRUE(context_.GetVariable("B")->status() == xexprengine::VariableStatus::kMissingDependency);
+
+    context_.SetValue("A", 10);
+    context_.Update();
+    EXPECT_TRUE(context_.IsContextValueExist("A"));
     EXPECT_TRUE(context_.IsContextValueExist("B"));
-    EXPECT_EQ(context_.GetContextValue("B").Cast<int>(), 11);
-    EXPECT_FALSE(context_.UpdateVariable("B")); // not dirty
-    EXPECT_EQ(context_.GetVariable("B")->As<ExprVariable>()->cached_value().Cast<int>(), 11);
-    EXPECT_EQ(context_.GetVariable("B")->As<ExprVariable>()->error_code(), ErrorCode::Success);
-    EXPECT_EQ(context_.GetVariable("B")->As<ExprVariable>()->error_message(), "");
+    EXPECT_TRUE(context_.GetVariable("B")->status() == xexprengine::VariableStatus::kExprEvalSuccess);
+    EXPECT_TRUE(context_.GetContextValue("A").Cast<int>() == 10);
+    EXPECT_TRUE(context_.GetContextValue("B").Cast<int>() == 11);
 
-    // change A to 20
-    context_.SetValue("A", 20);
+    context_.SetExpression("C", "A +");
     context_.Update();
-    EXPECT_EQ(context_.GetContextValue("A").Cast<int>(), 20);
-    EXPECT_EQ(context_.GetContextValue("B").Cast<int>(), 21);
-    EXPECT_EQ(context_.GetVariable("B")->As<ExprVariable>()->cached_value().Cast<int>(), 21);
-    EXPECT_EQ(context_.GetVariable("B")->As<ExprVariable>()->error_code(), ErrorCode::Success);
-    EXPECT_EQ(context_.GetVariable("B")->As<ExprVariable>()->error_message(), "");
+    EXPECT_FALSE(context_.IsContextValueExist("C"));
+    EXPECT_TRUE(context_.GetVariable("C")->status() == xexprengine::VariableStatus::kExprParseSyntaxError);
 
-    // change B expression to A * 2
-    context_.SetExpression("B", "A * 2");
+    context_.SetExpression("C", "A +B");
     context_.Update();
-    EXPECT_EQ(context_.GetContextValue("A").Cast<int>(), 20);
-    EXPECT_EQ(context_.GetContextValue("B").Cast<int>(), 40);
-    EXPECT_EQ(context_.GetVariable("B")->As<ExprVariable>()->cached_value().Cast<int>(), 40);
+    EXPECT_TRUE(context_.IsContextValueExist("C"));
+    EXPECT_TRUE(context_.GetVariable("C")->status() == xexprengine::VariableStatus::kExprEvalSuccess);
+    EXPECT_TRUE(context_.GetContextValue("C").Cast<int>() == 21);
 
-    // Add expr variable C = B - A
-    context_.SetExpression("C", "B - A");
+    context_.SetExpression("A", "D + E");
     context_.Update();
-    EXPECT_TRUE(context_.IsVariableExist("C"));
-    EXPECT_EQ(context_.GetContextValue("C").Cast<int>(), 20);
-    EXPECT_EQ(context_.GetVariable("C")->As<ExprVariable>()->cached_value().Cast<int>(), 20);
-    EXPECT_EQ(context_.GetVariable("C")->As<ExprVariable>()->error_code(), ErrorCode::Success);
-    EXPECT_EQ(context_.GetVariable("C")->As<ExprVariable>()->error_message(), "");
-
-    // remove variable A
-    EXPECT_TRUE(context_.RemoveVariable("A"));
-    EXPECT_FALSE(context_.IsVariableExist("A"));
     EXPECT_FALSE(context_.IsContextValueExist("A"));
-    EXPECT_TRUE(context_.IsVariableExist("B"));
-    EXPECT_TRUE(context_.IsVariableExist("C"));
-    context_.Update();
+    EXPECT_FALSE(context_.IsContextValueExist("B"));
+    EXPECT_TRUE(context_.GetVariable("B")->status() == xexprengine::VariableStatus::kExprEvalNameError);
+    EXPECT_FALSE(context_.IsContextValueExist("C"));
+    EXPECT_TRUE(context_.GetVariable("C")->status() == xexprengine::VariableStatus::kExprEvalNameError);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

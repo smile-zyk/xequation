@@ -48,7 +48,7 @@ class DependencyGraph
     class Node
     {
       public:
-        Node() {}
+        Node() : dirty_flag_(true) {}
 
         ~Node() = default;
         Node(const Node &) = default;

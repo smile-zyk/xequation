@@ -2,7 +2,10 @@
 #include "dependency_graph.h"
 #include "event_stamp.h"
 #include "expr_common.h"
+#include "value.h"
 #include "variable.h"
+#include <cstdio>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <utility>
@@ -34,8 +37,15 @@ bool ExprContext::AddVariable(std::unique_ptr<Variable> var)
         graph_->AddNode(var_name);
         variable_map_.insert({var_name, std::move(var)});
         UpdateVariableDependencies(var_name);
-        graph_->InvalidateNode(var_name);
-        guard.commit();
+        try
+        {
+            guard.commit();
+        }
+        catch (xexprengine::DependencyCycleException e)
+        {
+            // todo
+            return false;
+        }
         return true;
     }
     return false;
@@ -49,7 +59,15 @@ bool ExprContext::AddVariables(std::vector<std::unique_ptr<Variable>> var_list)
     {
         res &= AddVariable(std::move(var));
     }
-    guard.commit();
+    try
+    {
+        guard.commit();
+    }
+    catch (xexprengine::DependencyCycleException e)
+    {
+        // todo
+        return false;
+    }
     return res;
 }
 
@@ -78,15 +96,21 @@ void ExprContext::SetVariable(const std::string &var_name, std::unique_ptr<Varia
         UpdateVariableDependencies(var_name);
         graph_->InvalidateNode(var_name);
     }
-    guard.commit();
+    try
+    {
+        guard.commit();
+    }
+    catch (xexprengine::DependencyCycleException e)
+    {
+        // todo
+        return;
+    }
 }
 
 bool ExprContext::RemoveVariable(const std::string &var_name)
 {
     if (IsVariableExist(var_name) == true)
     {
-        // make sure all dependent node dirty
-        graph_->InvalidateNode(var_name);
         graph_->RemoveNode(var_name);
         variable_map_.erase(var_name);
         RemoveContextValue(var_name);
@@ -103,7 +127,15 @@ bool ExprContext::RemoveVariables(const std::vector<std::string> &var_name_list)
     {
         res &= RemoveVariable(var_name);
     }
-    guard.commit();
+    try
+    {
+        guard.commit();
+    }
+    catch (xexprengine::DependencyCycleException e)
+    {
+        // todo
+        return false;
+    }
     return res;
 }
 
@@ -113,10 +145,8 @@ bool ExprContext::RenameVariable(const std::string &old_name, const std::string 
     {
         // process graph
         DependencyGraph::BatchUpdateGuard guard(graph_.get());
-        graph_->InvalidateNode(old_name);
         graph_->RemoveNode(old_name);
         graph_->AddNode(new_name);
-        graph_->InvalidateNode(new_name);
         auto old_edge_iterator = graph_->GetEdgesByFrom(old_name);
         std::vector<DependencyGraph::Edge> old_edges;
         std::vector<DependencyGraph::Edge> new_edges;
@@ -127,8 +157,15 @@ bool ExprContext::RenameVariable(const std::string &old_name, const std::string 
         }
         graph_->RemoveEdges(old_edges);
         graph_->AddEdges(new_edges);
-        guard.commit();
-
+        try
+        {
+            guard.commit();
+        }
+        catch (xexprengine::DependencyCycleException e)
+        {
+            // todo
+            return false;
+        }
         // process variable map
         std::unique_ptr<Variable> origin_var = std::move(variable_map_[old_name]);
         variable_map_.erase(old_name);
@@ -146,6 +183,11 @@ bool ExprContext::RenameVariable(const std::string &old_name, const std::string 
 
 bool ExprContext::UpdateVariableDependencies(const std::string &var_name)
 {
+    if (parse_callback_ == nullptr)
+    {
+        return false;
+    }
+
     DependencyGraph::BatchUpdateGuard guard(graph_.get());
     if (IsVariableExist(var_name) == false)
     {
@@ -167,21 +209,33 @@ bool ExprContext::UpdateVariableDependencies(const std::string &var_name)
     if (var->GetType() == Variable::Type::Expr)
     {
         ExprVariable *expr_var = var->As<ExprVariable>();
-        if (parse_callback_ == nullptr)
-        {
-            return false;
-        }
+
         ParseResult result = parse_callback_(expr_var->expression());
-        for (const std::string &dep_var : result.variables)
+        if (result.status == VariableStatus::kExprParseSuccess)
         {
-            graph_->AddEdge({var_name, dep_var});
+            for (const std::string &dep_var : result.variables)
+            {
+                graph_->AddEdge({var_name, dep_var});
+            }
         }
+        var->set_status(result.status);
+        var->set_error_message(result.parse_error_message);
     }
-    guard.commit();
+    try
+    {
+        guard.commit();
+    }
+    catch (xexprengine::DependencyCycleException e)
+    {
+        // todo
+        return false;
+    }
     return true;
 }
 
-bool ExprContext::IsVariableDependencyEntire(const std::string &var_name) const
+bool ExprContext::IsVariableDependencyEntire(
+    const std::string &var_name, std::vector<std::string> &missing_dependencies
+) const
 {
     if (IsVariableExist(var_name) == false)
     {
@@ -189,11 +243,19 @@ bool ExprContext::IsVariableDependencyEntire(const std::string &var_name) const
     }
     const DependencyGraph::Node *node = graph_->GetNode(var_name);
     DependencyGraph::EdgeContainer::RangeByFrom edges = graph_->GetEdgesByFrom(var_name);
-    if (node->dependencies().size() != std::distance(edges.first, edges.second))
+    const auto &dependencies = node->dependencies();
+    if(dependencies.size() == std::distance(edges.first, edges.second))
     {
-        return false;
+        return true;
     }
-    return true;
+    for (auto it = edges.first; it != edges.second; it++)
+    {
+        if (dependencies.count(it->to()) == 0)
+        {
+            missing_dependencies.push_back(it->to());
+        }
+    }
+    return false;
 }
 
 bool ExprContext::IsVariableExist(const std::string &var_name) const
@@ -215,85 +277,102 @@ bool ExprContext::UpdateVariable(const std::string &var_name)
         return false;
     }
 
-    // check node dirty
-    DependencyGraph::Node *node = graph_->GetNode(var_name);
-    Variable *var = GetVariable(var_name);
-
-    bool is_should_update = false;
-
-    if (node->dirty_flag() == true)
-    {
-        is_should_update = true;
-    }
-    else
-    {
-        if (var->GetType() == Variable::Type::Expr)
-        {
-            bool is_entire = IsVariableDependencyEntire(var_name);
-            if (!is_entire)
-            {
-                ExprVariable *expr_var = var->As<ExprVariable>();
-                expr_var->set_error_code(ErrorCode::UnknownVariable);
-                expr_var->set_error_message("Variable dependency is not entire");
-                return false;
-            }
-            else
-            {
-                EventStamp max_event_stamp;
-                for (const std::string &dependency : node->dependencies())
-                {
-                    const DependencyGraph::Node *dep_node = graph_->GetNode(dependency);
-                    if (dep_node && dep_node->event_stamp() > max_event_stamp)
-                    {
-                        max_event_stamp = dep_node->event_stamp();
-                    }
-                }
-                if (node->event_stamp() <= max_event_stamp)
-                {
-                    is_should_update = true;
-                }
-            }
-        }
-    }
-
-    if (!is_should_update)
+    if (evaluate_callback_ == nullptr)
     {
         return false;
     }
 
-    // node is dirty and out-of-date
-    if (var->GetType() == Variable::Type::Expr)
+    DependencyGraph::Node *node = graph_->GetNode(var_name);
+    Variable *var = GetVariable(var_name);
+
+    // check missing dependencies;
+    std::vector<std::string> missing_dependencies;
+    if (IsVariableDependencyEntire(var_name, missing_dependencies) == false)
     {
-        ExprVariable *expr_var = var->As<ExprVariable>();
-        if (evaluate_callback_ == nullptr)
+        if (IsContextValueExist(var_name) == true)
         {
-            node->set_dirty_flag(false);
-            return false;
-        }
-        EvalResult result = evaluate_callback_(expr_var->expression(), this);
-        if (result.value != expr_var->cached_value())
-        {
-            SetContextValue(var_name, result.value);
-            expr_var->set_cached_value(result.value);
-            expr_var->set_error_code(result.error_code);
-            expr_var->set_error_message(result.error_message);
+            RemoveContextValue(var_name);
             graph_->UpdateNodeEventStamp(var_name);
         }
-        else
+        var->set_status(VariableStatus::kMissingDependency);
+        std::string error_message = "missing dependencies is: ";
+        for (int i = 0; i < missing_dependencies.size(); i++)
         {
-            expr_var->set_error_code(result.error_code);
-            expr_var->set_error_message(result.error_message);
+            if (i != 0)
+                error_message += ", ";
+            error_message += missing_dependencies[i];
         }
+        var->set_error_message(error_message);
+        node->set_dirty_flag(false);
+        return false;
+    }
+
+    bool is_should_update = node->dirty_flag();
+
+    if (is_should_update == false)
+    {
+        EventStamp max_event_stamp;
+        for (const std::string &dependency : node->dependencies())
+        {
+            const DependencyGraph::Node *dep_node = graph_->GetNode(dependency);
+            if (dep_node && dep_node->event_stamp() > max_event_stamp)
+            {
+                max_event_stamp = dep_node->event_stamp();
+            }
+        }
+        if (node->event_stamp() <= max_event_stamp)
+        {
+            is_should_update = true;
+        }
+    }
+
+    if (is_should_update == false)
+    {
+        node->set_dirty_flag(false);
+        return false;
+    }
+
+    // check parse error
+    if(var->status() == VariableStatus::kExprParseSyntaxError)
+    {
+        if (IsContextValueExist(var_name) == true)
+        {
+            RemoveContextValue(var_name);
+            graph_->UpdateNodeEventStamp(var_name);
+        }
+        node->set_dirty_flag(false);
+        return false;
+    }
+
+    if (var->GetType() == Variable::Type::Expr)
+    {
+        const std::string &expression = var->As<ExprVariable>()->expression();
+        EvalResult result = evaluate_callback_(expression, this);
+        if (result.status != VariableStatus::kExprEvalSuccess)
+        {
+            if (RemoveContextValue(var_name) == true)
+            {
+                graph_->UpdateNodeEventStamp(var_name);
+            }
+        }
+        else if (result.value != GetContextValue(var_name))
+        {
+            SetContextValue(var_name, result.value);
+            graph_->UpdateNodeEventStamp(var_name);
+        }
+        var->set_status(result.status);
+        var->set_error_message(result.eval_error_message);
     }
     else if (var->GetType() == Variable::Type::Raw)
     {
-        RawVariable *raw_var = var->As<RawVariable>();
-        if (raw_var->value() != raw_var->cached_value())
+        const Value &value = var->As<RawVariable>()->value();
+        if (value != GetContextValue(var_name))
         {
-            SetContextValue(var_name, raw_var->value());
-            raw_var->set_cached_value(raw_var->value());
+            SetContextValue(var_name, value);
             graph_->UpdateNodeEventStamp(var_name);
         }
+        var->set_status(VariableStatus::kRawVar);
+        var->set_error_message("");
     }
     node->set_dirty_flag(false);
     return true;

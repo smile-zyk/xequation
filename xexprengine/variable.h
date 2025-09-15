@@ -27,27 +27,38 @@ class Variable
         return name_;
     }
 
-    void set_cached_value(const Value &value)
-    {
-        cached_value_ = value;
-    }
-
-    const Value &cached_value() const
-    {
-        return cached_value_;
-    }
-
     template <typename T, typename std::enable_if<std::is_base_of<Variable, T>::value, int>::type = 0>
     T *As() noexcept
     {
         return dynamic_cast<T *>(this);
     }
 
+    void set_error_message(const std::string &message)
+    {
+        error_message_ = message;
+    }
+
+    void set_status(VariableStatus code)
+    {
+        status_ = code;
+    }
+
+    std::string error_message() const
+    {
+        return error_message_;
+    }
+
+    VariableStatus status() const
+    {
+        return status_;
+    }
+
     virtual Type GetType() const = 0;
 
   private:
-    Value cached_value_;
     std::string name_;
+    std::string error_message_;
+    VariableStatus status_ = VariableStatus::kInit;
 };
 
 class VariableFactory
@@ -86,7 +97,6 @@ class RawVariable : public Variable
     {
     }
     friend class VariableFactory;
-
   private:
     Value value_;
 };
@@ -104,26 +114,6 @@ class ExprVariable : public Variable
         return expression_;
     }
 
-    void set_error_message(const std::string &message)
-    {
-        error_message_ = message;
-    }
-
-    void set_error_code(ErrorCode code)
-    {
-        error_code_ = code;
-    }
-
-    std::string error_message() const
-    {
-        return error_message_;
-    }
-
-    ErrorCode error_code() const
-    {
-        return error_code_;
-    }
-
     Variable::Type GetType() const override
     {
         return Variable::Type::Expr;
@@ -131,12 +121,8 @@ class ExprVariable : public Variable
 
   protected:
     ExprVariable(const std::string &name, const std::string &expression) : Variable(name), expression_(expression) {}
-
     friend class VariableFactory;
-
   private:
     std::string expression_;
-    std::string error_message_;
-    ErrorCode error_code_ = ErrorCode::Success;
 };
 } // namespace xexprengine

@@ -5,33 +5,38 @@
 
 namespace xexprengine
 {
-enum class ErrorCode
+enum class VariableStatus
 {
-    Success = 0,
-    ParseError,
-    EvaluationError,
-    TypeMismatch,
-    UnknownVariable,
-    DivisionByZero,
-    InvalidOperation,
-    Overflow,
-    Underflow,
-    OutOfMemory,
-    InternalError
+    kInit,
+    kRawVar,
+    kMissingDependency,
+    kExprParseSuccess,
+    kExprParseSyntaxError,
+    kExprEvalSuccess,
+    kExprEvalSyntaxError,
+    kExprEvalNameError,
+    kExprEvalTypeError,
+    kExprEvalZeroDivisionError,
+    kExprEvalValueError,
+    kExprEvalMemoryError,
+    kExprEvalOverflowError,
+    kExprEvalRecursionError,
+    kExprEvalIndexError,
+    kExprEvalKeyError,
+    kExprEvalAttributeError
 };
 
 struct EvalResult
 {
     Value value;
-    ErrorCode error_code = ErrorCode::Success;
-    std::string error_message;
+    VariableStatus status;
+    std::string eval_error_message;
 };
 
 struct ParseResult
 {
-    bool success = true;
-    ErrorCode error_code = ErrorCode::Success;
-    std::string error_message;
+    VariableStatus status;
+    std::string parse_error_message;
     std::unordered_set<std::string> variables;
     std::unordered_set<std::string> functions;
     std::unordered_set<std::string> modules;

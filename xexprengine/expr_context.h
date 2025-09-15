@@ -43,28 +43,16 @@ class ExprContext
     // rename variable
     bool RenameVariable(const std::string &old_name, const std::string &new_name);
 
-    // call when exprvariable update expression
-    bool UpdateVariableDependencies(const std::string &var_name);
-
-    bool IsVariableDependencyEntire(const std::string &var_name) const;
-
     // check both graph node and variable exist
     bool IsVariableExist(const std::string &var_name) const;
 
     // clear graph and variable map
     void Reset();
 
-    // update variable to context
-    bool UpdateVariable(const std::string& var_name);
-
     // use graph update all variable to context
     void Update();
 
-    // interface to set/get real context
     virtual Value GetContextValue(const std::string &var_name) const = 0;
-    virtual void SetContextValue(const std::string &var_name, const Value &value) = 0;
-    virtual bool RemoveContextValue(const std::string& var_name) = 0;
-    virtual void ClearContextValue() = 0;
     virtual bool IsContextValueExist(const std::string &var_name) const = 0;
 
     const DependencyGraph* graph()
@@ -73,6 +61,10 @@ class ExprContext
     }
 
   protected:
+    virtual void SetContextValue(const std::string &var_name, const Value &value) = 0;
+    virtual bool RemoveContextValue(const std::string& var_name) = 0;
+    virtual void ClearContextValue() = 0;
+    
     void set_evaluate_callback(std::function<EvalResult(const std::string&,const ExprContext*)> callback)
     {
         evaluate_callback_ = callback;
@@ -83,6 +75,11 @@ class ExprContext
         parse_callback_ = callback;
     }
 
+    // update variable to context
+    bool UpdateVariable(const std::string& var_name);
+    // call when exprvariable update expression
+    bool UpdateVariableDependencies(const std::string &var_name);
+    bool IsVariableDependencyEntire(const std::string &var_name, std::vector<std::string>& missing_dependencies) const;
   private:
     std::unique_ptr<DependencyGraph> graph_;
     std::unordered_map<std::string, std::unique_ptr<Variable>> variable_map_;
