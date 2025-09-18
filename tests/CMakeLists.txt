@@ -3,14 +3,10 @@ find_package(GTest REQUIRED)
 function(add_gtest_executable target_name source_file)
     set(options "")
     set(oneValueArgs "")
-    set(multiValueArgs INCLUDE_DIRS)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     add_executable(${target_name} ${source_file})
 
-    if(ARG_INCLUDE_DIRS)
-        target_include_directories(${target_name} PRIVATE ${ARG_INCLUDE_DIRS})
-    endif()
 
     target_link_libraries(${target_name} PRIVATE
         xexprengine
@@ -24,6 +20,6 @@ function(add_gtest_executable target_name source_file)
 
 endfunction()
 
-add_gtest_executable(value_test value_test.cc ${CMAKE_SOURCE_DIR}/xexprengine)
-add_gtest_executable(dependency_graph_test dependency_graph_test.cc ${CMAKE_SOURCE_DIR}/xexprengine)
-add_gtest_executable(expr_context_test expr_context_test.cc ${CMAKE_SOURCE_DIR}/xexprengine)
+add_gtest_executable(value_test value_test.cc)
+add_gtest_executable(dependency_graph_test dependency_graph_test.cc)
+add_gtest_executable(expr_context_test expr_context_test.cc)

@@ -8,11 +8,11 @@ message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
 message(STATUS "Python libraries: ${Python_LIBRARIES}")
 
 set(XEXPRENGINE_SRC
-    value.cc
-    dependency_graph.cc
-    variable.cc
-    event_stamp.cc
-    expr_context.cc
+    core/value.cc
+    core/dependency_graph.cc
+    core/variable.cc
+    core/event_stamp.cc
+    core/expr_context.cc
 )
 
 add_library(xexprengine STATIC ${XEXPRENGINE_SRC})
@@ -22,3 +22,4 @@ target_link_libraries(xexprengine PRIVATE pybind11::embed ${Python_LIBRARIES})
 target_link_libraries(xexprengine PRIVATE Boost::serialization)
 
 target_include_directories(xexprengine PRIVATE ${Boost_INCLUDE_DIRS})
+target_include_directories(xexprengine PUBLIC ./core)

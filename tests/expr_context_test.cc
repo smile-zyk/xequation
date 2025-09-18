@@ -9,6 +9,7 @@
 #include <string>
 
 #include <gtest/gtest.h>
+#include <unordered_set>
 
 using namespace xexprengine;
 
@@ -19,8 +20,8 @@ class MockExprContext : public ExprContext
     MockExprContext() : ExprContext()
     {
         set_parse_callback([this](const std::string &expr) { return this->ParseCallback(expr); });
-        set_evaluate_callback([this](const std::string &expr, const ExprContext *ctx) {
-            return this->EvaluateCallback(expr, ctx);
+        set_evaluate_callback([this](const std::string &expr) {
+            return this->EvaluateCallback(expr, this);
         });
     }
 
@@ -58,6 +59,16 @@ class MockExprContext : public ExprContext
         return context_.find(var_name) != context_.end();
     }
 
+    virtual std::unordered_set<std::string> GetContextExistVariables() const override
+    {
+        std::unordered_set<std::string> key_set;
+        for (const auto &entry : context_)
+        {
+            key_set.insert(entry.first);
+        }
+        return key_set;
+    }
+
     ParseResult ParseCallback(const std::string &expr)
     {
         ParseResult result;
@@ -83,124 +94,124 @@ class MockExprContext : public ExprContext
         return result;
     }
 
-EvalResult EvaluateCallback(const std::string &expr, const ExprContext *context)
-{
-    EvalResult result;
-    // 修改后的正则表达式，支持单个变量/数字或两个操作数的表达式
-    std::regex expr_regex(R"(^\s*(([A-Z]+|\d+)(\s*([\+\-\*\/])\s*([A-Z]+|\d+))?)\s*$)");
-    std::smatch match;
-
-    if (std::regex_match(expr, match, expr_regex))
+    EvalResult EvaluateCallback(const std::string &expr, const ExprContext *context)
     {
-        // 第一个操作数（可能是唯一的操作数）
-        std::string var1 = match[2];
-        int val1 = 0;
+        EvalResult result;
+        // 修改后的正则表达式，支持单个变量/数字或两个操作数的表达式
+        std::regex expr_regex(R"(^\s*(([A-Z]+|\d+)(\s*([\+\-\*\/])\s*([A-Z]+|\d+))?)\s*$)");
+        std::smatch match;
 
-        // 获取第一个操作数的值
-        if (std::regex_match(var1, std::regex(R"(^\d+$)")))
+        if (std::regex_match(expr, match, expr_regex))
         {
-            val1 = std::stoi(var1);
-        }
-        else if (context->IsContextValueExist(var1))
-        {
-            Value v1 = context->GetContextValue(var1);
-            if (v1.Type() == typeid(int))
+            // 第一个操作数（可能是唯一的操作数）
+            std::string var1 = match[2];
+            int val1 = 0;
+
+            // 获取第一个操作数的值
+            if (std::regex_match(var1, std::regex(R"(^\d+$)")))
             {
-                val1 = v1.Cast<int>();
+                val1 = std::stoi(var1);
+            }
+            else if (context->IsContextValueExist(var1))
+            {
+                Value v1 = context->GetContextValue(var1);
+                if (v1.Type() == typeid(int))
+                {
+                    val1 = v1.Cast<int>();
+                }
+                else
+                {
+                    result.status = xexprengine::VariableStatus::kExprEvalTypeError;
+                    result.eval_error_message = "Variable " + var1 + " is not an integer";
+                    return result;
+                }
             }
             else
             {
-                result.status = xexprengine::VariableStatus::kExprEvalTypeError;
-                result.eval_error_message = "Variable " + var1 + " is not an integer";
+                result.status = xexprengine::VariableStatus::kExprEvalNameError;
+                result.eval_error_message = "Variable " + var1 + " not found";
                 return result;
             }
-        }
-        else
-        {
-            result.status = xexprengine::VariableStatus::kExprEvalNameError;
-            result.eval_error_message = "Variable " + var1 + " not found";
-            return result;
-        }
 
-        // 如果没有运算符（即只有一个操作数），直接返回该值
-        if (!match[4].matched)
-        {
-            result.status = xexprengine::VariableStatus::kExprEvalSuccess;
-            result.value = Value(val1);
-            return result;
-        }
-
-        // 如果有运算符和第二个操作数，则进行二元运算
-        std::string op = match[4];
-        std::string var2 = match[5];
-        int val2 = 0;
-
-        // 获取第二个操作数的值
-        if (std::regex_match(var2, std::regex(R"(^\d+$)")))
-        {
-            val2 = std::stoi(var2);
-        }
-        else if (context->IsContextValueExist(var2))
-        {
-            Value v2 = context->GetContextValue(var2);
-            if (v2.Type() == typeid(int))
-            {
-                val2 = v2.Cast<int>();
-            }
-            else
-            {
-                result.status = xexprengine::VariableStatus::kExprEvalTypeError;
-                result.eval_error_message = "Variable " + var2 + " is not an integer";
-                return result;
-            }
-        }
-        else
-        {
-            result.status = xexprengine::VariableStatus::kExprEvalNameError;
-            result.eval_error_message = "Variable " + var2 + " not found";
-            return result;
-        }
-
-        // 执行运算
-        if (op == "+")
-        {
-            result.status = xexprengine::VariableStatus::kExprEvalSuccess;
-            result.value = Value(val1 + val2);
-        }
-        else if (op == "-")
-        {
-            result.status = xexprengine::VariableStatus::kExprEvalSuccess;
-            result.value = Value(val1 - val2);
-        }
-        else if (op == "*")
-        {
-            result.status = xexprengine::VariableStatus::kExprEvalSuccess;
-            result.value = Value(val1 * val2);
-        }
-        else if (op == "/")
-        {
-            if (val2 == 0)
-            {
-                result.status = xexprengine::VariableStatus::kExprEvalZeroDivisionError;
-            }
-            else
+            // 如果没有运算符（即只有一个操作数），直接返回该值
+            if (!match[4].matched)
             {
                 result.status = xexprengine::VariableStatus::kExprEvalSuccess;
-                result.value = Value(val1 / val2);
+                result.value = Value(val1);
+                return result;
+            }
+
+            // 如果有运算符和第二个操作数，则进行二元运算
+            std::string op = match[4];
+            std::string var2 = match[5];
+            int val2 = 0;
+
+            // 获取第二个操作数的值
+            if (std::regex_match(var2, std::regex(R"(^\d+$)")))
+            {
+                val2 = std::stoi(var2);
+            }
+            else if (context->IsContextValueExist(var2))
+            {
+                Value v2 = context->GetContextValue(var2);
+                if (v2.Type() == typeid(int))
+                {
+                    val2 = v2.Cast<int>();
+                }
+                else
+                {
+                    result.status = xexprengine::VariableStatus::kExprEvalTypeError;
+                    result.eval_error_message = "Variable " + var2 + " is not an integer";
+                    return result;
+                }
+            }
+            else
+            {
+                result.status = xexprengine::VariableStatus::kExprEvalNameError;
+                result.eval_error_message = "Variable " + var2 + " not found";
+                return result;
+            }
+
+            // 执行运算
+            if (op == "+")
+            {
+                result.status = xexprengine::VariableStatus::kExprEvalSuccess;
+                result.value = Value(val1 + val2);
+            }
+            else if (op == "-")
+            {
+                result.status = xexprengine::VariableStatus::kExprEvalSuccess;
+                result.value = Value(val1 - val2);
+            }
+            else if (op == "*")
+            {
+                result.status = xexprengine::VariableStatus::kExprEvalSuccess;
+                result.value = Value(val1 * val2);
+            }
+            else if (op == "/")
+            {
+                if (val2 == 0)
+                {
+                    result.status = xexprengine::VariableStatus::kExprEvalZeroDivisionError;
+                }
+                else
+                {
+                    result.status = xexprengine::VariableStatus::kExprEvalSuccess;
+                    result.value = Value(val1 / val2);
+                }
+            }
+            else
+            {
+                result.status = xexprengine::VariableStatus::kExprEvalAttributeError;
+                result.eval_error_message = "Invalid operator: " + op;
             }
         }
         else
         {
-            result.status = xexprengine::VariableStatus::kExprEvalAttributeError;
-            result.eval_error_message = "Invalid operator: " + op;
+            result.status = xexprengine::VariableStatus::kExprEvalSyntaxError;
         }
+        return result;
     }
-    else
-    {
-        result.status = xexprengine::VariableStatus::kExprEvalSyntaxError;
-    }
-    return result;
-}
 
   private:
     std::unordered_map<std::string, Value> context_;
@@ -338,14 +349,19 @@ TEST_F(ExprContextTest, SetVariable)
 
 TEST_F(ExprContextTest, CycleDetection)
 {
+    // before detection cycle
     context_.SetExpression("A", "B*C");
     context_.SetExpression("B", "D");
     context_.SetValue("C", 2);
     VerifyNode(context_.graph()->GetNode("A"), {"B", "C"}, {});
     VerifyNode(context_.graph()->GetNode("B"), {}, {"A"});
     VerifyNode(context_.graph()->GetNode("C"), {}, {"A"});
+    VerifyVar(context_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kParseSuccess, "B*C");
+    VerifyVar(context_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kParseSuccess, "D");
+    VerifyVar(context_.GetVariable("C"), Variable::Type::Raw, VariableStatus::kParseSuccess, 2);
     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
 
+    // AddVariables
     std::vector<std::unique_ptr<Variable>> var_vec;
     var_vec.push_back(VariableFactory::CreateRawVariable("E", 4));
     var_vec.push_back(VariableFactory::CreateExprVariable("D", "A"));
@@ -353,17 +369,132 @@ TEST_F(ExprContextTest, CycleDetection)
     VerifyNode(context_.graph()->GetNode("A"), {"B", "C"}, {});
     VerifyNode(context_.graph()->GetNode("B"), {}, {"A"});
     VerifyNode(context_.graph()->GetNode("C"), {}, {"A"});
+    VerifyVar(context_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kParseSuccess, "B*C");
+    VerifyVar(context_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kParseSuccess, "D");
+    VerifyVar(context_.GetVariable("C"), Variable::Type::Raw, VariableStatus::kParseSuccess, 2);
     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
+
+    context_.SetExpression("D", "E");
+    EXPECT_THROW(context_.SetExpression("E", "B"), DependencyCycleException);
+    VerifyNode(context_.graph()->GetNode("D"), {}, {"B"});
+    VerifyVar(context_.GetVariable("D"), Variable::Type::Expr, VariableStatus::kParseSuccess, "E");
+    EXPECT_FALSE(context_.IsVariableExist("E"));
 }
 
 TEST_F(ExprContextTest, RenameVariable)
 {
-    
+    context_.SetExpression("A", "B+C");
+    context_.SetExpression("B", "D+E");
+    context_.SetExpression("C", "F");
+    VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}, {"B", "E"}, {"C", "F"}}, true);
+    context_.SetValue("D", 1);
+    context_.SetValue("E", 5);
+    VerifyNode(context_.graph()->GetNode("A"), {"B", "C"}, {});
+    VerifyNode(context_.graph()->GetNode("B"), {"D", "E"}, {"A"});
+    VerifyNode(context_.graph()->GetNode("C"), {}, {"A"});
+    context_.RenameVariable("B", "F");
+    VerifyNode(context_.graph()->GetNode("A"), {"C"}, {});
+    VerifyNode(context_.graph()->GetNode("C"), {"F"}, {"A"});
+    VerifyNode(context_.graph()->GetNode("F"), {"D", "E"}, {"C"});
+    VerifyEdges({{"A", "B"}, {"A", "C"}, {"F", "D"}, {"F", "E"}, {"C", "F"}}, true);
 }
 
 TEST_F(ExprContextTest, UpdateContext)
 {
+    context_.SetExpression("A", "B+C");
+    context_.SetExpression("B", "D+E");
+    context_.SetExpression("C", "F");
+    context_.SetValue("D", 1);
+    context_.SetValue("E", 5);
+    context_.SetValue("F", 10);
+    VerifyVar(context_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kParseSuccess, "B+C");
+    VerifyVar(context_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kParseSuccess, "D+E");
+    VerifyVar(context_.GetVariable("C"), Variable::Type::Expr, VariableStatus::kParseSuccess, "F");
+    VerifyVar(context_.GetVariable("D"), Variable::Type::Raw, VariableStatus::kParseSuccess, 1);
+    VerifyVar(context_.GetVariable("E"), Variable::Type::Raw, VariableStatus::kParseSuccess, 5);
+    VerifyVar(context_.GetVariable("F"), Variable::Type::Raw, VariableStatus::kParseSuccess, 10);
+    context_.Update();
+    VerifyVar(context_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "B+C");
+    VerifyVar(context_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "D+E");
+    VerifyVar(context_.GetVariable("C"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "F");
+    VerifyVar(context_.GetVariable("D"), Variable::Type::Raw, VariableStatus::kRawVar, 1);
+    VerifyVar(context_.GetVariable("E"), Variable::Type::Raw, VariableStatus::kRawVar, 5);
+    VerifyVar(context_.GetVariable("F"), Variable::Type::Raw, VariableStatus::kRawVar, 10);
+    EXPECT_TRUE(context_.IsContextValueExist("A"));
+    EXPECT_TRUE(context_.IsContextValueExist("B"));
+    EXPECT_TRUE(context_.IsContextValueExist("C"));
+    EXPECT_TRUE(context_.IsContextValueExist("D"));
+    EXPECT_TRUE(context_.IsContextValueExist("E"));
+    EXPECT_TRUE(context_.IsContextValueExist("F"));
+    EXPECT_TRUE(context_.GetContextValue("A").Cast<int>() == 16);
+    EXPECT_TRUE(context_.GetContextValue("B").Cast<int>() == 6);
+    EXPECT_TRUE(context_.GetContextValue("C").Cast<int>() == 10);
+    EXPECT_TRUE(context_.GetContextValue("D").Cast<int>() == 1);
+    EXPECT_TRUE(context_.GetContextValue("E").Cast<int>() == 5);
+    EXPECT_TRUE(context_.GetContextValue("F").Cast<int>() == 10);
 
+    context_.RemoveVariable("D");
+    EXPECT_TRUE(context_.IsContextValueExist("D"));
+    EXPECT_FALSE(context_.IsVariableExist("D"));
+    context_.Update();
+    EXPECT_FALSE(context_.IsContextValueExist("D"));
+    VerifyVar(context_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kExprEvalNameError, "B+C");
+    VerifyVar(context_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kMissingDependency, "D+E");
+    VerifyVar(context_.GetVariable("C"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "F");
+    VerifyVar(context_.GetVariable("E"), Variable::Type::Raw, VariableStatus::kRawVar, 5);
+    VerifyVar(context_.GetVariable("F"), Variable::Type::Raw, VariableStatus::kRawVar, 10);
+    EXPECT_FALSE(context_.IsContextValueExist("A"));
+    EXPECT_FALSE(context_.IsContextValueExist("B"));
+    EXPECT_TRUE(context_.IsContextValueExist("C"));
+    EXPECT_FALSE(context_.IsContextValueExist("D"));
+    EXPECT_TRUE(context_.IsContextValueExist("E"));
+    EXPECT_TRUE(context_.IsContextValueExist("F"));
+    EXPECT_TRUE(context_.GetContextValue("C").Cast<int>() == 10);
+    EXPECT_TRUE(context_.GetContextValue("E").Cast<int>() == 5);
+    EXPECT_TRUE(context_.GetContextValue("F").Cast<int>() == 10);
+
+    context_.SetExpression("D", "E");
+    context_.SetExpression("C", "E+F");
+    context_.Update();
+    VerifyVar(context_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "B+C");
+    VerifyVar(context_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "D+E");
+    VerifyVar(context_.GetVariable("C"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "E+F");
+    VerifyVar(context_.GetVariable("D"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "E");
+    VerifyVar(context_.GetVariable("E"), Variable::Type::Raw, VariableStatus::kRawVar, 5);
+    VerifyVar(context_.GetVariable("F"), Variable::Type::Raw, VariableStatus::kRawVar, 10);
+    EXPECT_TRUE(context_.IsContextValueExist("A"));
+    EXPECT_TRUE(context_.IsContextValueExist("B"));
+    EXPECT_TRUE(context_.IsContextValueExist("C"));
+    EXPECT_TRUE(context_.IsContextValueExist("D"));
+    EXPECT_TRUE(context_.IsContextValueExist("E"));
+    EXPECT_TRUE(context_.IsContextValueExist("F"));
+    EXPECT_TRUE(context_.GetContextValue("A").Cast<int>() == 25);
+    EXPECT_TRUE(context_.GetContextValue("B").Cast<int>() == 10);
+    EXPECT_TRUE(context_.GetContextValue("C").Cast<int>() == 15);
+    EXPECT_TRUE(context_.GetContextValue("D").Cast<int>() == 5);
+    EXPECT_TRUE(context_.GetContextValue("E").Cast<int>() == 5);
+    EXPECT_TRUE(context_.GetContextValue("F").Cast<int>() == 10);
+
+    context_.SetValue("E", 6);
+    context_.Update();
+    EXPECT_TRUE(context_.GetContextValue("A").Cast<int>() == 28);
+    EXPECT_TRUE(context_.GetContextValue("B").Cast<int>() == 12);
+    EXPECT_TRUE(context_.GetContextValue("C").Cast<int>() == 16);
+    EXPECT_TRUE(context_.GetContextValue("D").Cast<int>() == 6);
+    EXPECT_TRUE(context_.GetContextValue("E").Cast<int>() == 6);
+    EXPECT_TRUE(context_.GetContextValue("F").Cast<int>() == 10);
+
+    context_.SetValue("F", 0);
+    context_.SetExpression("C", "5/F");
+    context_.Update();
+    VerifyVar(context_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kExprEvalNameError, "B+C");
+    VerifyVar(context_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "D+E");
+    VerifyVar(context_.GetVariable("C"), Variable::Type::Expr, VariableStatus::kExprEvalZeroDivisionError, "5/F");
+    VerifyVar(context_.GetVariable("D"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "E");
+    VerifyVar(context_.GetVariable("E"), Variable::Type::Raw, VariableStatus::kRawVar, 6);
+    VerifyVar(context_.GetVariable("F"), Variable::Type::Raw, VariableStatus::kRawVar, 0);
+    EXPECT_FALSE(context_.IsContextValueExist("A"));
+    EXPECT_FALSE(context_.IsContextValueExist("C"));
 }
 
 int main(int argc, char **argv)

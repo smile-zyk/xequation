@@ -4,6 +4,7 @@
 #include "expr_common.h"
 #include "value.h"
 #include "variable.h"
+#include <algorithm>
 #include <cstdio>
 #include <iterator>
 #include <memory>
@@ -113,10 +114,8 @@ bool ExprContext::SetVariable(const std::string &var_name, std::unique_ptr<Varia
 
     if (is_variable_exist)
     {
-        // remove variable to map
+        // remove old variable
         variable_map_.erase(var_name);
-        // remvoe variable to context
-        RemoveContextValue(var_name);
     }
 
     // add variable to map
@@ -135,8 +134,6 @@ bool ExprContext::RemoveVariable(const std::string &var_name) noexcept
         // update variable map
         variable_map_.erase(var_name);
 
-        // update context value
-        RemoveContextValue(var_name);
         return true;
     }
     return false;
@@ -185,10 +182,6 @@ bool ExprContext::RenameVariable(const std::string &old_name, const std::string 
         origin_var->set_name(new_name);
         variable_map_.insert({new_name, std::move(origin_var)});
 
-        // proces context
-        Value old_value = GetContextValue(old_name);
-        RemoveContextValue(old_name);
-        SetContextValue(new_name, old_value);
         return true;
     }
     return false;
@@ -344,7 +337,7 @@ bool ExprContext::UpdateVariable(const std::string &var_name)
     if (var->GetType() == Variable::Type::Expr)
     {
         const std::string &expression = var->As<ExprVariable>()->expression();
-        EvalResult result = evaluate_callback_(expression, this);
+        EvalResult result = evaluate_callback_(expression);
         if (result.status != VariableStatus::kExprEvalSuccess)
         {
             if (RemoveContextValue(var_name) == true)
@@ -444,6 +437,7 @@ bool ExprContext::AddVariableToGraph(const Variable *var)
     {
         throw;
     }
+    graph_->InvalidateNode(var_name);
     return true;
 }
 
@@ -479,5 +473,21 @@ bool ExprContext::AddVariableToMap(std::unique_ptr<Variable> var)
 
 void ExprContext::Update()
 {
-    graph_->Traversal([&](const std::string &var_name) { UpdateVariable(var_name); });
+    std::unordered_set<std::string> current_exist_var_set;
+    graph_->Traversal([&](const std::string &var_name) {
+        UpdateVariable(var_name);
+        current_exist_var_set.insert(var_name);
+    });
+
+    std::unordered_set<std::string> context_value_to_remove = GetContextExistVariables();
+
+    for(const auto& entry : current_exist_var_set)
+    {
+        context_value_to_remove.erase(entry);
+    }
+
+    for(const auto& entry : context_value_to_remove)
+    {
+        RemoveContextValue(entry);
+    }
 }

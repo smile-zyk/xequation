@@ -12,8 +12,6 @@
 
 namespace xexprengine
 {
-class ExprEngine;
-
 class ExprContext
 {
   public:
@@ -55,6 +53,7 @@ class ExprContext
 
     virtual Value GetContextValue(const std::string &var_name) const = 0;
     virtual bool IsContextValueExist(const std::string &var_name) const = 0;
+    virtual std::unordered_set<std::string> GetContextExistVariables() const = 0;
 
     const DependencyGraph *graph()
     {
@@ -76,7 +75,7 @@ class ExprContext
     bool CheckNodeDependenciesComplete(const std::string& node_name, std::vector<std::string>& missing_dependencies) const;
     bool UpdateNodeDependencies(const std::string& node_name, const std::unordered_set<std::string>& node_dependencies);
 
-    void set_evaluate_callback(std::function<EvalResult(const std::string &, const ExprContext *)> callback)
+    void set_evaluate_callback(std::function<EvalResult(const std::string &)> callback)
     {
         evaluate_callback_ = callback;
     }
@@ -85,11 +84,11 @@ class ExprContext
         parse_callback_ = callback;
     }
 
-  private:
+    private:
     std::unique_ptr<DependencyGraph> graph_;
     std::unordered_map<std::string, std::unique_ptr<Variable>> variable_map_;
     std::unordered_map<std::string, ParseResult> parse_cached_map_;
-    std::function<EvalResult(const std::string &, const ExprContext *)> evaluate_callback_;
+    std::function<EvalResult(const std::string &)> evaluate_callback_;
     std::function<ParseResult(const std::string &)> parse_callback_;
 };
 } // namespace xexprengine
