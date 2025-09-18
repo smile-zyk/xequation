@@ -97,17 +97,14 @@ class MockExprContext : public ExprContext
     EvalResult EvaluateCallback(const std::string &expr, const ExprContext *context)
     {
         EvalResult result;
-        // 修改后的正则表达式，支持单个变量/数字或两个操作数的表达式
         std::regex expr_regex(R"(^\s*(([A-Z]+|\d+)(\s*([\+\-\*\/])\s*([A-Z]+|\d+))?)\s*$)");
         std::smatch match;
 
         if (std::regex_match(expr, match, expr_regex))
         {
-            // 第一个操作数（可能是唯一的操作数）
             std::string var1 = match[2];
             int val1 = 0;
 
-            // 获取第一个操作数的值
             if (std::regex_match(var1, std::regex(R"(^\d+$)")))
             {
                 val1 = std::stoi(var1);
@@ -133,7 +130,6 @@ class MockExprContext : public ExprContext
                 return result;
             }
 
-            // 如果没有运算符（即只有一个操作数），直接返回该值
             if (!match[4].matched)
             {
                 result.status = xexprengine::VariableStatus::kExprEvalSuccess;
@@ -141,12 +137,10 @@ class MockExprContext : public ExprContext
                 return result;
             }
 
-            // 如果有运算符和第二个操作数，则进行二元运算
             std::string op = match[4];
             std::string var2 = match[5];
             int val2 = 0;
 
-            // 获取第二个操作数的值
             if (std::regex_match(var2, std::regex(R"(^\d+$)")))
             {
                 val2 = std::stoi(var2);
@@ -172,7 +166,6 @@ class MockExprContext : public ExprContext
                 return result;
             }
 
-            // 执行运算
             if (op == "+")
             {
                 result.status = xexprengine::VariableStatus::kExprEvalSuccess;

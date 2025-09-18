@@ -101,3 +101,9 @@ std::string Value::ToString() const
 {
     return value_ptr_.get()->ToString();
 }
+
+std::ostream &xexprengine::operator<<(std::ostream &os, const Value &value)
+{
+    os << value.ToString();
+    return os;
+}

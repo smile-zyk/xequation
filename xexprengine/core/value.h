@@ -177,6 +177,8 @@ class Value
 
     std::string ToString() const;
 
+    friend std::ostream &operator<<(std::ostream &os, const Value &value);
+
   private:
     std::unique_ptr<ValueBase> value_ptr_;
 };

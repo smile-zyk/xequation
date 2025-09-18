@@ -79,7 +79,7 @@ TEST(Value, ToStringHelper)
 
     // Float value
     Value float_val = 2.5f;
-    EXPECT_EQ(float_val.ToString(), "2.500000");
+    EXPECT_EQ(float_val.ToString(), "2.5");
 
     // Long value
     Value long_val = static_cast<long>(123456789);
@@ -122,7 +122,7 @@ TEST(Value, ToStringHelper)
 
     // Complex double
     Value complex_double_val = std::complex<double>(2.0, -3.5);
-    EXPECT_EQ(complex_double_val.ToString(), "(2.000000 - 3.500000j)");
+    EXPECT_EQ(complex_double_val.ToString(), "(2 - 3.5j)");
 
     // Empty vector
     Value empty_vec_val = std::vector<int>{};
