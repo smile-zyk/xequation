@@ -31,10 +31,12 @@ class PySymbolExtractor
   private:
     ParseResult Parse(const std::string& py_code);
 
-    void VisitImport(py::handle node, ParseResult& result);
-    void VisitImportFrom(py::handle node, ParseResult& result);
-    void VisitName(py::handle, ParseResult& result);
-    void VisitCall(py::handle, ParseResult& result);
+    void VisitName(py::handle node, ParseResult& result);
+    void VisitCall(py::handle node, ParseResult& result);
+    void GenericVisit(py::handle node, ParseResult& result);
+    void VisitNode(py::handle node, ParseResult& result);
+
+    void CleanupCache();
 
   private:
     std::unordered_map<std::string, ParseResult> parse_result_cache_;

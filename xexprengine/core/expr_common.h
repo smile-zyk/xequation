@@ -39,6 +39,5 @@ struct ParseResult
     std::string parse_error_message;
     std::unordered_set<std::string> variables;
     std::unordered_set<std::string> functions;
-    std::unordered_set<std::string> modules;
 };
 } // namespace xexprengine
