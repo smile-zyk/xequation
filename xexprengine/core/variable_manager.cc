@@ -1,14 +1,5 @@
 #include "variable_manager.h"
-#include "dependency_graph.h"
 #include "event_stamp.h"
-#include "expr_common.h"
-#include "value.h"
-#include "variable.h"
-#include <cstdio>
-#include <memory>
-#include <string>
-#include <unordered_set>
-#include <utility>
 
 using namespace xexprengine;
 

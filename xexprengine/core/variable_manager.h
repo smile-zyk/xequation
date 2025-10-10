@@ -1,10 +1,10 @@
 #pragma once
+#include <memory>
 
 #include "dependency_graph.h"
 #include "expr_common.h"
 #include "expr_context.h"
 #include "variable.h"
-#include <memory>
 
 namespace xexprengine
 {

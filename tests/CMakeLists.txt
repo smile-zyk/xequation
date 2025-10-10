@@ -7,6 +7,7 @@ function(add_gtest_executable target_name test_label source_file)
 
     add_executable(${target_name} ${source_file})
 
+    set_target_properties(${target_name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
     target_link_libraries(${target_name} PRIVATE
         xexprengine

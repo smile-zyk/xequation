@@ -1,10 +1,7 @@
 #pragma once
-#include <boost/container_hash/hash_fwd.hpp>
-#include <cstddef>
 #include <functional>
 #include <memory>
 #include <stack>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>

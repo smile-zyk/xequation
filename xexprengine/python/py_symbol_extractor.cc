@@ -1,6 +1,4 @@
 #include "py_symbol_extractor.h"
-#include "core/expr_common.h"
-#include <pybind11/gil.h>
 
 using namespace xexprengine;
 

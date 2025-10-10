@@ -1,11 +1,4 @@
 #include "py_expr_context.h"
-#include "py_expr_engine.h"
-#include "value_pybind_converter.h"
-#include "core/value.h"
-#include <cstddef>
-#include <pybind11/cast.h>
-#include <pybind11/gil.h>
-#include <pybind11/pytypes.h>
 
 using namespace xexprengine;
 

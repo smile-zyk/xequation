@@ -1,8 +1,5 @@
 #include "py_expr_engine.h"
-#include "core/expr_common.h"
-#include "py_common.h"
 #include "python/py_expr_context.h"
-#include <memory>
 
 using namespace xexprengine;
 
