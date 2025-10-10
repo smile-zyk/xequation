@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "core/value.h"
-#include "py_common.h"
 
 namespace xexprengine
 {
