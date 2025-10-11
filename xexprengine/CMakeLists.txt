@@ -1,4 +1,17 @@
 find_package(Python REQUIRED COMPONENTS Development Interpreter)
+
+if(Python_FOUND)
+    execute_process(
+        COMMAND ${Python_EXECUTABLE} -c "import site; print(site.getsitepackages()[0])"
+        OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    
+    message(STATUS "Python site-packages: ${PYTHON_SITE_PACKAGES}")
+endif()
+
+set(pybind11_DIR "${PYTHON_SITE_PACKAGES}/pybind11/share/cmake/pybind11")
+
 find_package(pybind11 REQUIRED)
 
 find_package(Boost 1.79.0 REQUIRED COMPONENTS serialization)
@@ -23,10 +36,8 @@ add_library(xexprengine STATIC ${XEXPRENGINE_SRC} )
 
 set_target_properties(xexprengine PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
-target_include_directories(xexprengine PUBLIC . ${Python_INCLUDE_DIRS})
 target_link_libraries(xexprengine PUBLIC pybind11::headers)
-target_link_libraries(xexprengine PRIVATE Python::Python)
-target_link_libraries(xexprengine PRIVATE Boost::serialization)
+target_link_libraries(xexprengine PUBLIC Python::Python)
+target_link_libraries(xexprengine PUBLIC Boost::serialization)
 
-target_include_directories(xexprengine PRIVATE ${Boost_INCLUDE_DIRS})
 target_include_directories(xexprengine PUBLIC ./)
