@@ -1,6 +1,10 @@
 #include "variable_manager.h"
 #include "core/expr_common.h"
+#include "core/variable.h"
 #include "event_stamp.h"
+#include <boost/filesystem.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
 
 using namespace xexprengine;
 
@@ -50,7 +54,7 @@ bool VariableManager::AddVariable(std::unique_ptr<Variable> var)
         // for invalidate graph node to trigger dependent node update
         graph_->InvalidateNode(var_name);
         // update variable_map
-        UpdateVariableParseStatus(var.get());
+        UpdateVariableStatus(var.get());
         variable_map_.insert({var_name, std::move(var)});
         return true;
     }
@@ -86,7 +90,7 @@ bool VariableManager::AddVariables(std::vector<std::unique_ptr<Variable>> var_li
         if (should_insert_variables.count(var->name()))
         {
             graph_->InvalidateNode(var_name);
-            UpdateVariableParseStatus(var.get());
+            UpdateVariableStatus(var.get());
             variable_map_.insert({var_name, std::move(var)});
         }
     }
@@ -137,20 +141,36 @@ bool VariableManager::SetVariable(const std::string &var_name, std::unique_ptr<V
 
     graph_->InvalidateNode(var_name);
     // add variable to map
-    UpdateVariableParseStatus(variable.get());
+    UpdateVariableStatus(variable.get());
     variable_map_.insert({var_name, std::move(variable)});
 
     return true;
 }
 
-void VariableManager::ImportDirectModule(const std::string& module_name)
+bool VariableManager::ImportDirectModule(const std::string& module_name)
 {
-    
+    ModuleInfo info;
+    info.name = module_name;
+    info.is_import_to_global = false;
+    info.type = ModuleType::kDirect;
+    auto module_var = VariableFactory::CreateModuleVariable(info.name, info);
+    return AddVariable(std::move(module_var));
 }
 
-void VariableManager::ImportCustomModule(const std::string& module_path)
+bool VariableManager::ImportCustomModule(const std::string& module_path)
 {
-    
+    boost::filesystem::path p(module_path);
+    if(boost::filesystem::exists(p) == false)
+    {
+        return false;
+    }
+    ModuleInfo info;
+    info.name = p.filename().string();
+    info.path = module_path;
+    info.is_import_to_global = false;
+    info.type = ModuleType::kPath;
+    auto module_var = VariableFactory::CreateModuleVariable(info.name, info);
+    return AddVariable(std::move(module_var));
 }
 
 bool VariableManager::SetModule(const ModuleInfo& module_info)
@@ -436,14 +456,9 @@ bool VariableManager::UpdateVariableInternal(const std::string &var_name)
     return eval_success;
 }
 
-void VariableManager::UpdateVariableParseStatus(Variable *var)
+void VariableManager::UpdateVariableStatus(Variable *var)
 {
-    if (var->GetType() == Variable::Type::Raw)
-    {
-        var->set_status(VariableStatus::kParseSuccess);
-        var->set_error_message("");
-    }
-    else if (var->GetType() == Variable::Type::Expr)
+    if (var->GetType() == Variable::Type::Expr)
     {
         const ExprVariable *expr_var = var->As<ExprVariable>();
         const std::string &expression = expr_var->expression();

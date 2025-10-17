@@ -12,7 +12,7 @@ endif()
 
 find_package(pybind11 REQUIRED)
 
-find_package(Boost 1.79.0 REQUIRED COMPONENTS serialization)
+find_package(Boost REQUIRED COMPONENTS multi_index filesystem)
 
 message(STATUS "Python executable: ${Python_EXECUTABLE}")
 message(STATUS "Python include dirs: ${Python_INCLUDE_DIRS}")
@@ -37,6 +37,6 @@ set_target_properties(xexprengine PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
 target_link_libraries(xexprengine PUBLIC pybind11::headers)
 target_link_libraries(xexprengine PUBLIC Python::Python)
-target_link_libraries(xexprengine PUBLIC Boost::serialization)
+target_link_libraries(xexprengine PUBLIC Boost::multi_index Boost::filesystem)
 
 target_include_directories(xexprengine PUBLIC ./)

@@ -1,12 +1,7 @@
 {
   "dependencies": [
     "gtest",
-    "boost-multi-index"
-  ],
-  "overrides": [
-    {
-      "name": "boost-multi-index",
-      "version": "1.79.0"
-    }
+    "boost-multi-index",
+    "boost-filesystem"
   ]
 }

@@ -29,8 +29,8 @@ class VariableManager
     void SetExpression(const std::string &var_name, const std::string &expression);
     bool SetVariable(const std::string &var_name, std::unique_ptr<Variable> variable);
 
-    void ImportDirectModule(const std::string& module_name);
-    void ImportCustomModule(const std::string& module_path);
+    bool ImportDirectModule(const std::string& module_name);
+    bool ImportCustomModule(const std::string& module_path);
     bool SetModule(const ModuleInfo& module_info);
 
     // remove variable
@@ -72,8 +72,8 @@ class VariableManager
     // update value to context and update statue to variable
     bool UpdateVariableInternal(const std::string &var_name);
     
-    // update parse status when add variable to variable_map
-    void UpdateVariableParseStatus(Variable* var);
+    // update status when add variable to variable_map
+    void UpdateVariableStatus(Variable* var);
 
     // for batch update
     bool AddVariableToGraph(const Variable* var);

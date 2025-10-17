@@ -33,12 +33,6 @@ TEST(PyExprEngineTest, EvalTest)
     variable_manager->SetExpression("d", "a + b * c");
     variable_manager->Update();
 
-    variable_manager->context();
-
-
-    auto py_context = dynamic_cast<const PyExprContext*>(variable_manager->context());
-    auto dict_ = py_context->dict();
-
     auto v = variable_manager->context()->Get("d");
     auto obj = v.Cast<py::object>();
     EXPECT_EQ(obj.cast<int>(), 16);
