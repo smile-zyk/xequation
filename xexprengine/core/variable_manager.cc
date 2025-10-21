@@ -175,7 +175,7 @@ bool VariableManager::ImportCustomModule(const std::string& module_path)
 
 bool VariableManager::SetModule(const ModuleInfo& module_info)
 {
-    
+    return true;
 }
 
 bool VariableManager::RemoveVariable(const std::string &var_name) noexcept

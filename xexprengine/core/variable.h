@@ -99,6 +99,7 @@ class RawVariable : public Variable
     RawVariable(const std::string &name, const Value &value)
         : Variable(name), value_(value)
     {
+      set_status(VariableStatus::kRawVar);
     }
     friend class VariableFactory;
   private:

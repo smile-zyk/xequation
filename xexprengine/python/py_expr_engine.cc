@@ -5,6 +5,9 @@
 #include "python/py_expr_context.h"
 #include <memory>
 #include <pybind11/eval.h>
+#include <pybind11/gil.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 
 using namespace xexprengine;
 
@@ -113,6 +116,31 @@ EvalResult PyExprEngine::Evaluate(const std::string &expr, const ExprContext *co
 ParseResult PyExprEngine::Parse(const std::string &expr)
 {
     return symbol_extractor_->Extract(expr, restricted_evaluator_->global_symbols());
+}
+
+ImportResult PyExprEngine::Import(ModuleInfo &info)
+{
+    ImportResult result;
+    if (info.type == ModuleType::kDirect)
+    {
+        try
+        {
+            py::gil_scoped_acquire acquire;
+            py::object module = py::module::import(info.name.c_str());
+            result.module = module;
+            result.import_error_message = "";
+            result.status = VariableStatus::kModuleImportSuccess;
+            if (info.is_expose_symbol)
+            {
+            }
+        }
+        catch (const py::error_already_set &e)
+        {
+            result.module = py::none();
+            result.import_error_message = e.what();
+            result.status = VariableStatus::kModuleImportError;
+        }
+    }
 }
 
 std::unique_ptr<ExprContext> PyExprEngine::CreateContext()

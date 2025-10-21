@@ -267,7 +267,7 @@ TEST_F(VariableManagerTest, AddAndRemoveVariable)
     // test AddVariable
     std::unique_ptr<Variable> raw_var = VariableFactory::CreateRawVariable("A", 1);
     EXPECT_TRUE(manager_.AddVariable(std::move(raw_var)));
-    VerifyVar(manager_.GetVariable("A"), Variable::Type::Raw, VariableStatus::kParseSuccess, 1);
+    VerifyVar(manager_.GetVariable("A"), Variable::Type::Raw, VariableStatus::kRawVar, 1);
     VerifyNode(manager_.graph()->GetNode("A"), {}, {});
     EXPECT_FALSE(manager_.AddVariable(VariableFactory::CreateRawVariable("A", 2)));
 
@@ -312,15 +312,15 @@ TEST_F(VariableManagerTest, SetVariable)
     EXPECT_FALSE(manager_.SetVariable("B", VariableFactory::CreateRawVariable("A", 1)));
     EXPECT_FALSE(manager_.IsVariableExist("B"));
     EXPECT_TRUE(manager_.SetVariable("A", VariableFactory::CreateRawVariable("A", 1)));
-    VerifyVar(manager_.GetVariable("A"), Variable::Type::Raw, VariableStatus::kParseSuccess, 1);
+    VerifyVar(manager_.GetVariable("A"), Variable::Type::Raw, VariableStatus::kRawVar, 1);
     VerifyNode(manager_.graph()->GetNode("A"), {}, {});
 
     // test SetValue
     manager_.SetValue("A", 3);
-    VerifyVar(manager_.GetVariable("A"), Variable::Type::Raw, VariableStatus::kParseSuccess, 3);
+    VerifyVar(manager_.GetVariable("A"), Variable::Type::Raw, VariableStatus::kRawVar, 3);
     VerifyNode(manager_.graph()->GetNode("A"), {}, {});
     manager_.SetValue("B", 5);
-    VerifyVar(manager_.GetVariable("B"), Variable::Type::Raw, VariableStatus::kParseSuccess, 5);
+    VerifyVar(manager_.GetVariable("B"), Variable::Type::Raw, VariableStatus::kRawVar, 5);
     VerifyNode(manager_.graph()->GetNode("B"), {}, {});
 
     // test SetExpression
@@ -346,7 +346,7 @@ TEST_F(VariableManagerTest, CycleDetection)
     VerifyNode(manager_.graph()->GetNode("C"), {}, {"A"});
     VerifyVar(manager_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kParseSuccess, "B*C");
     VerifyVar(manager_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kParseSuccess, "D");
-    VerifyVar(manager_.GetVariable("C"), Variable::Type::Raw, VariableStatus::kParseSuccess, 2);
+    VerifyVar(manager_.GetVariable("C"), Variable::Type::Raw, VariableStatus::kRawVar, 2);
     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
 
     // AddVariables
@@ -359,7 +359,7 @@ TEST_F(VariableManagerTest, CycleDetection)
     VerifyNode(manager_.graph()->GetNode("C"), {}, {"A"});
     VerifyVar(manager_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kParseSuccess, "B*C");
     VerifyVar(manager_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kParseSuccess, "D");
-    VerifyVar(manager_.GetVariable("C"), Variable::Type::Raw, VariableStatus::kParseSuccess, 2);
+    VerifyVar(manager_.GetVariable("C"), Variable::Type::Raw, VariableStatus::kRawVar, 2);
     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
 
     manager_.SetExpression("D", "E");
@@ -398,9 +398,9 @@ TEST_F(VariableManagerTest, UpdateContext)
     VerifyVar(manager_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kParseSuccess, "B+C");
     VerifyVar(manager_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kParseSuccess, "D+E");
     VerifyVar(manager_.GetVariable("C"), Variable::Type::Expr, VariableStatus::kParseSuccess, "F");
-    VerifyVar(manager_.GetVariable("D"), Variable::Type::Raw, VariableStatus::kParseSuccess, 1);
-    VerifyVar(manager_.GetVariable("E"), Variable::Type::Raw, VariableStatus::kParseSuccess, 5);
-    VerifyVar(manager_.GetVariable("F"), Variable::Type::Raw, VariableStatus::kParseSuccess, 10);
+    VerifyVar(manager_.GetVariable("D"), Variable::Type::Raw, VariableStatus::kRawVar, 1);
+    VerifyVar(manager_.GetVariable("E"), Variable::Type::Raw, VariableStatus::kRawVar, 5);
+    VerifyVar(manager_.GetVariable("F"), Variable::Type::Raw, VariableStatus::kRawVar, 10);
     manager_.Update();
     VerifyVar(manager_.GetVariable("A"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "B+C");
     VerifyVar(manager_.GetVariable("B"), Variable::Type::Expr, VariableStatus::kExprEvalSuccess, "D+E");

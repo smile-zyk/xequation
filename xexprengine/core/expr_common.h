@@ -1,5 +1,6 @@
 #pragma once
 #include "value.h"
+#include <map>
 #include <string>
 #include <functional>
 #include <unordered_set>
@@ -56,13 +57,14 @@ struct ModuleInfo
     std::string alias;
     std::string path;
     ModuleType type;
-    bool is_import_to_global;
-    std::vector<std::string> import_symbols;
+    bool is_expose_symbol;
+    std::vector<std::string> exposed_symbols;
 };
 
 struct ImportResult
 {
-    Value module_value;
+    Value module;
+    std::map<std::string, Value> exposed_module_symbol;
     std::string import_error_message;
     VariableStatus status;
 };
