@@ -9,7 +9,7 @@
 using namespace xexprengine;
 
 VariableManager::VariableManager(
-    std::unique_ptr<ExprContext> context, EvalCallback eval_callback, ParseCallback parse_callback, ImportCallback import_callback
+    std::unique_ptr<ExprContext> context, EvalCallback eval_callback, ParseCallback parse_callback
 ) noexcept
     : graph_(std::unique_ptr<DependencyGraph>(new DependencyGraph())),
       context_(std::move(context)),
@@ -144,37 +144,6 @@ bool VariableManager::SetVariable(const std::string &var_name, std::unique_ptr<V
     UpdateVariableStatus(variable.get());
     variable_map_.insert({var_name, std::move(variable)});
 
-    return true;
-}
-
-bool VariableManager::ImportDirectModule(const std::string& module_name)
-{
-    ModuleInfo info;
-    info.name = module_name;
-    info.is_import_to_global = false;
-    info.type = ModuleType::kDirect;
-    auto module_var = VariableFactory::CreateModuleVariable(info.name, info);
-    return AddVariable(std::move(module_var));
-}
-
-bool VariableManager::ImportCustomModule(const std::string& module_path)
-{
-    boost::filesystem::path p(module_path);
-    if(boost::filesystem::exists(p) == false)
-    {
-        return false;
-    }
-    ModuleInfo info;
-    info.name = p.filename().string();
-    info.path = module_path;
-    info.is_import_to_global = false;
-    info.type = ModuleType::kPath;
-    auto module_var = VariableFactory::CreateModuleVariable(info.name, info);
-    return AddVariable(std::move(module_var));
-}
-
-bool VariableManager::SetModule(const ModuleInfo& module_info)
-{
     return true;
 }
 

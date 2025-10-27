@@ -73,8 +73,6 @@ class VariableFactory
     static std::unique_ptr<Variable> CreateRawVariable(const std::string &name, const Value &value);
 
     static std::unique_ptr<Variable> CreateExprVariable(const std::string &name, const std::string &expression);
-
-    static std::unique_ptr<Variable> CreateModuleVariable(const std::string &name, const ModuleInfo& module_info);
 };
 
 class RawVariable : public Variable
@@ -129,30 +127,6 @@ class ExprVariable : public Variable
     friend class VariableFactory;
   private:
     std::string expression_;
-};
-
-class ModuleVariable : public Variable
-{
-  public:
-    Variable::Type GetType() const override
-    {
-        return Variable::Type::Module;
-    }
-
-    void set_info(ModuleInfo& info)
-    {
-      info_ = info;
-    }
-
-    ModuleInfo& info()
-    {
-      return info_;
-    }
-  protected:
-    ModuleVariable(const std::string &name, const ModuleInfo& info) : Variable(name), info_(info) {}
-    friend class VariableFactory;
-  private:
-    ModuleInfo info_;
 };
 
 } // namespace xexprengine

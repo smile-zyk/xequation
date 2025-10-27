@@ -12,8 +12,3 @@ std::unique_ptr<Variable> VariableFactory::CreateExprVariable(const std::string 
 {
     return std::unique_ptr<Variable>(new ExprVariable(name, expression));
 }
-
-std::unique_ptr<Variable> VariableFactory::CreateModuleVariable(const std::string &name, const ModuleInfo& module_info)
-{
-    return std::unique_ptr<Variable>(new ModuleVariable(name, module_info));
-}

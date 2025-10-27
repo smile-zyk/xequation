@@ -20,7 +20,6 @@ class ExprEngine
 
     virtual EvalResult Evaluate(const std::string &expr, const ExprContext *context = nullptr) = 0;
     virtual ParseResult Parse(const std::string &expr) = 0;
-    virtual ImportResult Import(ModuleInfo& info) = 0;
 
     virtual std::unique_ptr<VariableManager> CreateVariableManager()
     {
@@ -32,12 +31,7 @@ class ExprEngine
             return Parse(expression);
         };
 
-        ImportCallback import_callback = [this](ModuleInfo& module_info) -> ImportResult
-        {
-            return Import(module_info);
-        };
-
-        return std::unique_ptr<VariableManager>(new VariableManager(CreateContext(), evaluate_callback, parse_callback, import_callback));
+        return std::unique_ptr<VariableManager>(new VariableManager(CreateContext(), evaluate_callback, parse_callback));
     }
 
     virtual std::unique_ptr<ExprContext> CreateContext() = 0;

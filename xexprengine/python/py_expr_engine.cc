@@ -118,31 +118,6 @@ ParseResult PyExprEngine::Parse(const std::string &expr)
     return symbol_extractor_->Extract(expr, restricted_evaluator_->global_symbols());
 }
 
-ImportResult PyExprEngine::Import(ModuleInfo &info)
-{
-    ImportResult result;
-    if (info.type == ModuleType::kDirect)
-    {
-        try
-        {
-            py::gil_scoped_acquire acquire;
-            py::object module = py::module::import(info.name.c_str());
-            result.module = module;
-            result.import_error_message = "";
-            result.status = VariableStatus::kModuleImportSuccess;
-            if (info.is_expose_symbol)
-            {
-            }
-        }
-        catch (const py::error_already_set &e)
-        {
-            result.module = py::none();
-            result.import_error_message = e.what();
-            result.status = VariableStatus::kModuleImportError;
-        }
-    }
-}
-
 std::unique_ptr<ExprContext> PyExprEngine::CreateContext()
 {
     return std::unique_ptr<ExprContext>(new PyExprContext());
