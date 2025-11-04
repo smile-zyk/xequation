@@ -74,6 +74,8 @@ class EventStampGenerator
 
     EventStamp GetCurrentStamp() const;
 
+    EventStamp GetMaxStamp() const;
+
   private:
     EventStampGenerator();
     std::atomic<uint64_t> current_stamp_;

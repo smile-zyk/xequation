@@ -1,4 +1,5 @@
 #include "event_stamp.h"
+#include <cstdint>
 
 using namespace xequation;
 
@@ -18,4 +19,10 @@ EventStamp EventStampGenerator::GetNextStamp()
 EventStamp EventStampGenerator::GetCurrentStamp() const
 {
     return EventStamp(current_stamp_.load());
+}
+
+EventStamp EventStampGenerator::GetMaxStamp() const
+{
+    static EventStamp max_stamp(UINT64_MAX);
+    return max_stamp;
 }

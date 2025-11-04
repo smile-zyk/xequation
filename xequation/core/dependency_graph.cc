@@ -1,5 +1,6 @@
 #include "dependency_graph.h"
 #include <queue>
+#include <string>
 
 using namespace xequation;
 
@@ -406,6 +407,8 @@ void DependencyGraph::UpdateNodeEventStamp(const std::string &node_name)
     auto node = node_map_.at(node_name).get();
     node->set_event_stamp(EventStampGenerator::GetInstance().GetNextStamp());
 }
+
+
 
 void DependencyGraph::Traversal(std::function<void(const std::string &)> callback) const
 {
