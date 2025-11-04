@@ -2,13 +2,13 @@
 #include "expr_common.h"
 #include <string>
 
-namespace xexprengine
+namespace xequation
 {
-class Variable
+class Equation
 {
   public:
-    Variable(const std::string &name) : name_(name) {}
-    virtual ~Variable() = default;
+    Equation(const std::string &name) : name_(name) {}
+    virtual ~Equation() = default;
 
     void set_name(const std::string &name)
     {
@@ -60,6 +60,16 @@ class Variable
         return status_;
     }
 
+    void set_message(const std::string& message)
+    {
+        message_ = message;
+    }
+
+    const std::string& message()
+    {
+        return message_;
+    }
+
   private:
     std::string name_;
     std::string content_;
@@ -68,4 +78,4 @@ class Variable
     ExecStatus status_;
     std::string message_;
 };
-} // namespace xexprengine
+} // namespace xequation

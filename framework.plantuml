@@ -1,6 +1,6 @@
-@startuml xexprengine
+@startuml xequation
 
-namespace xexprengine{
+namespace xequation{
     
     class ExprValue {
     + ExprValue()

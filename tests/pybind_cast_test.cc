@@ -6,7 +6,7 @@
 #include "python/value_pybind_converter.h"
 #include "core/value.h"
 
-using namespace xexprengine;
+using namespace xequation;
 
 class PyObjectConverterTest : public ::testing::Test {
 protected:

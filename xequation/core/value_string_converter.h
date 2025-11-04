@@ -3,7 +3,7 @@
 
 #include "type_traits_ext.h"
 
-namespace xexprengine
+namespace xequation
 {
 namespace value_convert
 {
@@ -179,4 +179,4 @@ class StringConverter
 };
 
 } // namespace value_convert
-} // namespace xexprengine
+} // namespace xequation

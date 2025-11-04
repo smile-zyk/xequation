@@ -7,7 +7,7 @@
 
 #include "core/value.h"
 
-using namespace xexprengine;
+using namespace xequation;
 
 TEST(Value, ComparisonOperators)
 {

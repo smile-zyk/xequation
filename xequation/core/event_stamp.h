@@ -4,7 +4,7 @@
 #include <functional>
 #include <iostream>
 
-namespace xexprengine
+namespace xequation
 {
 class EventStamp
 {
@@ -78,21 +78,21 @@ class EventStampGenerator
     EventStampGenerator();
     std::atomic<uint64_t> current_stamp_;
 };
-} // namespace xexprengine
+} // namespace xequation
 
 namespace std
 {
 template <>
-struct hash<xexprengine::EventStamp>
+struct hash<xequation::EventStamp>
 {
-    size_t operator()(const xexprengine::EventStamp &es) const noexcept
+    size_t operator()(const xequation::EventStamp &es) const noexcept
     {
         return hash<uint64_t>()(es.get());
     }
 };
 } // namespace std
 
-inline std::ostream &operator<<(std::ostream &os, const xexprengine::EventStamp &es)
+inline std::ostream &operator<<(std::ostream &os, const xequation::EventStamp &es)
 {
     os << "EventStamp{" << es.get() << "}";
     return os;

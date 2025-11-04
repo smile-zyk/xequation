@@ -8,7 +8,7 @@
 
 #include "core/value.h"
 
-namespace xexprengine
+namespace xequation
 {
 namespace value_convert
 {
@@ -119,7 +119,7 @@ class PyObjectConverter
     }
 };
 } // namespace value_convert
-} // namespace xexprengine
+} // namespace xequation
 
 std::ostream &operator<<(std::ostream &os, const py::object &obj);
 
@@ -129,10 +129,10 @@ namespace detail
 {
 
 template <>
-struct type_caster<xexprengine::Value>
+struct type_caster<xequation::Value>
 {
   public:
-    PYBIND11_TYPE_CASTER(xexprengine::Value, _("Value"));
+    PYBIND11_TYPE_CASTER(xequation::Value, _("Value"));
 
     bool load(handle src, bool convert)
     {
@@ -162,11 +162,11 @@ struct type_caster<xexprengine::Value>
         }
     }
 
-    static handle cast(const xexprengine::Value &src, return_value_policy /* policy */, handle /* parent */)
+    static handle cast(const xequation::Value &src, return_value_policy /* policy */, handle /* parent */)
     {
         try
         {
-            for (const auto &converter : xexprengine::value_convert::PyObjectConverter::GetConverters())
+            for (const auto &converter : xequation::value_convert::PyObjectConverter::GetConverters())
             {
                 if (converter->CanConvert(src))
                 {

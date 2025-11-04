@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 
-using namespace xexprengine;
+using namespace xequation;
 
 // Test basic node operations
 TEST(DependencyGraphTest, NodeOperations) {

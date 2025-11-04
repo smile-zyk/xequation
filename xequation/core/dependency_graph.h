@@ -13,7 +13,7 @@
 
 #include "event_stamp.h"
 
-namespace xexprengine
+namespace xequation
 {
 class DependencyCycleException : public std::runtime_error
 {
@@ -200,7 +200,6 @@ class DependencyGraph
     DependencyGraph &operator=(DependencyGraph &&) = default;
 
     const Node* GetNode(const std::string& node_name) const;
-    Node* GetNode(const std::string& node_name);
     EdgeContainer::RangeByFrom GetEdgesByFrom(const std::string &from) const;
     EdgeContainer::RangeByTo GetEdgesByTo(const std::string &to) const;
     EdgeContainer::Range GetAllEdges() const;
@@ -223,8 +222,9 @@ class DependencyGraph
     bool AddEdges(const std::vector<Edge> &edge_list);
     bool RemoveEdges(const std::vector<Edge> &edge_list) noexcept;
 
-    bool InvalidateNode(const std::string &node_name);
-    bool UpdateNodeEventStamp(const std::string &node_name);
+    void InvalidateNode(const std::string &node_name);
+    void MakeNodeDirty(const std::string& node_name, bool dirty, bool make_dependent = false);
+    void UpdateNodeEventStamp(const std::string &node_name);
     void Traversal(std::function<void(const std::string &)> callback) const;
     void Reset();
 
@@ -336,4 +336,4 @@ class DependencyGraph
     bool batch_update_in_progress_{false};
     std::stack<Operation> operation_stack_;
 };
-} // namespace xexprengine
+} // namespace xequation

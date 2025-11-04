@@ -4,7 +4,7 @@
 
 #include "value.h"
 
-namespace xexprengine
+namespace xequation
 {
 class ExprContext
 {
@@ -39,4 +39,4 @@ class ExprContext
       return keys().size() == 0;
     }
 };
-} // namespace xexprengine
+} // namespace xequation

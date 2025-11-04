@@ -1,6 +1,7 @@
 #include "py_expr_context.h"
 
-using namespace xexprengine;
+using namespace xequation;
+using namespace xequation::python;
 
 Value PyExprContext::Get(const std::string &var_name) const
 {

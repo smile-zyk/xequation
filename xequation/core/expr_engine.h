@@ -2,12 +2,11 @@
 #include <memory>
 #include <string>
 
-#include "core/variable.h"
+#include "equation_manager.h"
 #include "expr_common.h"
 #include "expr_context.h"
-#include "variable_manager.h"
 
-namespace xexprengine
+namespace xequation
 {
 template <typename T>
 class ExprEngine
@@ -20,9 +19,9 @@ class ExprEngine
     }
 
     virtual ExecResult Exec(const std::string& code, const ExprContext *context = nullptr) = 0;
-    virtual Variable Parse(const std::string & code) = 0;
+    virtual ParseResult Parse(const std::string & code) = 0;
 
-    virtual std::unique_ptr<VariableManager> CreateVariableManager()
+    virtual std::unique_ptr<EquationManager> CreateVariableManager()
     {
         ExecCallback exec_callback = [this](const std::string &code, ExprContext *context) -> ExecResult {
             return Exec(code, context);
@@ -32,7 +31,7 @@ class ExprEngine
             return Parse(code);
         };
 
-        return std::unique_ptr<VariableManager>(new VariableManager(CreateContext(), exec_callback, parse_callback));
+        return std::unique_ptr<EquationManager>(new EquationManager(CreateContext(), exec_callback, parse_callback));
     }
 
     virtual std::unique_ptr<ExprContext> CreateContext() = 0;
@@ -45,4 +44,4 @@ class ExprEngine
     ExprEngine &operator=(const ExprEngine &) = delete;
     ExprEngine &operator=(ExprEngine &&) = delete;
 };
-} // namespace xexprengine
+} // namespace xequation

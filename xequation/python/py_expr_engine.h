@@ -1,12 +1,15 @@
 #pragma once
 #include "core/expr_common.h"
 #include "core/expr_engine.h"
-#include "py_symbol_extractor.h"
-#include "py_restricted_evaluator.h"
+#include "py_code_executor.h"
+#include "py_code_parser.h"
 #include <memory>
 #include <string>
 
-namespace xexprengine
+
+namespace xequation
+{
+namespace python
 {
 class PyExprEngine : public ExprEngine<PyExprEngine>
 {
@@ -16,8 +19,8 @@ class PyExprEngine : public ExprEngine<PyExprEngine>
         std::string py_home;
         std::vector<std::string> lib_path_list;
     };
-    static void SetPyEnvConfig(const PyEnvConfig& config);
-    EvalResult Evaluate(const std::string &expr, const ExprContext *context = nullptr) override;
+    static void SetPyEnvConfig(const PyEnvConfig &config);
+    ExecResult Exec(const std::string &expr, const ExprContext *context = nullptr) override;
     ParseResult Parse(const std::string &expr) override;
     std::unique_ptr<ExprContext> CreateContext() override;
 
@@ -31,8 +34,9 @@ class PyExprEngine : public ExprEngine<PyExprEngine>
 
   private:
     static PyEnvConfig config_;
-    std::unique_ptr<PySymbolExtractor> symbol_extractor_ = nullptr;
-    std::unique_ptr<PyRestrictedEvaluator> restricted_evaluator_ = nullptr;
+    std::unique_ptr<PyCodeParser> code_parser = nullptr;
+    std::unique_ptr<PyCodeExecutor> code_executor = nullptr;
     bool manage_python_context_ = false;
 };
-} // namespace xexprengine
+} // namespace python
+} // namespace xequation

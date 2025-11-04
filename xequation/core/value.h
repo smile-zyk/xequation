@@ -7,7 +7,7 @@
 
 #include "value_string_converter.h"
 
-namespace xexprengine
+namespace xequation
 {
 class ValueBase
 {
@@ -188,14 +188,14 @@ class Value
   private:
     std::unique_ptr<ValueBase> value_ptr_;
 };
-} // namespace xexprengine
+} // namespace xequation
 
 namespace std
 {
 template <>
-struct hash<xexprengine::Value>
+struct hash<xequation::Value>
 {
-    size_t operator()(const xexprengine::Value &value) const
+    size_t operator()(const xequation::Value &value) const
     {
         return std::hash<std::string>()(value.ToString());
     }

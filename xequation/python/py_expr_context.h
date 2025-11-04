@@ -2,7 +2,9 @@
 #include "core/expr_context.h"
 #include "py_common.h"
 
-namespace xexprengine
+namespace xequation
+{
+namespace python
 {
 class PyExprContext : public ExprContext
 {
@@ -45,4 +47,5 @@ class PyExprContext : public ExprContext
     PyExprContext &operator=(PyExprContext &&) noexcept = delete;
     py::dict dict_;
 };
-} // namespace xexprengine
+}
+} // namespace xequation

@@ -1,7 +1,7 @@
 #include "value.h"
 #include <memory>
 
-using namespace xexprengine;
+using namespace xequation;
 
 Value::Value(const Value &other)
 {

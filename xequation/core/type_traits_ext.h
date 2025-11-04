@@ -10,7 +10,7 @@
 #include <vector>
 
 
-namespace xexprengine
+namespace xequation
 {
 namespace value_convert
 {
@@ -87,4 +87,4 @@ template <>
 struct is_string_type<std::string> : std::true_type
 {};
 } // namespace value_convert
-} // namespace xexprengine
+} // namespace xequation

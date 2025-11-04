@@ -1,6 +1,6 @@
-@startuml xexprengine_class_diagram_corrected
+@startuml xequation_class_diagram_corrected
 
-title xexprengine Expression Engine Class Diagram (Corrected)
+title xequation Expression Engine Class Diagram (Corrected)
 
 ' 核心值类型
 class Value {

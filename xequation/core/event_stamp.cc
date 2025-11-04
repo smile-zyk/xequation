@@ -1,6 +1,6 @@
 #include "event_stamp.h"
 
-using namespace xexprengine;
+using namespace xequation;
 
 EventStampGenerator::EventStampGenerator() : current_stamp_(0) {}
 
