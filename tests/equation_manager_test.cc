@@ -221,12 +221,13 @@ class EquationManagerTest : public testing::Test
         manager_.Reset();
     }
 
-    void VerifyVar(const Equation *var, ParseType type, ExecStatus status, const std::string& name)
+    void VerifyVar(const Equation *var, ParseType type, ExecStatus status, const std::string& content, std::vector<std::string> dependencies = {})
     {
         EXPECT_TRUE(var != nullptr);
         EXPECT_TRUE(var->type() == type);
         EXPECT_TRUE(var->status() == status);
-        EXPECT_TRUE(var->name() == name);
+        EXPECT_TRUE(var->content() == content);
+        EXPECT_EQ(var->dependencies(), dependencies);
     }
 
     void VerifyNode(
@@ -266,15 +267,21 @@ class EquationManagerTest : public testing::Test
 TEST_F(EquationManagerTest, AddAndRemoveEquation)
 {
     manager_.AddEquation("A=1");
-    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kInit, "A");
+    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kInit, "A=1");
     VerifyNode(manager_.graph()->GetNode("A"), {}, {});
     EXPECT_THROW(manager_.AddEquation("A=2"), DuplicateEquationNameError);
 
     manager_.AddEquation("B=A+C");
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B");
+    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=A+C", {"A", "C"});
     VerifyNode(manager_.graph()->GetNode("B"), {"A"}, {});
     VerifyNode(manager_.graph()->GetNode("A"), {}, {"B"});
     VerifyEdges({{"B", "A"}, {"B", "C"}}, true);
+
+    manager_.EditEquation("B", "B=D");
+    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=D", {"D"});
+    VerifyNode(manager_.graph()->GetNode("B"), {}, {});
+    VerifyNode(manager_.graph()->GetNode("A"), {}, {});
+    VerifyEdges({{"B", "D"}}, true);
 
     manager_.RemoveEquation("B");
     EXPECT_EQ(manager_.GetEquation("B"), nullptr);
@@ -282,184 +289,132 @@ TEST_F(EquationManagerTest, AddAndRemoveEquation)
     VerifyNode(manager_.graph()->GetNode("A"), {}, {});
 }
 
-// TEST_F(EquationManagerTest, SetEquation)
-// {
-//     // test SetEquation
-//     EXPECT_FALSE(manager_.SetEquation("B", EquationFactory::CreateRawEquation("A", 1)));
-//     EXPECT_FALSE(manager_.IsEquationExist("B"));
-//     EXPECT_TRUE(manager_.SetEquation("A", EquationFactory::CreateRawEquation("A", 1)));
-//     VerifyVar(manager_.GetEquation("A"), Equation::Type::Raw, EquationStatus::kRawVar, 1);
-//     VerifyNode(manager_.graph()->GetNode("A"), {}, {});
+TEST_F(EquationManagerTest, CycleDetection)
+{
+    // before detection cycle
+    manager_.AddEquation("A=B*C");
+    manager_.AddEquation("B=D");
+    manager_.AddEquation("C=2");
+    VerifyNode(manager_.graph()->GetNode("A"), {"B", "C"}, {}); 
+    VerifyNode(manager_.graph()->GetNode("B"), {}, {"A"});
+    VerifyNode(manager_.graph()->GetNode("C"), {}, {"A"});
+    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kInit, "A=B*C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=D", {"D"});
+    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kInit, "C=2");
+    VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
 
-//     // test SetValue
-//     manager_.SetValue("A", 3);
-//     VerifyVar(manager_.GetEquation("A"), Equation::Type::Raw, EquationStatus::kRawVar, 3);
-//     VerifyNode(manager_.graph()->GetNode("A"), {}, {});
-//     manager_.SetValue("B", 5);
-//     VerifyVar(manager_.GetEquation("B"), Equation::Type::Raw, EquationStatus::kRawVar, 5);
-//     VerifyNode(manager_.graph()->GetNode("B"), {}, {});
+    EXPECT_THROW(manager_.AddEquation("D=A+B"), DependencyCycleException);
+    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kInit, "A=B*C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=D", {"D"});
+    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kInit, "C=2");
+    EXPECT_EQ(manager_.GetEquation("D"), nullptr);
+    VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
 
-//     // test SetExpression
-//     manager_.SetExpression("C", "A +");
-//     VerifyVar(manager_.GetEquation("C"), Equation::Type::Expr, EquationStatus::kParseSyntaxError, "A +");
-//     VerifyNode(manager_.graph()->GetNode("C"), {}, {});
-//     VerifyEdges({}, true);
-//     manager_.SetExpression("C", "A + B");
-//     VerifyVar(manager_.GetEquation("C"), Equation::Type::Expr, EquationStatus::kParseSuccess, "A + B");
-//     VerifyNode(manager_.graph()->GetNode("C"), {"A", "B"}, {});
-//     VerifyEdges({{"C", "A"}, {"C", "B"}}, true);
-//     EXPECT_THROW(manager_.SetExpression("B", "C"), DependencyCycleException);
-// }
+    manager_.AddEquation("D=E");
+    EXPECT_THROW(manager_.AddEquation("E=B"), DependencyCycleException);
+    VerifyNode(manager_.graph()->GetNode("D"), {}, {"B"});
+    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kInit, "D=E", {"E"});
+    EXPECT_FALSE(manager_.IsEquationExist("E"));
+    VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}, {"D", "E"}}, true);
+}
 
-// TEST_F(EquationManagerTest, CycleDetection)
-// {
-//     // before detection cycle
-//     manager_.SetExpression("A", "B*C");
-//     manager_.SetExpression("B", "D");
-//     manager_.SetValue("C", 2);
-//     VerifyNode(manager_.graph()->GetNode("A"), {"B", "C"}, {});
-//     VerifyNode(manager_.graph()->GetNode("B"), {}, {"A"});
-//     VerifyNode(manager_.graph()->GetNode("C"), {}, {"A"});
-//     VerifyVar(manager_.GetEquation("A"), Equation::Type::Expr, EquationStatus::kParseSuccess, "B*C");
-//     VerifyVar(manager_.GetEquation("B"), Equation::Type::Expr, EquationStatus::kParseSuccess, "D");
-//     VerifyVar(manager_.GetEquation("C"), Equation::Type::Raw, EquationStatus::kRawVar, 2);
-//     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
+TEST_F(EquationManagerTest, UpdateContext)
+{
+    manager_.AddEquation("A=B+C");
+    manager_.AddEquation("B=D+E");
+    manager_.AddEquation("C=F");
+    manager_.AddEquation("D=1");
+    manager_.AddEquation("E=5");
+    manager_.AddEquation("F=10");
+    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kInit, "A=B+C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=D+E", {"D", "E"});
+    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kInit, "C=F", {"F"});
+    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kInit, "D=1", {});
+    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kInit, "E=5", {});
+    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kInit, "F=10", {});
+    manager_.Update();
+    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kSuccess, "A=B+C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kSuccess, "B=D+E", {"D", "E"});
+    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kSuccess, "C=F", {"F"});
+    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kSuccess, "D=1", {});
+    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kSuccess, "E=5", {});
+    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kSuccess, "F=10", {});
+    EXPECT_TRUE(manager_.context()->Contains("A"));
+    EXPECT_TRUE(manager_.context()->Contains("B"));
+    EXPECT_TRUE(manager_.context()->Contains("C"));
+    EXPECT_TRUE(manager_.context()->Contains("D"));
+    EXPECT_TRUE(manager_.context()->Contains("E"));
+    EXPECT_TRUE(manager_.context()->Contains("F"));
+    EXPECT_TRUE(manager_.context()->Get("A").Cast<int>() == 16);
+    EXPECT_TRUE(manager_.context()->Get("B").Cast<int>() == 6);
+    EXPECT_TRUE(manager_.context()->Get("C").Cast<int>() == 10);
+    EXPECT_TRUE(manager_.context()->Get("D").Cast<int>() == 1);
+    EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 5);
+    EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
 
-//     // AddEquations
-//     std::vector<std::unique_ptr<Equation>> var_vec;
-//     var_vec.push_back(EquationFactory::CreateRawEquation("E", 4));
-//     var_vec.push_back(EquationFactory::CreateExprEquation("D", "A"));
-//     EXPECT_THROW(manager_.AddEquations(std::move(var_vec)), DependencyCycleException);
-//     VerifyNode(manager_.graph()->GetNode("A"), {"B", "C"}, {});
-//     VerifyNode(manager_.graph()->GetNode("B"), {}, {"A"});
-//     VerifyNode(manager_.graph()->GetNode("C"), {}, {"A"});
-//     VerifyVar(manager_.GetEquation("A"), Equation::Type::Expr, EquationStatus::kParseSuccess, "B*C");
-//     VerifyVar(manager_.GetEquation("B"), Equation::Type::Expr, EquationStatus::kParseSuccess, "D");
-//     VerifyVar(manager_.GetEquation("C"), Equation::Type::Raw, EquationStatus::kRawVar, 2);
-//     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
+    manager_.RemoveEquation("D");
+    EXPECT_FALSE(manager_.context()->Contains("D"));
+    EXPECT_FALSE(manager_.IsEquationExist("D"));
+    manager_.Update();
+    EXPECT_FALSE(manager_.context()->Contains("D"));
+    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kNameError, "A=B+C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kNameError, "B=D+E", {"D", "E"});
+    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kSuccess, "C=F", {"F"});
+    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kSuccess, "E=5", {});
+    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kSuccess, "F=10", {});
+    EXPECT_FALSE(manager_.context()->Contains("A"));
+    EXPECT_FALSE(manager_.context()->Contains("B"));
+    EXPECT_TRUE(manager_.context()->Contains("C"));
+    EXPECT_FALSE(manager_.context()->Contains("D"));
+    EXPECT_TRUE(manager_.context()->Contains("E"));
+    EXPECT_TRUE(manager_.context()->Contains("F"));
+    EXPECT_TRUE(manager_.context()->Get("C").Cast<int>() == 10);
+    EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 5);
+    EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
 
-//     manager_.SetExpression("D", "E");
-//     EXPECT_THROW(manager_.SetExpression("E", "B"), DependencyCycleException);
-//     VerifyNode(manager_.graph()->GetNode("D"), {}, {"B"});
-//     VerifyVar(manager_.GetEquation("D"), Equation::Type::Expr, EquationStatus::kParseSuccess, "E");
-//     EXPECT_FALSE(manager_.IsEquationExist("E"));
-// }
+    manager_.AddEquation("D=E");
+    manager_.EditEquation("C", "C=E+F");
+    manager_.Update();
+    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kSuccess, "A=B+C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kSuccess, "B=D+E", {"D", "E"});
+    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kSuccess, "C=E+F", {"E", "F"});
+    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kSuccess, "D=E", {"E"});
+    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kSuccess, "E=5", {});
+    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kSuccess, "F=10", {});
+    EXPECT_TRUE(manager_.context()->Contains("A"));
+    EXPECT_TRUE(manager_.context()->Contains("B"));
+    EXPECT_TRUE(manager_.context()->Contains("C"));
+    EXPECT_TRUE(manager_.context()->Contains("D"));
+    EXPECT_TRUE(manager_.context()->Contains("E"));
+    EXPECT_TRUE(manager_.context()->Contains("F"));
+    EXPECT_TRUE(manager_.context()->Get("A").Cast<int>() == 25);
+    EXPECT_TRUE(manager_.context()->Get("B").Cast<int>() == 10);
+    EXPECT_TRUE(manager_.context()->Get("C").Cast<int>() == 15);
+    EXPECT_TRUE(manager_.context()->Get("D").Cast<int>() == 5);
+    EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 5);
+    EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
 
-// TEST_F(EquationManagerTest, RenameEquation)
-// {
-//     manager_.SetExpression("A", "B+C");
-//     manager_.SetExpression("B", "D+E");
-//     manager_.SetExpression("C", "F");
-//     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}, {"B", "E"}, {"C", "F"}}, true);
-//     manager_.SetValue("D", 1);
-//     manager_.SetValue("E", 5);
-//     VerifyNode(manager_.graph()->GetNode("A"), {"B", "C"}, {});
-//     VerifyNode(manager_.graph()->GetNode("B"), {"D", "E"}, {"A"});
-//     VerifyNode(manager_.graph()->GetNode("C"), {}, {"A"});
-//     manager_.RenameEquation("B", "F");
-//     VerifyNode(manager_.graph()->GetNode("A"), {"C"}, {});
-//     VerifyNode(manager_.graph()->GetNode("C"), {"F"}, {"A"});
-//     VerifyNode(manager_.graph()->GetNode("F"), {"D", "E"}, {"C"});
-//     VerifyEdges({{"A", "B"}, {"A", "C"}, {"F", "D"}, {"F", "E"}, {"C", "F"}}, true);
-// }
+    manager_.EditEquation("E", "E=6");
+    manager_.UpdateEquation("E");
+    EXPECT_TRUE(manager_.context()->Get("A").Cast<int>() == 28);
+    EXPECT_TRUE(manager_.context()->Get("B").Cast<int>() == 12);
+    EXPECT_TRUE(manager_.context()->Get("C").Cast<int>() == 16);
+    EXPECT_TRUE(manager_.context()->Get("D").Cast<int>() == 6);
+    EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 6);
+    EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
 
-// TEST_F(EquationManagerTest, UpdateContext)
-// {
-//     manager_.SetExpression("A", "B+C");
-//     manager_.SetExpression("B", "D+E");
-//     manager_.SetExpression("C", "F");
-//     manager_.SetValue("D", 1);
-//     manager_.SetValue("E", 5);
-//     manager_.SetValue("F", 10);
-//     VerifyVar(manager_.GetEquation("A"), Equation::Type::Expr, EquationStatus::kParseSuccess, "B+C");
-//     VerifyVar(manager_.GetEquation("B"), Equation::Type::Expr, EquationStatus::kParseSuccess, "D+E");
-//     VerifyVar(manager_.GetEquation("C"), Equation::Type::Expr, EquationStatus::kParseSuccess, "F");
-//     VerifyVar(manager_.GetEquation("D"), Equation::Type::Raw, EquationStatus::kRawVar, 1);
-//     VerifyVar(manager_.GetEquation("E"), Equation::Type::Raw, EquationStatus::kRawVar, 5);
-//     VerifyVar(manager_.GetEquation("F"), Equation::Type::Raw, EquationStatus::kRawVar, 10);
-//     manager_.Update();
-//     VerifyVar(manager_.GetEquation("A"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "B+C");
-//     VerifyVar(manager_.GetEquation("B"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "D+E");
-//     VerifyVar(manager_.GetEquation("C"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "F");
-//     VerifyVar(manager_.GetEquation("D"), Equation::Type::Raw, EquationStatus::kRawVar, 1);
-//     VerifyVar(manager_.GetEquation("E"), Equation::Type::Raw, EquationStatus::kRawVar, 5);
-//     VerifyVar(manager_.GetEquation("F"), Equation::Type::Raw, EquationStatus::kRawVar, 10);
-//     EXPECT_TRUE(manager_.context()->Contains("A"));
-//     EXPECT_TRUE(manager_.context()->Contains("B"));
-//     EXPECT_TRUE(manager_.context()->Contains("C"));
-//     EXPECT_TRUE(manager_.context()->Contains("D"));
-//     EXPECT_TRUE(manager_.context()->Contains("E"));
-//     EXPECT_TRUE(manager_.context()->Contains("F"));
-//     EXPECT_TRUE(manager_.context()->Get("A").Cast<int>() == 16);
-//     EXPECT_TRUE(manager_.context()->Get("B").Cast<int>() == 6);
-//     EXPECT_TRUE(manager_.context()->Get("C").Cast<int>() == 10);
-//     EXPECT_TRUE(manager_.context()->Get("D").Cast<int>() == 1);
-//     EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 5);
-//     EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
-
-//     manager_.RemoveEquation("D");
-//     EXPECT_TRUE(manager_.context()->Contains("D"));
-//     EXPECT_FALSE(manager_.IsEquationExist("D"));
-//     manager_.Update();
-//     EXPECT_FALSE(manager_.context()->Contains("D"));
-//     VerifyVar(manager_.GetEquation("A"), Equation::Type::Expr, EquationStatus::kExprEvalNameError, "B+C");
-//     VerifyVar(manager_.GetEquation("B"), Equation::Type::Expr, EquationStatus::kMissingDependency, "D+E");
-//     VerifyVar(manager_.GetEquation("C"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "F");
-//     VerifyVar(manager_.GetEquation("E"), Equation::Type::Raw, EquationStatus::kRawVar, 5);
-//     VerifyVar(manager_.GetEquation("F"), Equation::Type::Raw, EquationStatus::kRawVar, 10);
-//     EXPECT_FALSE(manager_.context()->Contains("A"));
-//     EXPECT_FALSE(manager_.context()->Contains("B"));
-//     EXPECT_TRUE(manager_.context()->Contains("C"));
-//     EXPECT_FALSE(manager_.context()->Contains("D"));
-//     EXPECT_TRUE(manager_.context()->Contains("E"));
-//     EXPECT_TRUE(manager_.context()->Contains("F"));
-//     EXPECT_TRUE(manager_.context()->Get("C").Cast<int>() == 10);
-//     EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 5);
-//     EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
-
-//     manager_.SetExpression("D", "E");
-//     manager_.SetExpression("C", "E+F");
-//     manager_.Update();
-//     VerifyVar(manager_.GetEquation("A"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "B+C");
-//     VerifyVar(manager_.GetEquation("B"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "D+E");
-//     VerifyVar(manager_.GetEquation("C"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "E+F");
-//     VerifyVar(manager_.GetEquation("D"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "E");
-//     VerifyVar(manager_.GetEquation("E"), Equation::Type::Raw, EquationStatus::kRawVar, 5);
-//     VerifyVar(manager_.GetEquation("F"), Equation::Type::Raw, EquationStatus::kRawVar, 10);
-//     EXPECT_TRUE(manager_.context()->Contains("A"));
-//     EXPECT_TRUE(manager_.context()->Contains("B"));
-//     EXPECT_TRUE(manager_.context()->Contains("C"));
-//     EXPECT_TRUE(manager_.context()->Contains("D"));
-//     EXPECT_TRUE(manager_.context()->Contains("E"));
-//     EXPECT_TRUE(manager_.context()->Contains("F"));
-//     EXPECT_TRUE(manager_.context()->Get("A").Cast<int>() == 25);
-//     EXPECT_TRUE(manager_.context()->Get("B").Cast<int>() == 10);
-//     EXPECT_TRUE(manager_.context()->Get("C").Cast<int>() == 15);
-//     EXPECT_TRUE(manager_.context()->Get("D").Cast<int>() == 5);
-//     EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 5);
-//     EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
-
-//     manager_.SetValue("E", 6);
-//     manager_.UpdateEquation("E");
-//     EXPECT_TRUE(manager_.context()->Get("A").Cast<int>() == 28);
-//     EXPECT_TRUE(manager_.context()->Get("B").Cast<int>() == 12);
-//     EXPECT_TRUE(manager_.context()->Get("C").Cast<int>() == 16);
-//     EXPECT_TRUE(manager_.context()->Get("D").Cast<int>() == 6);
-//     EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 6);
-//     EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
-
-//     manager_.SetValue("F", 0);
-//     manager_.SetExpression("C", "5/F");
-//     manager_.Update();
-//     VerifyVar(manager_.GetEquation("A"), Equation::Type::Expr, EquationStatus::kExprEvalNameError, "B+C");
-//     VerifyVar(manager_.GetEquation("B"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "D+E");
-//     VerifyVar(manager_.GetEquation("C"), Equation::Type::Expr, EquationStatus::kExprEvalZeroDivisionError, "5/F");
-//     VerifyVar(manager_.GetEquation("D"), Equation::Type::Expr, EquationStatus::kExprEvalSuccess, "E");
-//     VerifyVar(manager_.GetEquation("E"), Equation::Type::Raw, EquationStatus::kRawVar, 6);
-//     VerifyVar(manager_.GetEquation("F"), Equation::Type::Raw, EquationStatus::kRawVar, 0);
-//     EXPECT_FALSE(manager_.context()->Contains("A"));
-//     EXPECT_FALSE(manager_.context()->Contains("C"));
-// }
+    manager_.EditEquation("F", "F=0");
+    manager_.EditEquation("C", "C=5/F");
+    manager_.Update();
+    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kNameError, "A=B+C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kSuccess, "B=D+E", {"D", "E"});
+    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kZeroDivisionError, "C=5/F", {"F"});
+    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kSuccess, "D=E", {"E"});
+    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kSuccess, "E=6", {});
+    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kSuccess, "F=0", {});
+    EXPECT_FALSE(manager_.context()->Contains("A"));
+    EXPECT_FALSE(manager_.context()->Contains("C"));
+}
 
 int main(int argc, char **argv)
 {

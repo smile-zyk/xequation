@@ -77,7 +77,7 @@ void EquationManager::EditEquation(const std::string &eqn_name, const std::strin
     eqn.set_content(res.content);
     eqn.set_dependencies(res.dependencies);
     eqn.set_status(ExecStatus::kInit);
-    equation_map_.insert({res.name, eqn});
+    equation_map_[res.name] = eqn;
 }
 
 void EquationManager::RemoveEquation(const std::string &eqn_name) noexcept

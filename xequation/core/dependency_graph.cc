@@ -393,7 +393,7 @@ void DependencyGraph::MakeNodeDirty(const std::string &node_name, bool dirty, bo
     {
         for (const auto &dependent : node->dependents_)
         {
-            MakeNodeDirty(node_name, dirty, make_dependent);
+            MakeNodeDirty(dependent, dirty, make_dependent);
         }
     }
 }

@@ -75,7 +75,7 @@ public:
     
     const char* what() const noexcept override {
         static std::string res;
-        res = exist_equation_name_ + "is exist!\nexist equation content: " + exist_equation_content_ + "\n";
+        res = exist_equation_name_ + " is exist! exist equation content: " + exist_equation_content_;
         return res.c_str();
     }
 

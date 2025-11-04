@@ -7,6 +7,7 @@ namespace xequation
 class Equation
 {
   public:
+    Equation() = default;
     Equation(const std::string &name) : name_(name) {}
     virtual ~Equation() = default;
 
