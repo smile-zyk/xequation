@@ -12,18 +12,24 @@ namespace xequation
 class EquationManager
 {
   public:
-    EquationManager(std::unique_ptr<ExprContext> context, ExecCallback eval_callback = nullptr, ParseCallback parse_callback = nullptr) noexcept;
+    EquationManager(std::unique_ptr<ExprContext> context, ExecCallback exec_callback, ParseCallback parse_callback, EvalCallback eval_callback = nullptr) noexcept;
     virtual ~EquationManager() noexcept = default;
 
     const Equation* GetEquation(const std::string &eqn_name) const;
 
-    void AddEquation(const std::string& equation_code);
-
-    void EditEquation(const std::string& eqn_name, const std::string& equation_code);
+    void SetEquation(const std::string &eqn_name, const std::string &expression);
 
     void RemoveEquation(const std::string &eqn_name) noexcept;
 
+    void AddEquationStatement(const std::string &equation_code);
+
+    void EditEquationStatement(const std::string& old_equation_code, const std::string& equation_code);
+
+    void RemoveEquationStatement(const std::string &equation_code) noexcept;
+
     bool IsEquationExist(const std::string &eqn_name) const;
+
+    std::vector<Equation> GetEquations(const std::string &equation_code) const;
 
     void Reset();
 
@@ -59,5 +65,6 @@ class EquationManager
     std::unordered_map<std::string, Equation> equation_map_;
     ExecCallback exec_callback_;
     ParseCallback parse_callback_;
+    EvalCallback eval_callback_;
 };
 } // namespace xequation

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/equation.h"
 #include "core/value.h"
 #include <exception>
 #include <functional>
@@ -10,53 +11,20 @@ namespace xequation
 {
 class ExprContext;
 
-enum class ExecStatus
-{
-    kInit,
-    kSuccess,
-    kSyntaxError,
-    kNameError,
-    kTypeError,
-    kZeroDivisionError,
-    kValueError,
-    kMemoryError,
-    kOverflowError,
-    kRecursionError,
-    kIndexError,
-    kKeyError,
-    kAttributeError,
-};
-
-enum class ParseType
-{
-    kErrorType,
-    kImport,
-    kImportFrom,
-    kFuncDecl,
-    kClassDecl,
-    kVarDecl,
-};
-
 struct ExecResult
 {
-    ExecStatus status;
+    Equation::Status status;
     std::string message;
 };
 
 struct EvalResult
 {
     Value value;
-    ExecStatus status;
+    Equation::Status status;
     std::string message;
 };
 
-struct ParseResult
-{
-    std::string name;
-    std::string content;
-    ParseType type;
-    std::vector<std::string> dependencies;
-};
+using ParseResult = std::vector<Equation>;
 
 class ParseException : public std::exception {
 private:
@@ -92,5 +60,6 @@ public:
 };
 
 typedef std::function<ExecResult(const std::string &, ExprContext *)>ExecCallback;
+typedef std::function<EvalResult(const std::string &, ExprContext *)>EvalCallback;
 typedef std::function<ParseResult(const std::string &)> ParseCallback;
 } // namespace xequation

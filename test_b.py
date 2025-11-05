@@ -1,8 +1,8 @@
 import builtins
 import ast
-from typing import Dict, List, Set, Any, Optional
+import importlib
 
-class CodeAnalyzer:
+class PyCodeParser:
     def __init__(self):
         self.valid_types = {
             'FunctionDef': 'func',
@@ -11,97 +11,160 @@ class CodeAnalyzer:
             'ImportFrom': 'import_from',
             'Assign': 'var'
         }
-        # 获取所有内置变量名
         self.builtin_names = set(dir(builtins))
     
-    def analyze(self, code):
+    def split_statements(self, code):
         try:
             tree = ast.parse(code)
+            statements = []
             
-            if len(tree.body) != 1:
-                raise SyntaxError(f"Only one statement allowed, found {len(tree.body)}")
+            for stmt in tree.body:
+                stmt_code = ast.get_source_segment(code, stmt)
+                if stmt_code:
+                    statements.append(stmt_code.strip())
+                else:
+                    statements.append(code.strip())
             
-            statement = tree.body[0]
-            statement_type = type(statement).__name__
-            
-            if statement_type not in self.valid_types:
-                valid_type_names = list(self.valid_types.keys())
-                raise ValueError(f"Unsupported statement type: {statement_type}. Supported types: {', '.join(valid_type_names)}")
-            
-            analyzer_method = getattr(self, f'_analyze_{statement_type}', None)
-            if analyzer_method:
-                return analyzer_method(statement, code)
-            else:
-                raise NotImplementedError(f"Analyzer not implemented for statement type: {statement_type}")
-                
+            return statements
         except SyntaxError as e:
-            # 重新抛出但提供更清晰的错误信息
             if "invalid syntax" in str(e):
                 raise SyntaxError(f"Invalid syntax in code: {code}") from e
             raise
     
+    def parse_single_statement(self, code):
+        try:
+            tree = ast.parse(code)
+            
+            if len(tree.body) != 1:
+                raise ValueError(f"parse_single_statement() expects exactly one statement, found {len(tree.body)}")
+            
+            statement = tree.body[0]
+            result = self._parse_statement_node(statement, code)
+            
+            if isinstance(result, list):
+                return result
+            else:
+                return [result]
+                
+        except SyntaxError as e:
+            if "invalid syntax" in str(e):
+                raise SyntaxError(f"Invalid syntax in code: {code}") from e
+            raise
+    
+    def parse_multiple_statements(self, code):
+        statements = self.split_statements(code)
+        
+        results = []
+        for stmt_code in statements:
+            stmt_results = self.parse_single_statement(stmt_code)
+            results.extend(stmt_results)
+        
+        return results
+    
+    def _parse_statement_node(self, statement, code):
+        statement_type = type(statement).__name__
+        
+        if statement_type not in self.valid_types:
+            valid_type_names = list(self.valid_types.keys())
+            raise ValueError(f"Unsupported statement type: {statement_type}. Supported types: {', '.join(valid_type_names)}")
+        
+        analyzer_method = getattr(self, f'_analyze_{statement_type}', None)
+        if analyzer_method:
+            return analyzer_method(statement, code)
+        else:
+            raise NotImplementedError(f"Analyzer not implemented for statement type: {statement_type}")
+    
     def _check_builtin_name(self, name):
-        """检查名称是否是内置变量，如果是则抛出异常"""
         if name in self.builtin_names:
             raise NameError(f"Name '{name}' is a builtin and cannot be redefined")
-    
+
+    def _check_submodule_import(self, module_name, alias):
+        if '.' in module_name and not alias.asname:
+            raise ValueError(f"Direct import of submodule '{module_name}' is not allowed. Use 'import {module_name} as alias_name' instead.")
+
     def _filter_builtin_dependencies(self, dependencies):
-        """过滤掉内置变量依赖"""
         return [dep for dep in dependencies if dep not in self.builtin_names]
     
     def _analyze_FunctionDef(self, node, code):
         self._check_builtin_name(node.name)
-        dependencies = self._extract_dependencies(node)
-        filtered_deps = self._filter_builtin_dependencies(dependencies)
         
         return {
             'name': node.name,
-            'dependencies': filtered_deps,
+            'dependencies': [],
             'type': 'func',
             'content': code.strip()
         }
     
     def _analyze_ClassDef(self, node, code):
         self._check_builtin_name(node.name)
-        dependencies = self._extract_dependencies(node)
-        filtered_deps = self._filter_builtin_dependencies(dependencies)
         
         return {
             'name': node.name,
-            'dependencies': filtered_deps,
+            'dependencies': [],
             'type': 'class',
             'content': code.strip()
         }
     
     def _analyze_Import(self, node, code):
-        if len(node.names) != 1:
-            raise ValueError("Import statement can only import one module at a time")
+        results = []
         
-        alias = node.names[0]
-        name = alias.asname if alias.asname else alias.name
-        self._check_builtin_name(name)
+        for alias in node.names:
+            self._check_submodule_import(alias.name, alias)
+            if alias.asname:
+                self._check_builtin_name(alias.asname)
+            name = alias.asname if alias.asname else alias.name
+            
+            single_import_code = f"import {alias.name}"
+            if alias.asname:
+                single_import_code += f" as {alias.asname}"
+            
+            results.append({
+                'name': name,
+                'dependencies': [],
+                'type': 'import',
+                'content': single_import_code
+            })
         
-        return {
-            'name': name,
-            'dependencies': [],
-            'type': 'import',
-            'content': code.strip()
-        }
+        return results
     
     def _analyze_ImportFrom(self, node, code):
-        if len(node.names) != 1:
-            raise ValueError("From...import statement can only import one symbol at a time")
+        results = []
         
-        alias = node.names[0]
-        name = alias.asname if alias.asname else alias.name
-        self._check_builtin_name(name)
+        if any(alias.name == '*' for alias in node.names):
+            if node.module is None:
+                raise ValueError("Invalid from import: module name is required for star imports")
+            
+            try:
+                imported_module = importlib.import_module(node.module)
+                module_symbols = [name for name in dir(imported_module) if not name.startswith('_')]
+                
+                for symbol_name in module_symbols:
+                    results.append({
+                        'name': symbol_name,
+                        'dependencies': [],
+                        'type': 'import_from',
+                        'content': f"from {node.module} import {symbol_name}"
+                    })
+            except ImportError as e:
+                raise ImportError(f"Cannot import module '{node.module}' for star import: {e}")
+        else:
+            for alias in node.names:
+                if alias.asname:
+                    self._check_builtin_name(alias.asname)
+                name = alias.asname if alias.asname else alias.name
+                
+                single_import_code = f"from {node.module} import {alias.name}"
+                if alias.asname:
+                    single_import_code += f" as {alias.asname}"
+                
+                results.append({
+                    'name': name,
+                    'dependencies': [],
+                    'type': 'import_from',
+                    'content': single_import_code
+                })
         
-        return {
-            'name': name,
-            'dependencies': [],
-            'type': 'import_from',
-            'content': code.strip()
-        }
+        return results
     
     def _analyze_Assign(self, node, code):
         if len(node.targets) != 1:
@@ -109,7 +172,7 @@ class CodeAnalyzer:
         
         target = node.targets[0]
         if not isinstance(target, ast.Name):
-            raise ValueError("Assignment target must be a simple variable name")
+            raise ValueError("Assignment target must be a variable name")
         
         self._check_builtin_name(target.id)
         dependencies = self._extract_dependencies(node.value)
@@ -123,7 +186,6 @@ class CodeAnalyzer:
         }
     
     def _extract_dependencies(self, node):
-        """从节点中提取依赖的变量名"""
         dependencies = []
         
         class DependencyVisitor(ast.NodeVisitor):
@@ -140,183 +202,95 @@ class CodeAnalyzer:
         return list(set(dependencies))
 
 
-class CodeExecutor:
-    """
-    代码执行器类，提供隔离的exec和eval功能，结合语法分析
-    """
-    
-    def __init__(self):
-        """初始化执行器，设置固定的全局命名空间"""
-        self.global_dict = {'__builtins__': builtins}
-        self.analyzer = CodeAnalyzer()
-    
-    def analyze_code(self, code_string):
-        """
-        分析代码字符串，返回分析结果
-        
-        Args:
-            code_string: 要分析的代码字符串
-            
-        Returns:
-            分析结果字典
-        """
-        return self.analyzer.analyze(code_string)
-    
-    def exec(self, code_string, local_dict=None):
-        """
-        执行给定的代码字符串（先进行语法分析）
-        
-        Args:
-            code_string: 要执行的代码字符串
-            local_dict: 局部变量字典，如果为None则创建空字典
-        """
-        if local_dict is None:
-            local_dict = {}
-        
-        # 先进行语法分析
-        analysis_result = self.analyze_code(code_string)
-        
-        # 检查依赖是否满足
-        self._check_dependencies(analysis_result['dependencies'], local_dict)
-        
-        # 执行代码
-        exec(code_string, self.global_dict, local_dict)
-        return local_dict
-    
-    def eval(self, expression, local_dict=None):
-        """
-        评估给定的表达式
-        
-        Args:
-            expression: 要评估的表达式
-            local_dict: 局部变量字典，如果为None则创建空字典
-        
-        Returns:
-            表达式的结果
-        """
-        if local_dict is None:
-            local_dict = {}
-        
-        # 评估表达式
-        return eval(expression, self.global_dict, local_dict)
-    
-    def execute_script(self, code_string, initial_locals=None):
-        """
-        执行脚本并返回所有局部变量
-        
-        Args:
-            code_string: 要执行的代码字符串
-            initial_locals: 初始局部变量字典
-        
-        Returns:
-            执行后的局部变量字典
-        """
-        local_dict = initial_locals.copy() if initial_locals else {}
-        self.exec(code_string, local_dict)
-        return local_dict
-    
-    def get_available_builtins(self):
-        """
-        获取可用的内置函数列表
-        
-        Returns:
-            内置函数名称列表
-        """
-        return list(self.global_dict['__builtins__'].__dict__.keys())
-    
-    def _check_dependencies(self, dependencies, local_dict):
-        """
-        检查依赖是否满足
-        
-        Args:
-            dependencies: 依赖的变量名列表
-            local_dict: 局部变量字典
-            
-        Raises:
-            NameError: 如果依赖不满足
-        """
-        for dep in dependencies:
-            if dep not in local_dict:
-                raise NameError(f"Undefined variable: '{dep}'")
-
-
-# 使用示例
-if __name__ == "__main__":
-    executor = CodeExecutor()
-    
-    # 测试语法分析
-    print("=== 语法分析测试 ===")
+def test_parser():
+    """测试解析器"""
+    parser = PyCodeParser()
     
     test_cases = [
-        "x = 10",
-        "def hello(): return 'world'",
-        "class MyClass: pass",
-        "import math",
-        "from os import path"
+        ("单语句代码", "def hello():\n    print('world')"),
+        ("多语句代码", """
+import os, math
+x = 10
+def test():
+    return x + 1
+"""),
+        ("导入语句", "import os, sys, json as js"),
+        ("导入语句", "from math import *"),
+        ("导入语句", "from math import pow as print"),
+        ("导入语句", "import os.path"),
+        ("from导入", "from collections import defaultdict, Counter"),
+        ("变量赋值", "file_path = os.path.join('folder', 'file.txt')"),
+        ("变量赋值", "result = calculate(a, b) + len(data)"),
+        ("变量赋值", "a=c.d + 5"),
+        ("类定义", "class MyClass(BaseClass):\n    value = 123")
     ]
     
-    for code in test_cases:
+    for test_name, code in test_cases:
+        print(f"\n{'='*60}")
+        print(f"测试: {test_name}")
+        print(f"{'='*60}")
+        print(f"输入代码:\n{code.strip()}")
+        
+        # 测试代码分割
+        print(f"\n1. 代码分割结果 (split_statements):")
         try:
-            result = executor.analyze_code(code)
-            print(f"代码: {code}")
-            print(f"分析结果: {result}\n")
+            statements = parser.split_statements(code)
+            for i, stmt in enumerate(statements):
+                print(f"   语句 {i}: {stmt}")
         except Exception as e:
-            print(f"代码: {code}")
-            print(f"错误: {type(e).__name__}: {e}\n")
-    
-    # 测试内置变量保护
-    print("=== 内置变量保护测试 ===")
-    try:
-        executor.analyze_code("print = 123")  # 尝试覆盖内置函数
-    except NameError as e:
-        print(f"正确捕获异常: {e}")
-    
-    try:
-        executor.analyze_code("len = 456")  # 尝试覆盖内置函数
-    except NameError as e:
-        print(f"正确捕获异常: {e}")
-    
-    # 测试错误情况
-    print("=== 错误情况测试 ===")
-    
-    error_cases = [
-        ("x = 10; y = 20", "多语句"),
-        ("import math, os", "多模块导入"),
-        ("from os import path, system", "多符号导入"),
-        ("x, y = 1, 2", "多变量赋值"),
-        ("123 = x", "无效赋值目标"),
-        ("invalid syntax here", "语法错误")
-    ]
-    
-    for code, description in error_cases:
+            print(f"   分割错误: {e}")
+            continue
+        
+        # 测试单个语句解析
+        print(f"\n2. 逐个解析每个语句 (parse_single_statement):")
+        for i, stmt in enumerate(statements):
+            print(f"   解析语句 {i}:")
+            try:
+                result = parser.parse_single_statement(stmt)
+                if isinstance(result, list):
+                    for j, item in enumerate(result):
+                        print(f"     [{j}] 名称: {item['name']:15} 类型: {item['type']:10} 依赖: {item['dependencies']}")
+                        print(f"      内容: {item['content'][:80]}{'...' if len(item['content']) > 80 else ''}")
+                else:
+                    print(f"     [0] 名称: {result['name']:15} 类型: {result['type']:10} 依赖: {result['dependencies']}")
+                    print(f"      内容: {item['content'][:80]}{'...' if len(item['content']) > 80 else ''}")
+            except Exception as e:
+                print(f"     解析错误: {e}")
+        
+        # 测试整体解析
+        print(f"\n3. 整体解析结果 (parse_multiple_statements):")
         try:
-            executor.analyze_code(code)
+            results = parser.parse_multiple_statements(code)
+            for i, item in enumerate(results):
+                print(f"   [{i}] 名称: {item['name']:15} 类型: {item['type']:10} 依赖: {item['dependencies']}")
+                print(f"      内容: {item['content'][:80]}{'...' if len(item['content']) > 80 else ''}")
         except Exception as e:
-            print(f"{description}: {type(e).__name__}: {e}")
+            print(f"   解析错误: {e}")
     
-    # 测试依赖检查
-    print("\n=== 依赖检查测试 ===")
-    locals_dict = {}
+    # 测试单语句解析的严格性
+    print(f"\n{'='*60}")
+    print("测试单语句解析的严格性")
+    print(f"{'='*60}")
     
-    # 先定义变量
-    executor.exec("a = 5", locals_dict)
-    print(f"定义变量后: {locals_dict}")
+    multi_stmt_code = "import os\nimport sys"
+    print(f"测试代码: {multi_stmt_code}")
     
-    # 使用已定义的变量（应该成功）
+    print("\n1. 使用 parse_single_statement (应该报错):")
     try:
-        executor.exec("b = a + 10", locals_dict)
-        print(f"使用依赖成功: {locals_dict}")
+        result = parser.parse_single_statement(multi_stmt_code)
+        print(f"   结果: {result}")
     except Exception as e:
-        print(f"错误: {type(e).__name__}: {e}")
+        print(f"   正确报错: {e}")
     
-    # 使用未定义的变量（应该失败）
+    print("\n2. 使用 parse_multiple_statements (应该成功):")
     try:
-        executor.exec("c = undefined_var + 10", locals_dict)
-    except NameError as e:
-        print(f"正确捕获依赖错误: {e}")
-    
-    # 测试内置变量在依赖中过滤
-    print("=== 内置变量依赖过滤测试 ===")
-    analysis = executor.analyze_code("result = len([1,2,3]) + max([4,5,6])")
-    print(f"分析结果: {analysis}")
-    print("注意: len和max等内置函数不会出现在dependencies中")
+        results = parser.parse_multiple_statements(multi_stmt_code)
+        for i, item in enumerate(results):
+            print(f"   [{i}] 名称: {item['name']:15} 类型: {item['type']:10}")
+            print(f"      内容: {item['content'][:80]}{'...' if len(item['content']) > 80 else ''}")
+    except Exception as e:
+        print(f"   错误: {e}")
+
+
+if __name__ == "__main__":
+    test_parser()

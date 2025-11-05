@@ -1,10 +1,10 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
 #include "py_common.h"
 #include "core/expr_common.h"
+#include "core/equation.h"
 
 namespace xequation
 {
@@ -28,7 +28,7 @@ class PyCodeExecutor {
   py::object executor_;
   
   // Maps Python exception types to ExecStatus.
-  ExecStatus MapPythonExceptionToStatus(const py::error_already_set& e);
+  Equation::Status MapPythonExceptionToStatus(const py::error_already_set& e);
 };
 } // namespace python
 } // namespace xequation

@@ -5,16 +5,19 @@
 #include "expr_common.h"
 #include <iterator>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 using namespace xequation;
 
 EquationManager::EquationManager(
-    std::unique_ptr<ExprContext> context, ExecCallback eval_callback, ParseCallback parse_callback
+    std::unique_ptr<ExprContext> context, ExecCallback eval_callback, ParseCallback parse_callback, EvalCallback exec_callback
 ) noexcept
     : graph_(std::unique_ptr<DependencyGraph>(new DependencyGraph())),
       context_(std::move(context)),
       exec_callback_(eval_callback),
-      parse_callback_(parse_callback)
+      parse_callback_(parse_callback),
+      eval_callback_(exec_callback)
 {
 }
 
@@ -27,62 +30,16 @@ const Equation *EquationManager::GetEquation(const std::string &eqn_name) const
     return nullptr;
 }
 
-void EquationManager::AddEquation(const std::string &equation_code)
+void EquationManager::SetEquation(const std::string &eqn_name, const std::string &expression)
 {
-    ParseResult res = parse_callback_(equation_code);
-
-    if (IsEquationExist(res.name))
+    if (IsEquationExist(eqn_name))
     {
-        throw DuplicateEquationNameError(res.name, GetEquation(res.name)->content());
+        EditEquationStatement(GetEquation(eqn_name)->content(), eqn_name + "=" + expression);
     }
-
-    AddNodeToGraph(res.name, res.dependencies);
-    graph_->InvalidateNode(res.name);
-    Equation eqn(res.name);
-    eqn.set_type(res.type);
-    eqn.set_content(res.content);
-    eqn.set_dependencies(res.dependencies);
-    eqn.set_status(ExecStatus::kInit);
-    equation_map_.insert({res.name, eqn});
-}
-
-void EquationManager::EditEquation(const std::string &eqn_name, const std::string &equation_code)
-{
-    if(IsEquationExist(eqn_name) == false)
+    else
     {
-        return;
+        AddEquationStatement(eqn_name + "=" + expression);
     }
-
-    ParseResult res = parse_callback_(equation_code);
-
-    if (res.name != eqn_name && IsEquationExist(res.name))
-    {
-        throw DuplicateEquationNameError(res.name, GetEquation(res.name)->content());
-    }
-
-    DependencyGraph::BatchUpdateGuard guard(graph_.get());
-    RemoveNodeInGraph(eqn_name);
-    AddNodeToGraph(res.name, res.dependencies);
-    guard.commit();
-
-    if (res.name != eqn_name)
-    {
-        auto range = graph_->GetEdgesByTo(eqn_name);
-        for (auto it = range.first; it != range.second; it++)
-        {
-            graph_->InvalidateNode(it->from());
-        }
-        equation_map_.erase(eqn_name);
-        context_->Remove(eqn_name);
-    }
-
-    graph_->InvalidateNode(res.name);
-    Equation eqn(res.name);
-    eqn.set_type(res.type);
-    eqn.set_content(res.content);
-    eqn.set_dependencies(res.dependencies);
-    eqn.set_status(ExecStatus::kInit);
-    equation_map_[res.name] = eqn;
 }
 
 void EquationManager::RemoveEquation(const std::string &eqn_name) noexcept
@@ -97,6 +54,119 @@ void EquationManager::RemoveEquation(const std::string &eqn_name) noexcept
     context_->Remove(eqn_name);
 }
 
+void EquationManager::AddEquationStatement(const std::string &equation_code)
+{
+    ParseResult res = parse_callback_(equation_code);
+
+    for (const auto &eqn : res)
+    {
+        if (IsEquationExist(eqn.name()))
+        {
+            throw DuplicateEquationNameError(eqn.name(), GetEquation(eqn.name())->content());
+        }
+    }
+
+    DependencyGraph::BatchUpdateGuard guard(graph_.get());
+    for (const auto &eqn : res)
+    {
+        AddNodeToGraph(eqn.name(), eqn.dependencies());
+    }
+    guard.commit();
+    for (const auto &eqn : res)
+    {
+        graph_->InvalidateNode(eqn.name());
+        equation_map_.insert({eqn.name(), eqn});
+    }
+}
+
+void EquationManager::EditEquationStatement(const std::string &old_equation_code, const std::string &equation_code)
+{
+    ParseResult old_res = parse_callback_(old_equation_code);
+    ParseResult new_res = parse_callback_(equation_code);
+
+    std::unordered_set<std::string> old_name_map;
+    for (const auto &eqn : old_res)
+    {
+        old_name_map.insert(eqn.name());
+    }
+
+    std::unordered_set<std::string> new_name_map;
+    for (const auto &eqn : new_res)
+    {
+        new_name_map.insert(eqn.name());
+    }
+
+    for (const auto &new_eqn_name : new_name_map)
+    {
+        if (old_name_map.find(new_eqn_name) == old_name_map.end() && IsEquationExist(new_eqn_name))
+        {
+            throw DuplicateEquationNameError(new_eqn_name, GetEquation(new_eqn_name)->content());
+        }
+    }
+
+    std::unordered_set<Equation> old_set(old_res.begin(), old_res.end());
+    std::unordered_set<Equation> new_set(new_res.begin(), new_res.end());
+
+    std::vector<Equation> to_remove;
+    std::vector<Equation> to_add;
+
+    DependencyGraph::BatchUpdateGuard guard(graph_.get());
+    for (const auto &eqn : old_set)
+    {
+        if (new_set.find(eqn) == new_set.end())
+        {
+            RemoveNodeInGraph(eqn.name());
+            to_remove.push_back(eqn);
+        }
+    }
+
+    for (const auto &eqn : new_set)
+    {
+        if (old_set.find(eqn) == old_set.end())
+        {
+            AddNodeToGraph(eqn.name(), eqn.dependencies());
+            to_add.push_back(eqn);
+        }
+    }
+    guard.commit();
+
+    for (const auto &eqn : to_remove)
+    {
+        equation_map_.erase(eqn.name());
+        context_->Remove(eqn.name());
+        if (new_name_map.find(eqn.name()) == new_name_map.end())
+        {
+            auto range = graph_->GetEdgesByTo(eqn.name());
+            for (auto it = range.first; it != range.second; it++)
+            {
+                graph_->InvalidateNode(it->from());
+            }
+        }
+    }
+    
+    for (const auto &eqn : to_add)
+    {
+        graph_->InvalidateNode(eqn.name());
+        equation_map_.insert({eqn.name(), eqn});
+    }
+}
+
+void EquationManager::RemoveEquationStatement(const std::string &equation_code) noexcept
+{
+    ParseResult res = parse_callback_(equation_code);
+
+    for (const auto &eqn : res)
+    {
+        RemoveEquation(eqn.name());
+    }
+}
+
+std::vector<Equation> EquationManager::GetEquations(const std::string &equation_code) const
+{
+    auto parse_result = parse_callback_(equation_code);
+    return parse_result;
+}
+
 bool EquationManager::IsEquationExist(const std::string &var_name) const
 {
     return graph_->IsNodeExist(var_name) && equation_map_.count(var_name);
@@ -107,25 +177,6 @@ void EquationManager::Reset()
     graph_->Reset();
     equation_map_.clear();
     context_->Clear();
-}
-
-std::string BuildMissingDepsMessage(const std::vector<std::string> &missing_deps)
-{
-    if (missing_deps.empty())
-    {
-        return "Missing dependencies: unknown";
-    }
-
-    std::string message = "Missing dependencies: ";
-    for (size_t i = 0; i < missing_deps.size(); ++i)
-    {
-        if (i > 0)
-        {
-            message += ", ";
-        }
-        message += missing_deps[i];
-    }
-    return message;
 }
 
 void EquationManager::UpdateEquationInternal(const std::string &eqn_name)
@@ -169,7 +220,7 @@ void EquationManager::UpdateEquationInternal(const std::string &eqn_name)
     const std::string &eqn_code = eqn.content();
     Value origin_value = context_->Get(eqn_name);
     ExecResult result = exec_callback_(eqn_code, context_.get());
-    eval_success = (result.status == ExecStatus::kSuccess);
+    eval_success = (result.status == Equation::Status::kSuccess);
     if (eval_success)
     {
         Value new_value = context_->Get(eqn_name);

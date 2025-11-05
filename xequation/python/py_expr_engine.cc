@@ -38,7 +38,13 @@ ExecResult PyExprEngine::Exec(const std::string &code, const ExprContext *contex
 
 ParseResult PyExprEngine::Parse(const std::string &code)
 {
-    return code_parser->Parse(code);
+    return code_parser->ParseMultipleStatements(code);
+}
+
+EvalResult PyExprEngine::Eval(const std::string &code, const ExprContext *context)
+{
+    const PyExprContext* py_context = dynamic_cast<const PyExprContext*>(context);
+    return code_executor->Eval(code, py_context->dict());
 }
 
 std::unique_ptr<ExprContext> PyExprEngine::CreateContext()

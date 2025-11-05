@@ -34,7 +34,7 @@ PyCodeExecutor::~PyCodeExecutor()
     executor_.release();
 }
 
-ExecStatus PyCodeExecutor::MapPythonExceptionToStatus(const py::error_already_set &e)
+Equation::Status PyCodeExecutor::MapPythonExceptionToStatus(const py::error_already_set &e)
 {
     // Extract Python exception type
     py::object type = e.type();
@@ -43,51 +43,51 @@ ExecStatus PyCodeExecutor::MapPythonExceptionToStatus(const py::error_already_se
 
     if (type_name_str == "SyntaxError")
     {
-        return ExecStatus::kSyntaxError;
+        return Equation::Status::kSyntaxError;
     }
     else if (type_name_str == "NameError")
     {
-        return ExecStatus::kNameError;
+        return Equation::Status::kNameError;
     }
     else if (type_name_str == "TypeError")
     {
-        return ExecStatus::kTypeError;
+        return Equation::Status::kTypeError;
     }
     else if (type_name_str == "ZeroDivisionError")
     {
-        return ExecStatus::kZeroDivisionError;
+        return Equation::Status::kZeroDivisionError;
     }
     else if (type_name_str == "ValueError")
     {
-        return ExecStatus::kValueError;
+        return Equation::Status::kValueError;
     }
     else if (type_name_str == "MemoryError")
     {
-        return ExecStatus::kMemoryError;
+        return Equation::Status::kMemoryError;
     }
     else if (type_name_str == "OverflowError")
     {
-        return ExecStatus::kOverflowError;
+        return Equation::Status::kOverflowError;
     }
     else if (type_name_str == "RecursionError")
     {
-        return ExecStatus::kRecursionError;
+        return Equation::Status::kRecursionError;
     }
     else if (type_name_str == "IndexError")
     {
-        return ExecStatus::kIndexError;
+        return Equation::Status::kIndexError;
     }
     else if (type_name_str == "KeyError")
     {
-        return ExecStatus::kKeyError;
+        return Equation::Status::kKeyError;
     }
     else if (type_name_str == "AttributeError")
     {
-        return ExecStatus::kAttributeError;
+        return Equation::Status::kAttributeError;
     }
 
     // Default to ValueError for unknown exception types
-    return ExecStatus::kValueError;
+    return Equation::Status::kValueError;
 }
 
 ExecResult PyCodeExecutor::Exec(const std::string &code_string, const py::dict &local_dict)
@@ -96,12 +96,12 @@ ExecResult PyCodeExecutor::Exec(const std::string &code_string, const py::dict &
     try
     {
         executor_.attr("exec")(code_string, local_dict);
-        res.status = ExecStatus::kSuccess;
+        res.status = Equation::Status::kSuccess;
         res.message = "";
     }
     catch (const py::error_already_set &e)
     {
-        ExecStatus status = MapPythonExceptionToStatus(e);
+        Equation::Status status = MapPythonExceptionToStatus(e);
         res.status = status;
         res.message = e.what();
     }
@@ -115,12 +115,12 @@ EvalResult PyCodeExecutor::Eval(const std::string &expression, const py::dict &l
     {
         py::object result = executor_.attr("eval")(expression, local_dict);
         res.value = result;
-        res.status = ExecStatus::kSuccess;
+        res.status = Equation::Status::kSuccess;
         res.message = "";
     }
     catch (const py::error_already_set &e)
     {
-        ExecStatus status = MapPythonExceptionToStatus(e);
+        Equation::Status status = MapPythonExceptionToStatus(e);
         res.value = Value::Null();
         res.status = status;
         res.message = e.what();

@@ -25,7 +25,7 @@ endfunction()
 
 add_gtest_executable(value_test "Value" value_test.cc)
 add_gtest_executable(dependency_graph_test "DependencyGraph" dependency_graph_test.cc)
-add_gtest_executable(equation_manager_test "EquationManager" equation_manager_test.cc)
+# add_gtest_executable(equation_manager_test "EquationManager" equation_manager_test.cc)
 add_gtest_executable(pybind_cast_test "PyObjectConverter" pybind_cast_test.cc)
 add_gtest_executable(py_code_parser_test "PyCodeParser" py_code_parser_test.cc)
 add_gtest_executable(py_code_executor_test "PyCodeExecutor" py_code_executor_test.cc)

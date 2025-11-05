@@ -22,6 +22,7 @@ class PyExprEngine : public ExprEngine<PyExprEngine>
     static void SetPyEnvConfig(const PyEnvConfig &config);
     ExecResult Exec(const std::string &expr, const ExprContext *context = nullptr) override;
     ParseResult Parse(const std::string &expr) override;
+    EvalResult Eval(const std::string &expr, const ExprContext *context = nullptr) override;
     std::unique_ptr<ExprContext> CreateContext() override;
 
   private:
