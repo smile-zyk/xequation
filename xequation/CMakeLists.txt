@@ -28,19 +28,20 @@ set(xequation_SRC
     core/event_stamp.cc
     core/equation_manager.h
     core/equation_manager.cc
-    core/expr_engine.h
-    core/expr_common.h
-    python/py_base.h
-    python/py_code_executor.h
-    python/py_code_executor.cc
-    python/py_code_parser.h
-    python/py_code_parser.cc
+    core/equation_engine.h
+    core/equation_context.h
+    core/equation_common.h
+    python/python_base.h
+    python/python_executor.h
+    python/python_executor.cc
+    python/python_parser.h
+    python/python_parser.cc
     python/value_pybind_converter.h
     python/value_pybind_converter.cc
-    python/py_expr_context.h
-    python/py_expr_context.cc
-    python/py_expr_engine.h
-    python/py_expr_engine.cc
+    python/python_equation_context.h
+    python/python_equation_context.cc
+    python/python_equation_engine.h
+    python/python_equation_engine.cc
 )
 
 add_library(xequation STATIC ${xequation_SRC} )

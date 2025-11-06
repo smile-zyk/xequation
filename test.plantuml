@@ -97,10 +97,10 @@ class DependencyCycleException {
 }
 
 ' 上下文系统
-class ExprContext {
+class EquationContext {
   -unique_ptr<VariableDependencyGraph> graph_
   -string name_
-  -ExprEngine* engine_
+  -EquationEngine* engine_
   +GetVariable()
   +AddVariable()
   +RemoveVariable()
@@ -108,9 +108,9 @@ class ExprContext {
   +Parse()
 }
 
-class ExprEngine {
-  -unordered_map<string, unique_ptr<ExprContext>> context_map_
-  -ExprContext* current_context_
+class EquationEngine {
+  -unordered_map<string, unique_ptr<EquationContext>> context_map_
+  -EquationContext* current_context_
   +RegisterContext()
   +SetCurrentContext()
   +RemoveContext()
@@ -133,13 +133,13 @@ Variable <|-- RawVariable
 Variable <|-- ExprVariable
 VariableFactory --> Variable
 
-ExprContext "1" *-- "1" VariableDependencyGraph
+EquationContext "1" *-- "1" VariableDependencyGraph
 VariableDependencyGraph "1" *-- "*" Node
 Node "1" *-- "1" Variable
 VariableDependencyGraph "1" *-- "*" Edge
 
-ExprEngine "1" *-- "*" ExprContext
-Variable o-- "1" ExprContext : context_
+EquationEngine "1" *-- "*" EquationContext
+Variable o-- "1" EquationContext : context_
 
 DependencyCycleException -[dashed]|> std::runtime_error
 

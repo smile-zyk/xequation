@@ -2,7 +2,7 @@ import builtins
 import ast
 import importlib
 
-class PyCodeParser:
+class PythonParser:
     def __init__(self):
         self.valid_types = {
             'FunctionDef': 'func',
@@ -204,7 +204,7 @@ class PyCodeParser:
 
 def test_parser():
     """测试解析器"""
-    parser = PyCodeParser()
+    parser = PythonParser()
     
     test_cases = [
         ("单语句代码", "def hello():\n    print('world')"),
@@ -221,7 +221,7 @@ def test():
         ("from导入", "from collections import defaultdict, Counter"),
         ("变量赋值", "file_path = os.path.join('folder', 'file.txt')"),
         ("变量赋值", "result = calculate(a, b) + len(data)"),
-        ("变量赋值", "a=c.d + 5"),
+        ("变量赋值", "c = do_something()"),
         ("类定义", "class MyClass(BaseClass):\n    value = 123")
     ]
     

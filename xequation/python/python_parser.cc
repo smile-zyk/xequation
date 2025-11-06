@@ -1,10 +1,9 @@
 // Copyright 2024 Your Company. All rights reserved.
 
-#include "py_code_parser.h"
+#include "python_parser.h"
 #include "core/equation.h"
-#include "core/expr_common.h"
-#include <pybind11/cast.h>
-#include <pybind11/pytypes.h>
+#include "core/equation_common.h"
+#include <pybind11/gil.h>
 #include <string>
 #include <vector>
 
@@ -17,7 +16,7 @@ import builtins
 import ast
 import importlib
 
-class PyCodeParser:
+class PythonParser:
     def __init__(self):
         self.valid_types = {
             'FunctionDef': 'func',
@@ -217,16 +216,17 @@ class PyCodeParser:
         return list(set(dependencies))
 )";
 
-PyCodeParser::PyCodeParser()
+PythonParser::PythonParser()
 {
+    py::gil_scoped_acquire acquire;
     py::exec(kParserPythonCode);
 
     py::module main = py::module::import("__main__");
-    py::object python_class = main.attr("PyCodeParser");
+    py::object python_class = main.attr("PythonParser");
     parser_ = python_class();
 }
 
-PyCodeParser::~PyCodeParser()
+PythonParser::~PythonParser()
 {
     parser_.release();
 }
@@ -249,8 +249,9 @@ Equation::Type StringToType(const std::string &type_str)
     return Equation::Type::kError;
 }
 
-std::vector<std::string> PyCodeParser::SplitStatements(const std::string &code)
+std::vector<std::string> PythonParser::SplitStatements(const std::string &code)
 {
+    py::gil_scoped_acquire acquire;
     try
     {
         py::list result = parser_.attr("split_statements")(code);
@@ -272,8 +273,9 @@ std::vector<std::string> PyCodeParser::SplitStatements(const std::string &code)
     }
 }
 
-ParseResult PyCodeParser::ParseMultipleStatements(const std::string &code)
+ParseResult PythonParser::ParseMultipleStatements(const std::string &code)
 {
+    py::gil_scoped_acquire acquire;
     try
     {
         std::vector<std::string> statements = SplitStatements(code);
@@ -294,8 +296,10 @@ ParseResult PyCodeParser::ParseMultipleStatements(const std::string &code)
     }
 }
 
-ParseResult PyCodeParser::ParseSingleStatement(const std::string &code)
+ParseResult PythonParser::ParseSingleStatement(const std::string &code)
 {
+    py::gil_scoped_acquire acquire;
+
     auto it = cache_map_.find(code);
     if (it != cache_map_.end())
     {
@@ -336,13 +340,13 @@ ParseResult PyCodeParser::ParseSingleStatement(const std::string &code)
     }
 }
 
-void PyCodeParser::ClearCache() 
+void PythonParser::ClearCache() 
 {
     cache_list_.clear();
     cache_map_.clear();
 }
 
-void PyCodeParser::SetMaxCacheSize(size_t max_size) 
+void PythonParser::SetMaxCacheSize(size_t max_size) 
 {
     max_cache_size_ = max_size;
     while (cache_list_.size() > max_cache_size_)
@@ -351,12 +355,12 @@ void PyCodeParser::SetMaxCacheSize(size_t max_size)
     }
 }
 
-size_t PyCodeParser::GetCacheSize() 
+size_t PythonParser::GetCacheSize() 
 {
     return cache_list_.size();
 }
 
-void PyCodeParser::EvictLRU() 
+void PythonParser::EvictLRU() 
 {
     if (cache_list_.size() > max_cache_size_)
     {

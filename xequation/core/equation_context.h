@@ -6,7 +6,7 @@
 
 namespace xequation
 {
-class ExprContext
+class EquationContext
 {
   public:
     // Checks if key exists.

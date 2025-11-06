@@ -2,22 +2,22 @@
 
 #include <string>
 
-#include "py_common.h"
-#include "core/expr_common.h"
+#include "python_common.h"
+#include "core/equation_common.h"
 #include "core/equation.h"
 
 namespace xequation
 {
 namespace python
 {
-class PyCodeExecutor {
+class PythonExecutor {
  public:
-  PyCodeExecutor();
-  ~PyCodeExecutor();
+  PythonExecutor();
+  ~PythonExecutor();
   
   // Disallow copy and assign.
-  PyCodeExecutor(const PyCodeExecutor&) = delete;
-  PyCodeExecutor& operator=(const PyCodeExecutor&) = delete;
+  PythonExecutor(const PythonExecutor&) = delete;
+  PythonExecutor& operator=(const PythonExecutor&) = delete;
   
   // Executes Python code string in the given local dictionary.
   ExecResult Exec(const std::string& code_string, const py::dict& local_dict = py::dict());

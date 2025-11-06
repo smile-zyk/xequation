@@ -1,12 +1,12 @@
 #pragma once
-#include "core/expr_context.h"
-#include "py_common.h"
+#include "core/equation_context.h"
+#include "python_common.h"
 
 namespace xequation
 {
 namespace python
 {
-class PyExprContext : public ExprContext
+class PythonEquationContext : public EquationContext
 {
   public:
     // Checks if key exists.
@@ -37,14 +37,14 @@ class PyExprContext : public ExprContext
     const py::dict& dict() const { return dict_; }
 
   private:
-    friend class PyExprEngine;
-    PyExprContext();
-    ~PyExprContext() noexcept = default;
-    PyExprContext(const PyExprContext &) = delete;
-    PyExprContext &operator=(const PyExprContext &) = delete;
+    friend class PythonEquationEngine;
+    PythonEquationContext();
+    ~PythonEquationContext() noexcept = default;
+    PythonEquationContext(const PythonEquationContext &) = delete;
+    PythonEquationContext &operator=(const PythonEquationContext &) = delete;
 
-    PyExprContext(PyExprContext &&) noexcept = delete;
-    PyExprContext &operator=(PyExprContext &&) noexcept = delete;
+    PythonEquationContext(PythonEquationContext &&) noexcept = delete;
+    PythonEquationContext &operator=(PythonEquationContext &&) noexcept = delete;
     py::dict dict_;
 };
 }

@@ -1,12 +1,12 @@
 #include "core/dependency_graph.h"
-#include "core/expr_common.h"
-#include "core/expr_context.h"
 #include "core/equation.h"
 #include "core/equation_manager.h"
+#include "core/equation_common.h"
+#include "core/equation_context.h"
 
 #include <iterator>
-#include <memory>
 #include <regex>
+#include <stdexcept>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -14,152 +14,224 @@
 
 using namespace xequation;
 
-ParseResult ParseExpr(const std::string &code)
+class EquationParser
 {
-    ParseResult result;
-    std::string name = code.substr(0,1);
-    std::string expr = code.substr(2);
-    result.name = name;
-    result.content = code;
-    result.type = ParseType::kVarDecl;
-    std::regex expr_regex(R"(^\s*(([A-Z]+|\d+)(\s*([\+\-\*\/])\s*([A-Z]+|\d+))?)\s*$)");
-    std::smatch match;
-    if (std::regex_match(expr, match, expr_regex))
+  public:
+    static std::vector<Equation> parseMultipleExpressions(const std::string &input)
     {
-        // extract Equations and operator
-        if (std::regex_match(match[2].str(), std::regex(R"(^[A-Z]+$)")))
-        {
-            result.dependencies.push_back(match[2]);
-        }
-        if (std::regex_match(match[5].str(), std::regex(R"(^[A-Z]+$)")))
-        {
-            result.dependencies.push_back(match[5]);
-        }
-    }
-    else
-    {
-        throw ParseException("parse error" + code);
-    }
-    return result;
-}
+        std::vector<Equation> equations;
 
-ExecResult ExecExpr(const std::string &code, ExprContext *context)
+        size_t start = 0;
+        size_t end = 0;
+
+        while (end != std::string::npos)
+        {
+            end = input.find(';', start);
+
+            std::string expr = input.substr(start, (end == std::string::npos) ? std::string::npos : end - start);
+
+            expr = std::regex_replace(expr, std::regex(R"(^\s+|\s+$)"), "");
+
+            if (!expr.empty())
+            {
+                Equation equation = parseExpression(expr);
+                equations.push_back(equation);
+            }
+
+            if (end != std::string::npos)
+            {
+                start = end + 1;
+            }
+        }
+
+        return equations;
+    }
+
+  private:
+    static Equation parseExpression(const std::string &expr)
+    {
+        Equation equation;
+        equation.set_content(expr);
+
+        std::regex assign_regex(R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)\s*$)");
+        std::smatch assign_match;
+
+        if (std::regex_match(expr, assign_match, assign_regex))
+        {
+            std::string variable_name = assign_match[1].str();
+            std::string expression = assign_match[2].str();
+
+            equation.set_name(variable_name);
+
+            parseDependencies(expression, equation);
+            equation.set_type(Equation::Type::kVariable);
+        }
+        else
+        {
+            throw ParseException("Syntax error: assignment operator '=' not found or variable name missing");
+        }
+
+        return equation;
+    }
+
+    static void parseDependencies(const std::string &expr, Equation &equation)
+    {
+        std::regex var_regex(R"(\b[A-Za-z_][A-Za-z0-9_]*\b)");
+        auto words_begin = std::sregex_iterator(expr.begin(), expr.end(), var_regex);
+        auto words_end = std::sregex_iterator();
+
+        std::vector<std::string> res;
+
+        for (std::sregex_iterator i = words_begin; i != words_end; ++i)
+        {
+            std::string var_name = i->str();
+
+            if (std::regex_match(var_name, std::regex(R"(^\d+$)")))
+            {
+                continue;
+            }
+
+            res.push_back(var_name);
+        }
+        std::sort(res.begin(), res.end());
+        auto last = std::unique(res.begin(), res.end());
+        res.erase(last, res.end());
+        equation.set_dependencies(res);
+    }
+};
+
+ExecResult ExecExpr(const std::string &code, EquationContext *context)
 {
     ExecResult result;
-    std::regex expr_regex(R"(^\s*(([A-Z]+|\d+)(\s*([\+\-\*\/])\s*([A-Z]+|\d+))?)\s*$)");
-    std::smatch match;
+    
+    std::regex assign_regex(R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)\s*$)");
+    std::smatch assign_match;
 
-    std::string name = code.substr(0,1);
-    std::string expr = code.substr(2);
-
-    if (std::regex_match(expr, match, expr_regex))
+    if (std::regex_match(code, assign_match, assign_regex))
     {
-        std::string var1 = match[2];
-        int val1 = 0;
+        std::string name = assign_match[1];
+        std::string expr = assign_match[2];
+        
+        std::regex expr_regex(R"(^\s*(([A-Za-z_][A-Za-z0-9_]*|\d+)(\s*([\+\-\*\/])\s*([A-Za-z_][A-Za-z0-9_]*|\d+))?)\s*$)");
+        std::smatch expr_match;
 
-        if (std::regex_match(var1, std::regex(R"(^\d+$)")))
+        if (std::regex_match(expr, expr_match, expr_regex))
         {
-            val1 = std::stoi(var1);
-        }
-        else if (context->Contains(var1))
-        {
-            Value v1 = context->Get(var1);
-            if (v1.Type() == typeid(int))
+            std::string var1 = expr_match[2];
+            int val1 = 0;
+
+            if (std::regex_match(var1, std::regex(R"(^\d+$)")))
             {
-                val1 = v1.Cast<int>();
+                val1 = std::stoi(var1);
+            }
+            else if (context->Contains(var1))
+            {
+                Value v1 = context->Get(var1);
+                if (v1.Type() == typeid(int))
+                {
+                    val1 = v1.Cast<int>();
+                }
+                else
+                {
+                    result.status = Equation::Status::kTypeError;
+                    result.message = "Variable " + var1 + " is not an integer";
+                    return result;
+                }
             }
             else
             {
-                result.status = ExecStatus::kTypeError;
-                result.message = "Equation " + var1 + " is not an integer";
+                result.status = Equation::Status::kNameError;
+                result.message = "Variable " + var1 + " not found";
                 return result;
             }
-        }
-        else
-        {
-            result.status = ExecStatus::kNameError;
-            result.message = "Equation " + var1 + " not found";
-            return result;
-        }
 
-        if (!match[4].matched)
-        {
-            result.status = ExecStatus::kSuccess;
-            context->Set(name, val1);
-            return result;
-        }
-
-        std::string op = match[4];
-        std::string var2 = match[5];
-        int val2 = 0;
-
-        if (std::regex_match(var2, std::regex(R"(^\d+$)")))
-        {
-            val2 = std::stoi(var2);
-        }
-        else if (context->Contains(var2))
-        {
-            Value v2 = context->Get(var2);
-            if (v2.Type() == typeid(int))
+            if (!expr_match[4].matched)
             {
-                val2 = v2.Cast<int>();
-            }
-            else
-            {
-                result.status = ExecStatus::kTypeError;
-                result.message = "Equation " + var2 + " is not an integer";
+                result.status = Equation::Status::kSuccess;
+                context->Set(name, val1);
                 return result;
             }
-        }
-        else
-        {
-            result.status = ExecStatus::kNameError;
-            result.message = "Equation " + var2 + " not found";
-            return result;
-        }
 
-        if (op == "+")
-        {
-            result.status = ExecStatus::kSuccess;
-            context->Set(name, val1 + val2);
-        }
-        else if (op == "-")
-        {
-            result.status = ExecStatus::kSuccess;
-            context->Set(name, val1 - val2);
-        }
-        else if (op == "*")
-        {
-            result.status = ExecStatus::kSuccess;
-            context->Set(name, val1 * val2);
-        }
-        else if (op == "/")
-        {
-            if (val2 == 0)
+            std::string op = expr_match[4];
+            std::string var2 = expr_match[5];
+            int val2 = 0;
+
+            if (std::regex_match(var2, std::regex(R"(^\d+$)")))
             {
-                result.status = ExecStatus::kZeroDivisionError;
+                val2 = std::stoi(var2);
+            }
+            else if (context->Contains(var2))
+            {
+                Value v2 = context->Get(var2);
+                if (v2.Type() == typeid(int))
+                {
+                    val2 = v2.Cast<int>();
+                }
+                else
+                {
+                    result.status = Equation::Status::kTypeError;
+                    result.message = "Variable " + var2 + " is not an integer";
+                    return result;
+                }
             }
             else
             {
-                result.status = ExecStatus::kSuccess;
-                context->Set(name, val1 / val2);
+                result.status = Equation::Status::kNameError;
+                result.message = "Variable " + var2 + " not found";
+                return result;
+            }
+
+            if (op == "+")
+            {
+                result.status = Equation::Status::kSuccess;
+                context->Set(name, val1 + val2);
+            }
+            else if (op == "-")
+            {
+                result.status = Equation::Status::kSuccess;
+                context->Set(name, val1 - val2);
+            }
+            else if (op == "*")
+            {
+                result.status = Equation::Status::kSuccess;
+                context->Set(name, val1 * val2);
+            }
+            else if (op == "/")
+            {
+                if (val2 == 0)
+                {
+                    result.status = Equation::Status::kZeroDivisionError;
+                    result.message = "Division by zero";
+                }
+                else
+                {
+                    result.status = Equation::Status::kSuccess;
+                    context->Set(name, val1 / val2);
+                }
+            }
+            else
+            {
+                result.status = Equation::Status::kAttributeError;
+                result.message = "Invalid operator: " + op;
             }
         }
         else
         {
-            result.status = ExecStatus::kAttributeError;
-            result.message = "Invalid operator: " + op;
+            result.status = Equation::Status::kSyntaxError;
+            result.message = "Invalid expression syntax";
         }
     }
     else
     {
-        result.status = ExecStatus::kSyntaxError;
+        result.status = Equation::Status::kSyntaxError;
+        result.message = "Invalid assignment syntax. Expected: variable = expression";
     }
+    
     return result;
 }
 
 //
-class MockExprContext : public ExprContext
+class MockExprContext : public EquationContext
 {
   public:
     virtual Value Get(const std::string &var_name) const override
@@ -213,14 +285,17 @@ class MockExprContext : public ExprContext
 class EquationManagerTest : public testing::Test
 {
   protected:
-    EquationManagerTest(): manager_(std::unique_ptr<MockExprContext>(new MockExprContext()), ExecExpr, ParseExpr){}
+    EquationManagerTest() : manager_(std::unique_ptr<MockExprContext>(new MockExprContext()), ExecExpr, EquationParser::parseMultipleExpressions) {}
 
     void SetUp() override
     {
         manager_.Reset();
     }
 
-    void VerifyVar(const Equation *var, ParseType type, ExecStatus status, const std::string& content, std::vector<std::string> dependencies = {})
+    void VerifyVar(
+        const Equation *var, Equation::Type type, Equation::Status status, const std::string &content,
+        std::vector<std::string> dependencies = {}
+    )
     {
         EXPECT_TRUE(var != nullptr);
         EXPECT_TRUE(var->type() == type);
@@ -263,88 +338,123 @@ class EquationManagerTest : public testing::Test
     EquationManager manager_;
 };
 
-TEST_F(EquationManagerTest, AddEditRemove)
+TEST_F(EquationManagerTest, AddEditRemoveEquation)
 {
-    manager_.AddEquation("A=1");
-    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kInit, "A=1");
+    manager_.AddEquation("A", "1");
+    VerifyVar(manager_.GetEquation("A"), Equation::Type::kVariable, Equation::Status::kInit, "A=1");
     VerifyNode(manager_.graph()->GetNode("A"), {}, {});
-    EXPECT_THROW(manager_.AddEquation("A=2"), DuplicateEquationNameError);
+    EXPECT_THROW(manager_.AddEquation("A", "2"), DuplicateEquationNameError);
 
-    manager_.AddEquation("B=A+C");
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=A+C", {"A", "C"});
+    manager_.AddEquation("B", "A+C");
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kInit, "B=A+C", {"A", "C"});
     VerifyNode(manager_.graph()->GetNode("B"), {"A"}, {});
     VerifyNode(manager_.graph()->GetNode("A"), {}, {"B"});
     VerifyEdges({{"B", "A"}, {"B", "C"}}, true);
 
-    manager_.EditEquation("B", "B=D");
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=D", {"D"});
+    manager_.EditEquation("B", "B", "D");
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kInit, "B=D", {"D"});
     VerifyNode(manager_.graph()->GetNode("B"), {}, {});
     VerifyNode(manager_.graph()->GetNode("A"), {}, {});
     VerifyEdges({{"B", "D"}}, true);
 
-    manager_.EditEquation("A", "D=C");
-    EXPECT_FALSE(manager_.graph()->IsNodeExist("A"));
+    manager_.AddEquation("D", "C");
     EXPECT_TRUE(manager_.graph()->IsNodeExist("D"));
     VerifyNode(manager_.graph()->GetNode("B"), {"D"}, {});
     VerifyNode(manager_.graph()->GetNode("D"), {}, {"B"});
     VerifyEdges({{"B", "D"}, {"D", "C"}}, true);
 
     manager_.RemoveEquation("B");
+    EXPECT_FALSE(manager_.graph()->IsNodeExist("B"));
     EXPECT_EQ(manager_.GetEquation("B"), nullptr);
     VerifyEdges({{"D", "C"}}, true);
     VerifyNode(manager_.graph()->GetNode("D"), {}, {});
 }
 
+TEST_F(EquationManagerTest, AddEditRemoveEquationStatement)
+{
+    std::string multiple_statements = "A=1;B=A+C";
+
+    manager_.AddMultipleEquations(multiple_statements);
+    VerifyVar(manager_.GetEquation("A"), Equation::Type::kVariable, Equation::Status::kInit, "A=1");
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kInit, "B=A+C", {"A", "C"});
+    VerifyNode(manager_.graph()->GetNode("B"), {"A"}, {});
+    VerifyNode(manager_.graph()->GetNode("A"), {}, {"B"});
+    VerifyEdges({{"B", "A"}, {"B", "C"}}, true);
+
+    EXPECT_THROW(manager_.AddEquation("A", "2"), DuplicateEquationNameError);
+    EXPECT_THROW(manager_.EditEquation("A", "C", "D"), std::runtime_error);
+    EXPECT_THROW(manager_.RemoveEquation("A"), std::runtime_error);
+
+    std::string new_statements = "C=A;B=A+C;E=1";
+    EXPECT_THROW(manager_.AddMultipleEquations(new_statements), DuplicateEquationNameError);
+    manager_.EditMultipleEquations(multiple_statements, new_statements);
+    VerifyVar(manager_.GetEquation("C"), Equation::Type::kVariable, Equation::Status::kInit, "C=A", {"A"});
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kInit, "B=A+C", {"A", "C"});
+    VerifyVar(manager_.GetEquation("E"), Equation::Type::kVariable, Equation::Status::kInit, "E=1");
+    EXPECT_FALSE(manager_.IsEquationExist("A"));
+    VerifyNode(manager_.graph()->GetNode("B"), {"C"}, {});
+    VerifyNode(manager_.graph()->GetNode("C"), {}, {"B"});
+    VerifyNode(manager_.graph()->GetNode("E"), {}, {});
+    VerifyEdges({{"C", "A"}, {"B", "C"}, {"B", "A"}}, true);
+
+    EXPECT_THROW(manager_.AddMultipleEquations(multiple_statements), DuplicateEquationNameError);
+    
+    EXPECT_THROW(manager_.RemoveMultipleEquations(multiple_statements), std::runtime_error);
+    manager_.RemoveMultipleEquations(new_statements);
+    EXPECT_FALSE(manager_.IsEquationExist("A"));
+    EXPECT_FALSE(manager_.IsEquationExist("B"));
+    EXPECT_FALSE(manager_.IsEquationExist("C"));
+    EXPECT_FALSE(manager_.IsEquationExist("E"));
+}
+
+
 TEST_F(EquationManagerTest, CycleDetection)
 {
-    // before detection cycle
-    manager_.AddEquation("A=B*C");
-    manager_.AddEquation("B=D");
-    manager_.AddEquation("C=2");
-    VerifyNode(manager_.graph()->GetNode("A"), {"B", "C"}, {}); 
+    std::string statements = "A=B*C;B=D;C=2";
+    manager_.AddMultipleEquations(statements);    
+
+    VerifyNode(manager_.graph()->GetNode("A"), {"B", "C"}, {});
     VerifyNode(manager_.graph()->GetNode("B"), {}, {"A"});
     VerifyNode(manager_.graph()->GetNode("C"), {}, {"A"});
-    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kInit, "A=B*C", {"B", "C"});
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=D", {"D"});
-    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kInit, "C=2");
+    VerifyVar(manager_.GetEquation("A"), Equation::Type::kVariable, Equation::Status::kInit, "A=B*C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kInit, "B=D", {"D"});
+    VerifyVar(manager_.GetEquation("C"), Equation::Type::kVariable, Equation::Status::kInit, "C=2");
     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
 
-    EXPECT_THROW(manager_.AddEquation("D=A+B"), DependencyCycleException);
-    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kInit, "A=B*C", {"B", "C"});
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=D", {"D"});
-    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kInit, "C=2");
+    EXPECT_THROW(manager_.EditEquation("B", "D", "B"), std::runtime_error);
+    EXPECT_THROW(manager_.AddEquation("D", "A+B"), DependencyCycleException);
+    VerifyVar(manager_.GetEquation("A"), Equation::Type::kVariable, Equation::Status::kInit, "A=B*C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kInit, "B=D", {"D"});
+    VerifyVar(manager_.GetEquation("C"), Equation::Type::kVariable, Equation::Status::kInit, "C=2");
     EXPECT_EQ(manager_.GetEquation("D"), nullptr);
     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}}, true);
 
-    manager_.AddEquation("D=E");
-    EXPECT_THROW(manager_.AddEquation("E=B"), DependencyCycleException);
+    manager_.AddEquation("D", "E");
+    EXPECT_THROW(manager_.AddEquation("E", "B"), DependencyCycleException);
     VerifyNode(manager_.graph()->GetNode("D"), {}, {"B"});
-    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kInit, "D=E", {"E"});
+    VerifyVar(manager_.GetEquation("D"), Equation::Type::kVariable, Equation::Status::kInit, "D=E", {"E"});
     EXPECT_FALSE(manager_.IsEquationExist("E"));
     VerifyEdges({{"A", "B"}, {"A", "C"}, {"B", "D"}, {"D", "E"}}, true);
 }
 
 TEST_F(EquationManagerTest, UpdateContext)
 {
-    manager_.AddEquation("A=B+C");
-    manager_.AddEquation("B=D+E");
-    manager_.AddEquation("C=F");
-    manager_.AddEquation("D=1");
-    manager_.AddEquation("E=5");
-    manager_.AddEquation("F=10");
-    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kInit, "A=B+C", {"B", "C"});
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kInit, "B=D+E", {"D", "E"});
-    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kInit, "C=F", {"F"});
-    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kInit, "D=1", {});
-    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kInit, "E=5", {});
-    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kInit, "F=10", {});
+    std::string statements0 = "A=B+C;B=D+E;C=F;D=1;F=10";
+    manager_.AddMultipleEquations(statements0);
+    manager_.AddEquation("E", "5");
+    VerifyVar(manager_.GetEquation("A"), Equation::Type::kVariable, Equation::Status::kInit, "A=B+C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kInit, "B=D+E", {"D", "E"});
+    VerifyVar(manager_.GetEquation("C"), Equation::Type::kVariable, Equation::Status::kInit, "C=F", {"F"});
+    VerifyVar(manager_.GetEquation("D"), Equation::Type::kVariable, Equation::Status::kInit, "D=1", {});
+    VerifyVar(manager_.GetEquation("E"), Equation::Type::kVariable, Equation::Status::kInit, "E=5", {});
+    VerifyVar(manager_.GetEquation("F"), Equation::Type::kVariable, Equation::Status::kInit, "F=10", {});
     manager_.Update();
-    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kSuccess, "A=B+C", {"B", "C"});
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kSuccess, "B=D+E", {"D", "E"});
-    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kSuccess, "C=F", {"F"});
-    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kSuccess, "D=1", {});
-    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kSuccess, "E=5", {});
-    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kSuccess, "F=10", {});
+    VerifyVar(manager_.GetEquation("A"), Equation::Type::kVariable, Equation::Status::kSuccess, "A=B+C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kSuccess, "B=D+E", {"D", "E"});
+    VerifyVar(manager_.GetEquation("C"), Equation::Type::kVariable, Equation::Status::kSuccess, "C=F", {"F"});
+    VerifyVar(manager_.GetEquation("D"), Equation::Type::kVariable, Equation::Status::kSuccess, "D=1", {});
+    VerifyVar(manager_.GetEquation("E"), Equation::Type::kVariable, Equation::Status::kSuccess, "E=5", {});
+    VerifyVar(manager_.GetEquation("F"), Equation::Type::kVariable, Equation::Status::kSuccess, "F=10", {});
     EXPECT_TRUE(manager_.context()->Contains("A"));
     EXPECT_TRUE(manager_.context()->Contains("B"));
     EXPECT_TRUE(manager_.context()->Contains("C"));
@@ -358,16 +468,17 @@ TEST_F(EquationManagerTest, UpdateContext)
     EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 5);
     EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
 
-    manager_.RemoveEquation("D");
+    std::string statements1 = "A=B+C;B=D+E;C=F;F=10";
+    manager_.EditMultipleEquations(statements0,statements1);
     EXPECT_FALSE(manager_.context()->Contains("D"));
     EXPECT_FALSE(manager_.IsEquationExist("D"));
     manager_.Update();
     EXPECT_FALSE(manager_.context()->Contains("D"));
-    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kNameError, "A=B+C", {"B", "C"});
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kNameError, "B=D+E", {"D", "E"});
-    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kSuccess, "C=F", {"F"});
-    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kSuccess, "E=5", {});
-    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kSuccess, "F=10", {});
+    VerifyVar(manager_.GetEquation("A"), Equation::Type::kVariable, Equation::Status::kNameError, "A=B+C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kNameError, "B=D+E", {"D", "E"});
+    VerifyVar(manager_.GetEquation("C"), Equation::Type::kVariable, Equation::Status::kSuccess, "C=F", {"F"});
+    VerifyVar(manager_.GetEquation("E"), Equation::Type::kVariable, Equation::Status::kSuccess, "E=5", {});
+    VerifyVar(manager_.GetEquation("F"), Equation::Type::kVariable, Equation::Status::kSuccess, "F=10", {});
     EXPECT_FALSE(manager_.context()->Contains("A"));
     EXPECT_FALSE(manager_.context()->Contains("B"));
     EXPECT_TRUE(manager_.context()->Contains("C"));
@@ -378,15 +489,16 @@ TEST_F(EquationManagerTest, UpdateContext)
     EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 5);
     EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
 
-    manager_.AddEquation("D=E");
-    manager_.EditEquation("C", "C=E+F");
+    manager_.AddEquation("D", "E");
+    std::string statements2 = "A=B+C;B=D+E;C=E+F;F=10";
+    manager_.EditMultipleEquations(statements1, statements2);
     manager_.Update();
-    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kSuccess, "A=B+C", {"B", "C"});
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kSuccess, "B=D+E", {"D", "E"});
-    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kSuccess, "C=E+F", {"E", "F"});
-    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kSuccess, "D=E", {"E"});
-    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kSuccess, "E=5", {});
-    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kSuccess, "F=10", {});
+    VerifyVar(manager_.GetEquation("A"), Equation::Type::kVariable, Equation::Status::kSuccess, "A=B+C", {"B", "C"});
+    VerifyVar(manager_.GetEquation("B"), Equation::Type::kVariable, Equation::Status::kSuccess, "B=D+E", {"D", "E"});
+    VerifyVar(manager_.GetEquation("C"), Equation::Type::kVariable, Equation::Status::kSuccess, "C=E+F", {"E", "F"});
+    VerifyVar(manager_.GetEquation("D"), Equation::Type::kVariable, Equation::Status::kSuccess, "D=E", {"E"});
+    VerifyVar(manager_.GetEquation("E"), Equation::Type::kVariable, Equation::Status::kSuccess, "E=5", {});
+    VerifyVar(manager_.GetEquation("F"), Equation::Type::kVariable, Equation::Status::kSuccess, "F=10", {});
     EXPECT_TRUE(manager_.context()->Contains("A"));
     EXPECT_TRUE(manager_.context()->Contains("B"));
     EXPECT_TRUE(manager_.context()->Contains("C"));
@@ -400,7 +512,7 @@ TEST_F(EquationManagerTest, UpdateContext)
     EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 5);
     EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
 
-    manager_.EditEquation("E", "E=6");
+    manager_.EditEquation("E", "E", "6");
     manager_.UpdateEquation("E");
     EXPECT_TRUE(manager_.context()->Get("A").Cast<int>() == 28);
     EXPECT_TRUE(manager_.context()->Get("B").Cast<int>() == 12);
@@ -408,19 +520,6 @@ TEST_F(EquationManagerTest, UpdateContext)
     EXPECT_TRUE(manager_.context()->Get("D").Cast<int>() == 6);
     EXPECT_TRUE(manager_.context()->Get("E").Cast<int>() == 6);
     EXPECT_TRUE(manager_.context()->Get("F").Cast<int>() == 10);
-
-    manager_.EditEquation("F", "F=0");
-    manager_.EditEquation("C", "C=5/F");
-    manager_.Update();
-    VerifyVar(manager_.GetEquation("A"), ParseType::kVarDecl, ExecStatus::kNameError, "A=B+C", {"B", "C"});
-    VerifyVar(manager_.GetEquation("B"), ParseType::kVarDecl, ExecStatus::kSuccess, "B=D+E", {"D", "E"});
-    VerifyVar(manager_.GetEquation("C"), ParseType::kVarDecl, ExecStatus::kZeroDivisionError, "C=5/F", {"F"});
-    VerifyVar(manager_.GetEquation("D"), ParseType::kVarDecl, ExecStatus::kSuccess, "D=E", {"E"});
-    VerifyVar(manager_.GetEquation("E"), ParseType::kVarDecl, ExecStatus::kSuccess, "E=6", {});
-    VerifyVar(manager_.GetEquation("F"), ParseType::kVarDecl, ExecStatus::kSuccess, "F=0", {});
-    EXPECT_FALSE(manager_.context()->Contains("A"));
-    EXPECT_FALSE(manager_.context()->Contains("C"));
-
 }
 
 int main(int argc, char **argv)

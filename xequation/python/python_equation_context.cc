@@ -1,15 +1,15 @@
-#include "py_expr_context.h"
+#include "python_equation_context.h"
 
 using namespace xequation;
 using namespace xequation::python;
 
-PyExprContext::PyExprContext()
+PythonEquationContext::PythonEquationContext()
 {
     py::object builtins = py::module_::import("builtins");
     dict_["__builtins__"] = builtins;
 }
 
-Value PyExprContext::Get(const std::string &var_name) const
+Value PythonEquationContext::Get(const std::string &var_name) const
 {
     py::gil_scoped_acquire acquire;
     if (dict_.contains(var_name))
@@ -19,13 +19,13 @@ Value PyExprContext::Get(const std::string &var_name) const
     return Value::Null();
 }
 
-bool PyExprContext::Contains(const std::string &var_name) const
+bool PythonEquationContext::Contains(const std::string &var_name) const
 {
     py::gil_scoped_acquire acquire;
     return dict_.contains(var_name);
 }
 
-std::unordered_set<std::string> PyExprContext::keys() const
+std::unordered_set<std::string> PythonEquationContext::keys() const
 {
     py::gil_scoped_acquire acquire;
 
@@ -39,14 +39,14 @@ std::unordered_set<std::string> PyExprContext::keys() const
     return keys;
 }
 
-void PyExprContext::Set(const std::string &var_name, const Value &value)
+void PythonEquationContext::Set(const std::string &var_name, const Value &value)
 {
     py::gil_scoped_acquire acquire;
 
     dict_[var_name.c_str()] = value;
 }
 
-bool PyExprContext::Remove(const std::string &var_name)
+bool PythonEquationContext::Remove(const std::string &var_name)
 {
     py::gil_scoped_acquire acquire;
 
@@ -58,21 +58,21 @@ bool PyExprContext::Remove(const std::string &var_name)
     return false;
 }
 
-void PyExprContext::Clear() 
+void PythonEquationContext::Clear() 
 {
     py::gil_scoped_acquire acquire;
     
     dict_.clear();
 }
 
-size_t PyExprContext::size() const
+size_t PythonEquationContext::size() const
 {
     py::gil_scoped_acquire acquire;
     
     return dict_.size();
 }
 
-bool PyExprContext::empty() const
+bool PythonEquationContext::empty() const
 {
     py::gil_scoped_acquire acquire;
 

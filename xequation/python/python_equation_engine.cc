@@ -1,18 +1,16 @@
-#include "py_expr_engine.h"
-#include "core/expr_common.h"
-#include "python/py_expr_context.h"
+#include "python_equation_engine.h"
+#include "core/equation_common.h"
+#include "python_executor.h"
+#include "python/python_parser.h"
+#include "python/python_equation_context.h"
 #include <memory>
-#include <pybind11/eval.h>
-#include <pybind11/gil.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/pytypes.h>
 
 using namespace xequation;
 using namespace xequation::python;
 
-PyExprEngine::PyEnvConfig PyExprEngine::config_;
+PythonEquationEngine::PyEnvConfig PythonEquationEngine::config_;
 
-PyExprEngine::PyExprEngine()
+PythonEquationEngine::PythonEquationEngine()
 {
     if (Py_IsInitialized())
     {
@@ -23,36 +21,38 @@ PyExprEngine::PyExprEngine()
         manage_python_context_ = true;
         InitializePyEnv();
     }
+    code_parser = std::unique_ptr<PythonParser>(new PythonParser());
+    code_executor = std::unique_ptr<PythonExecutor>(new PythonExecutor());
 }
 
-void PyExprEngine::SetPyEnvConfig(const PyEnvConfig &config)
+void PythonEquationEngine::SetPyEnvConfig(const PyEnvConfig &config)
 {
     config_ = config;
 }
 
-ExecResult PyExprEngine::Exec(const std::string &code, const ExprContext *context)
+ExecResult PythonEquationEngine::Exec(const std::string &code, const EquationContext *context)
 {
-    const PyExprContext* py_context = dynamic_cast<const PyExprContext*>(context);
+    const PythonEquationContext* py_context = dynamic_cast<const PythonEquationContext*>(context);
     return code_executor->Exec(code, py_context->dict());
 }
 
-ParseResult PyExprEngine::Parse(const std::string &code)
+ParseResult PythonEquationEngine::Parse(const std::string &code)
 {
     return code_parser->ParseMultipleStatements(code);
 }
 
-EvalResult PyExprEngine::Eval(const std::string &code, const ExprContext *context)
+EvalResult PythonEquationEngine::Eval(const std::string &code, const EquationContext *context)
 {
-    const PyExprContext* py_context = dynamic_cast<const PyExprContext*>(context);
+    const PythonEquationContext* py_context = dynamic_cast<const PythonEquationContext*>(context);
     return code_executor->Eval(code, py_context->dict());
 }
 
-std::unique_ptr<ExprContext> PyExprEngine::CreateContext()
+std::unique_ptr<EquationContext> PythonEquationEngine::CreateContext()
 {
-    return std::unique_ptr<ExprContext>(new PyExprContext());
+    return std::unique_ptr<EquationContext>(new PythonEquationContext());
 }
 
-void PyExprEngine::InitializePyEnv()
+void PythonEquationEngine::InitializePyEnv()
 {
     PyConfig config;
     PyConfig_InitPythonConfig(&config);
@@ -95,12 +95,12 @@ void PyExprEngine::InitializePyEnv()
     }
 }
 
-void PyExprEngine::FinalizePyEnv()
+void PythonEquationEngine::FinalizePyEnv()
 {
     Py_Finalize();
 }
 
-PyExprEngine::~PyExprEngine()
+PythonEquationEngine::~PythonEquationEngine()
 {
     code_parser.reset();
     code_executor.reset();

@@ -1,5 +1,5 @@
-#include "core/expr_common.h"
-#include "python/py_code_executor.h"
+#include "core/equation_common.h"
+#include "python/python_executor.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <pybind11/embed.h>
@@ -8,12 +8,12 @@
 using namespace xequation;
 using namespace xequation::python;
 
-class PyCodeExecutorTest : public ::testing::Test
+class PythonExecutorTest : public ::testing::Test
 {
   protected:
     virtual void SetUp()
     {
-        executor_.reset(new PyCodeExecutor());
+        executor_.reset(new PythonExecutor());
     }
 
     virtual void TearDown()
@@ -21,10 +21,10 @@ class PyCodeExecutorTest : public ::testing::Test
         executor_.reset();
     }
 
-    std::unique_ptr<PyCodeExecutor> executor_;
+    std::unique_ptr<PythonExecutor> executor_;
 };
 
-TEST_F(PyCodeExecutorTest, BasicOperations) {
+TEST_F(PythonExecutorTest, BasicOperations) {
   py::dict locals;
   
   auto result1 = executor_->Exec("x = 5 + 3", locals);
@@ -57,7 +57,7 @@ TEST_F(PyCodeExecutorTest, BasicOperations) {
   EXPECT_EQ(py::cast<std::string>(result6.value.Cast<py::object>()), "Hello, world");
 }
 
-TEST_F(PyCodeExecutorTest, VariableDefinitionAndAssignment) {
+TEST_F(PythonExecutorTest, VariableDefinitionAndAssignment) {
   py::dict locals;
   
   auto result1 = executor_->Exec("x = 42", locals);
@@ -99,7 +99,7 @@ TEST_F(PyCodeExecutorTest, VariableDefinitionAndAssignment) {
   EXPECT_EQ(py::cast<int>(result11.value.Cast<py::object>()), 30);
 }
 
-TEST_F(PyCodeExecutorTest, FunctionDefinitionAndUsage) {
+TEST_F(PythonExecutorTest, FunctionDefinitionAndUsage) {
   py::dict locals;
   
   auto result1 = executor_->Exec(R"(
@@ -141,7 +141,7 @@ def add_base(x):
   EXPECT_EQ(result8.status, Equation::Status::kSuccess);
 }
 
-TEST_F(PyCodeExecutorTest, ClassDefinitionAndUsage) {
+TEST_F(PythonExecutorTest, ClassDefinitionAndUsage) {
   py::dict locals;
   
   auto result1 = executor_->Exec(R"(
@@ -183,7 +183,7 @@ class Person:
   EXPECT_EQ(py::cast<int>(result8.value.Cast<py::object>()), 100);
 }
 
-TEST_F(PyCodeExecutorTest, ModuleImportAndUsage) {
+TEST_F(PythonExecutorTest, ModuleImportAndUsage) {
   py::dict locals;
   
   auto result1 = executor_->Exec("import math", locals);
@@ -227,7 +227,7 @@ TEST_F(PyCodeExecutorTest, ModuleImportAndUsage) {
   EXPECT_EQ(py::cast<int>(result10.value.Cast<py::object>()), 120);
 }
 
-TEST_F(PyCodeExecutorTest, ErrorHandling) {
+TEST_F(PythonExecutorTest, ErrorHandling) {
   py::dict locals;
   
   auto result1 = executor_->Exec("invalid syntax!", locals);
@@ -263,7 +263,7 @@ TEST_F(PyCodeExecutorTest, ErrorHandling) {
   EXPECT_FALSE(result8.message.empty());
 }
 
-TEST_F(PyCodeExecutorTest, ComplexScenarios) {
+TEST_F(PythonExecutorTest, ComplexScenarios) {
   py::dict locals;
   
   auto result1 = executor_->Exec("base_value = 10", locals);
@@ -301,7 +301,7 @@ class Processor:
   EXPECT_EQ(py::cast<double>(eval_result.value.Cast<py::object>()), std::sqrt(400.0));
 }
 
-TEST_F(PyCodeExecutorTest, EvalReturnTypes) {
+TEST_F(PythonExecutorTest, EvalReturnTypes) {
   py::dict locals;
   
   auto result1 = executor_->Eval("42", locals);

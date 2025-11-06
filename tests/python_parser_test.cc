@@ -1,6 +1,6 @@
 #include "core/equation.h"
-#include "core/expr_common.h"
-#include "python/py_code_parser.h"
+#include "core/equation_common.h"
+#include "python/python_parser.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <pybind11/embed.h>
@@ -9,12 +9,12 @@
 using namespace xequation;
 using namespace xequation::python;
 
-class PyCodeParserTest : public ::testing::Test
+class PythonParserTest : public ::testing::Test
 {
   protected:
     virtual void SetUp()
     {
-        parser_.reset(new PyCodeParser());
+        parser_.reset(new PythonParser());
     }
 
     virtual void TearDown()
@@ -22,11 +22,11 @@ class PyCodeParserTest : public ::testing::Test
         parser_.reset();
     }
 
-    std::unique_ptr<PyCodeParser> parser_;
+    std::unique_ptr<PythonParser> parser_;
 };
 
 // 基础功能测试
-TEST_F(PyCodeParserTest, ParseSimpleAssignment)
+TEST_F(PythonParserTest, ParseSimpleAssignment)
 {
     auto parse_result = parser_->ParseSingleStatement("a = b + c");
     EXPECT_EQ(parse_result.size(), 1);
@@ -37,7 +37,7 @@ TEST_F(PyCodeParserTest, ParseSimpleAssignment)
     EXPECT_EQ(result.content(), "a = b + c");
 }
 
-TEST_F(PyCodeParserTest, ParseImport)
+TEST_F(PythonParserTest, ParseImport)
 {
     auto parse_result = parser_->ParseSingleStatement("import math as mt");
     EXPECT_EQ(parse_result.size(), 1);
@@ -48,7 +48,7 @@ TEST_F(PyCodeParserTest, ParseImport)
     EXPECT_EQ(result.content(), "import math as mt");
 }
 
-TEST_F(PyCodeParserTest, ParseFromImport)
+TEST_F(PythonParserTest, ParseFromImport)
 {
     auto parse_result = parser_->ParseSingleStatement("from math import cos");
     EXPECT_EQ(parse_result.size(), 1);
@@ -59,7 +59,7 @@ TEST_F(PyCodeParserTest, ParseFromImport)
     EXPECT_EQ(result.content(), "from math import cos");
 }
 
-TEST_F(PyCodeParserTest, ParseFunction)
+TEST_F(PythonParserTest, ParseFunction)
 {
     auto parse_result = parser_->ParseSingleStatement("def hello(): print('Hello World')");
     EXPECT_EQ(parse_result.size(), 1);
@@ -70,7 +70,7 @@ TEST_F(PyCodeParserTest, ParseFunction)
     EXPECT_EQ(result.content(), "def hello(): print('Hello World')");
 }
 
-TEST_F(PyCodeParserTest, ParseClass)
+TEST_F(PythonParserTest, ParseClass)
 {
     auto parse_result = parser_->ParseSingleStatement("class Person: pass");
     EXPECT_EQ(parse_result.size(), 1);
@@ -82,7 +82,7 @@ TEST_F(PyCodeParserTest, ParseClass)
 }
 
 // 错误处理测试
-TEST_F(PyCodeParserTest, ParseErrorUnsupportedStatement)
+TEST_F(PythonParserTest, ParseErrorUnsupportedStatement)
 {
     EXPECT_THROW(
         parser_->ParseSingleStatement("a+b"),
@@ -90,7 +90,7 @@ TEST_F(PyCodeParserTest, ParseErrorUnsupportedStatement)
     );
 }
 
-TEST_F(PyCodeParserTest, ParseErrorInvalidSyntax)
+TEST_F(PythonParserTest, ParseErrorInvalidSyntax)
 {
     EXPECT_THROW(
         parser_->ParseSingleStatement("b = te+"),
@@ -98,7 +98,7 @@ TEST_F(PyCodeParserTest, ParseErrorInvalidSyntax)
     );
 }
 
-TEST_F(PyCodeParserTest, ParseErrorBuiltinRedefinition)
+TEST_F(PythonParserTest, ParseErrorBuiltinRedefinition)
 {
     EXPECT_THROW(
         parser_->ParseSingleStatement("print = 1+a"),
@@ -106,7 +106,7 @@ TEST_F(PyCodeParserTest, ParseErrorBuiltinRedefinition)
     );
 }
 
-TEST_F(PyCodeParserTest, ParseErrorMultipleAssignment)
+TEST_F(PythonParserTest, ParseErrorMultipleAssignment)
 {
     EXPECT_THROW(
         parser_->ParseSingleStatement("a,b = 1,2"),
@@ -115,7 +115,7 @@ TEST_F(PyCodeParserTest, ParseErrorMultipleAssignment)
 }
 
 // 复杂表达式测试
-TEST_F(PyCodeParserTest, ParseComplexNumeric)
+TEST_F(PythonParserTest, ParseComplexNumeric)
 {
     auto result = parser_->ParseSingleStatement("a = 3 + 4j + 2 - 1j + 1 + 2j");
     ASSERT_EQ(result.size(), 1);
@@ -125,7 +125,7 @@ TEST_F(PyCodeParserTest, ParseComplexNumeric)
     EXPECT_EQ(result[0].content(), "a = 3 + 4j + 2 - 1j + 1 + 2j");
 }
 
-TEST_F(PyCodeParserTest, ParseComplexListComprehension)
+TEST_F(PythonParserTest, ParseComplexListComprehension)
 {
     auto result = parser_->ParseSingleStatement(
         "matrix = [[(i * j) + (i - j) * 1j for j in range(1, 4)] for i in range(1, 5)]"
@@ -136,7 +136,7 @@ TEST_F(PyCodeParserTest, ParseComplexListComprehension)
     EXPECT_EQ(result[0].type(), Equation::Type::kVariable);
 }
 
-TEST_F(PyCodeParserTest, ParseComplexConditional)
+TEST_F(PythonParserTest, ParseComplexConditional)
 {
     auto result = parser_->ParseSingleStatement(
         "condition = (global_flag := True) and any(complex(i, j).real > 0 for i in range(1, 10, 3) for j in range(1, 10, 4))"
@@ -147,7 +147,7 @@ TEST_F(PyCodeParserTest, ParseComplexConditional)
     EXPECT_EQ(result[0].type(), Equation::Type::kVariable);
 }
 
-TEST_F(PyCodeParserTest, ParseFunctionCallChain)
+TEST_F(PythonParserTest, ParseFunctionCallChain)
 {
     auto result = parser_->ParseSingleStatement(
         "func = process_data(filter_data(load_data(\"file.txt\")))"
@@ -160,7 +160,7 @@ TEST_F(PyCodeParserTest, ParseFunctionCallChain)
 }
 
 // 新增测试：边界情况
-TEST_F(PyCodeParserTest, ParseEmptyString)
+TEST_F(PythonParserTest, ParseEmptyString)
 {
     EXPECT_THROW(
         parser_->ParseSingleStatement(""),
@@ -168,7 +168,7 @@ TEST_F(PyCodeParserTest, ParseEmptyString)
     );
 }
 
-TEST_F(PyCodeParserTest, ParseWhitespaceOnly)
+TEST_F(PythonParserTest, ParseWhitespaceOnly)
 {
     EXPECT_THROW(
         parser_->ParseSingleStatement("   \t\n   "),
@@ -176,7 +176,7 @@ TEST_F(PyCodeParserTest, ParseWhitespaceOnly)
     );
 }
 
-TEST_F(PyCodeParserTest, ParseCommentOnly)
+TEST_F(PythonParserTest, ParseCommentOnly)
 {
     EXPECT_THROW(
         parser_->ParseSingleStatement("# This is a comment"),
@@ -184,7 +184,7 @@ TEST_F(PyCodeParserTest, ParseCommentOnly)
     );
 }
 
-TEST_F(PyCodeParserTest, ParseWithComments)
+TEST_F(PythonParserTest, ParseWithComments)
 {
     auto result = parser_->ParseSingleStatement("a = b + c  # add b and c");
     ASSERT_EQ(result.size(), 1);
@@ -193,7 +193,7 @@ TEST_F(PyCodeParserTest, ParseWithComments)
 }
 
 // 新增测试：特殊字符和命名
-TEST_F(PyCodeParserTest, ParseSpecialCharacters)
+TEST_F(PythonParserTest, ParseSpecialCharacters)
 {
     auto result = parser_->ParseSingleStatement("_private_var = public_var * 2");
     ASSERT_EQ(result.size(), 1);
@@ -202,7 +202,7 @@ TEST_F(PyCodeParserTest, ParseSpecialCharacters)
 }
 
 // 缓存功能测试
-TEST_F(PyCodeParserTest, CacheBasicFunctionality)
+TEST_F(PythonParserTest, CacheBasicFunctionality)
 {
     std::string code = "t = x + y";
 
@@ -217,7 +217,7 @@ TEST_F(PyCodeParserTest, CacheBasicFunctionality)
     EXPECT_EQ(result1[0].content(), result2[0].content());
 }
 
-TEST_F(PyCodeParserTest, CacheDifferentExpressions)
+TEST_F(PythonParserTest, CacheDifferentExpressions)
 {
     parser_->ParseSingleStatement("t0 = x + y");
     EXPECT_EQ(parser_->GetCacheSize(), 1u);
@@ -232,7 +232,7 @@ TEST_F(PyCodeParserTest, CacheDifferentExpressions)
     EXPECT_EQ(parser_->GetCacheSize(), 3u);
 }
 
-TEST_F(PyCodeParserTest, ClearCache)
+TEST_F(PythonParserTest, ClearCache)
 {
     parser_->ParseSingleStatement("t = test_variable");
     EXPECT_GT(parser_->GetCacheSize(), 0u);
@@ -244,7 +244,7 @@ TEST_F(PyCodeParserTest, ClearCache)
     EXPECT_EQ(parser_->GetCacheSize(), 1u);
 }
 
-TEST_F(PyCodeParserTest, CacheSizeLimit)
+TEST_F(PythonParserTest, CacheSizeLimit)
 {
     parser_->SetMaxCacheSize(3);
 
@@ -256,7 +256,7 @@ TEST_F(PyCodeParserTest, CacheSizeLimit)
     EXPECT_LE(parser_->GetCacheSize(), 3u);
 }
 
-TEST_F(PyCodeParserTest, CacheLRUBehavior)
+TEST_F(PythonParserTest, CacheLRUBehavior)
 {
     parser_->SetMaxCacheSize(2);
 
@@ -272,7 +272,7 @@ TEST_F(PyCodeParserTest, CacheLRUBehavior)
     EXPECT_EQ(parser_->GetCacheSize(), 2u);
 }
 
-TEST_F(PyCodeParserTest, SetMaxCacheSizeDynamic)
+TEST_F(PythonParserTest, SetMaxCacheSizeDynamic)
 {
     EXPECT_EQ(parser_->GetCacheSize(), 0u);
 
@@ -294,7 +294,7 @@ TEST_F(PyCodeParserTest, SetMaxCacheSizeDynamic)
     EXPECT_EQ(parser_->GetCacheSize(), 10u);
 }
 
-TEST_F(PyCodeParserTest, CacheWithIdenticalContent)
+TEST_F(PythonParserTest, CacheWithIdenticalContent)
 {
     std::string code1 = "t = x + y";
     std::string code2 = "t = x + y";
@@ -308,7 +308,7 @@ TEST_F(PyCodeParserTest, CacheWithIdenticalContent)
     EXPECT_EQ(size1, size2);
 }
 
-TEST_F(PyCodeParserTest, CacheWithDifferentContent)
+TEST_F(PythonParserTest, CacheWithDifferentContent)
 {
     std::string code1 = "t = x + y";
     std::string code2 = "t = x + y ";  // 末尾有空格，不同内容
@@ -322,7 +322,7 @@ TEST_F(PyCodeParserTest, CacheWithDifferentContent)
     EXPECT_EQ(size2, size1 + 1);
 }
 
-TEST_F(PyCodeParserTest, MultipleClearCache)
+TEST_F(PythonParserTest, MultipleClearCache)
 {
     parser_->ParseSingleStatement("t = x");
     EXPECT_GT(parser_->GetCacheSize(), 0u);
@@ -338,7 +338,7 @@ TEST_F(PyCodeParserTest, MultipleClearCache)
 }
 
 // 新增测试：多语句解析
-TEST_F(PyCodeParserTest, ParseMultipleStatements)
+TEST_F(PythonParserTest, ParseMultipleStatements)
 {
     auto results = parser_->ParseMultipleStatements("a = 1\nb = a + 2\nc = b * 3");
     EXPECT_EQ(results.size(), 3);
@@ -351,7 +351,7 @@ TEST_F(PyCodeParserTest, ParseMultipleStatements)
     EXPECT_THAT(results[2].dependencies(), testing::UnorderedElementsAre("b"));
 }
 
-TEST_F(PyCodeParserTest, ParseMultipleStatementsWithError)
+TEST_F(PythonParserTest, ParseMultipleStatementsWithError)
 {
     EXPECT_THROW(
         parser_->ParseMultipleStatements("a = 1\ninvalid syntax\nc = 3"),
@@ -360,25 +360,25 @@ TEST_F(PyCodeParserTest, ParseMultipleStatementsWithError)
 }
 
 // 新增测试：语句分割功能
-TEST_F(PyCodeParserTest, SplitStatementsBasic)
+TEST_F(PythonParserTest, SplitStatementsBasic)
 {
     auto statements = parser_->SplitStatements("a = 1\nb = 2\nc = 3");
     EXPECT_THAT(statements, testing::ElementsAre("a = 1", "b = 2", "c = 3"));
 }
 
-TEST_F(PyCodeParserTest, SplitStatementsWithSemicolons)
+TEST_F(PythonParserTest, SplitStatementsWithSemicolons)
 {
     auto statements = parser_->SplitStatements("a = 1; b = 2; c = 3");
     EXPECT_THAT(statements, testing::ElementsAre("a = 1", "b = 2", "c = 3"));
 }
 
-TEST_F(PyCodeParserTest, SplitStatementsMixed)
+TEST_F(PythonParserTest, SplitStatementsMixed)
 {
     auto statements = parser_->SplitStatements("a = 1\nb = 2; c = 3\nd = 4");
     EXPECT_THAT(statements, testing::ElementsAre("a = 1", "b = 2", "c = 3", "d = 4"));
 }
 
-TEST_F(PyCodeParserTest, SplitStatementsComplex)
+TEST_F(PythonParserTest, SplitStatementsComplex)
 {
     auto statements = parser_->SplitStatements(
         "import math\n"
@@ -393,7 +393,7 @@ TEST_F(PyCodeParserTest, SplitStatementsComplex)
     EXPECT_TRUE(statements[2].find("result = calculate") != std::string::npos);
 }
 
-TEST_F(PyCodeParserTest, CachePerformance)
+TEST_F(PythonParserTest, CachePerformance)
 {
     std::string complex_expr = "t = sqrt(x*x + y*y) + sin(angle) * cos(angle)";
 
@@ -414,7 +414,7 @@ TEST_F(PyCodeParserTest, CachePerformance)
     EXPECT_EQ(result1[0].content(), result2[0].content());
 }
 
-TEST_F(PyCodeParserTest, ParseMultipleImport)
+TEST_F(PythonParserTest, ParseMultipleImport)
 {
     auto parse_result = parser_->ParseSingleStatement("import os, math");
     EXPECT_EQ(parse_result.size(), 2);
@@ -430,7 +430,7 @@ TEST_F(PyCodeParserTest, ParseMultipleImport)
     EXPECT_EQ(parse_result[1].content(), "import math");
 }
 
-TEST_F(PyCodeParserTest, ParseMultipleImportWithAliases)
+TEST_F(PythonParserTest, ParseMultipleImportWithAliases)
 {
     auto parse_result = parser_->ParseSingleStatement("import os as operating_system, math as mathematics");
     EXPECT_EQ(parse_result.size(), 2);
@@ -444,7 +444,7 @@ TEST_F(PyCodeParserTest, ParseMultipleImportWithAliases)
     EXPECT_EQ(parse_result[1].content(), "import math as mathematics");
 }
 
-TEST_F(PyCodeParserTest, ParseMultipleFromImport)
+TEST_F(PythonParserTest, ParseMultipleFromImport)
 {
     auto parse_result = parser_->ParseSingleStatement("from math import sin, cos");
     EXPECT_EQ(parse_result.size(), 2);
@@ -458,7 +458,7 @@ TEST_F(PyCodeParserTest, ParseMultipleFromImport)
     EXPECT_EQ(parse_result[1].content(), "from math import cos");
 }
 
-TEST_F(PyCodeParserTest, ParseMultipleFromImportWithAliases)
+TEST_F(PythonParserTest, ParseMultipleFromImportWithAliases)
 {
     auto parse_result = parser_->ParseSingleStatement("from math import sin as sine, cos as cosine");
     EXPECT_EQ(parse_result.size(), 2);
@@ -472,7 +472,7 @@ TEST_F(PyCodeParserTest, ParseMultipleFromImportWithAliases)
     EXPECT_EQ(parse_result[1].content(), "from math import cos as cosine");
 }
 
-TEST_F(PyCodeParserTest, ParseStarImport)
+TEST_F(PythonParserTest, ParseStarImport)
 {
     // 测试 from module import *
     auto parse_result = parser_->ParseSingleStatement("from math import *");
@@ -500,7 +500,7 @@ TEST_F(PyCodeParserTest, ParseStarImport)
     EXPECT_TRUE(has_sin || has_cos || has_pi);
 }
 
-TEST_F(PyCodeParserTest, ParseMixedImportStatements)
+TEST_F(PythonParserTest, ParseMixedImportStatements)
 {
     // 测试多种import语句的组合解析
     auto results = parser_->ParseMultipleStatements(
@@ -551,7 +551,7 @@ TEST_F(PyCodeParserTest, ParseMixedImportStatements)
     EXPECT_TRUE(has_star_import);
 }
 
-TEST_F(PyCodeParserTest, ParseImportBuiltinProtection)
+TEST_F(PythonParserTest, ParseImportBuiltinProtection)
 {
     // 测试不能重定义builtin名称的保护机制
     EXPECT_THROW(
@@ -565,7 +565,7 @@ TEST_F(PyCodeParserTest, ParseImportBuiltinProtection)
     );
 }
 
-TEST_F(PyCodeParserTest, ParseComplexImportScenarios)
+TEST_F(PythonParserTest, ParseComplexImportScenarios)
 {
     // 测试复杂的import场景
     auto results = parser_->ParseMultipleStatements(
@@ -596,7 +596,7 @@ TEST_F(PyCodeParserTest, ParseComplexImportScenarios)
     EXPECT_TRUE(has_np);
 }
 
-TEST_F(PyCodeParserTest, ParseImportSubmoduleWithoutAliasShouldFail)
+TEST_F(PythonParserTest, ParseImportSubmoduleWithoutAliasShouldFail)
 {
     EXPECT_THROW(
         parser_->ParseSingleStatement("import os.path"),

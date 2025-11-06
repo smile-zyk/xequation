@@ -114,8 +114,8 @@ class Equation
     std::string name_;
     std::string content_;
     std::vector<std::string> dependencies_;
-    Type type_;
-    Status status_;
+    Type type_ = Type::kError;
+    Status status_ = Status::kInit;
     std::string message_;
 };
 } // namespace xequation

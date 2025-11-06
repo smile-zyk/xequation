@@ -2,8 +2,8 @@
 
 #include <string>
 
-#include "core/expr_common.h"
-#include "py_common.h"
+#include "core/equation_common.h"
+#include "python_common.h"
 
 
 namespace xequation
@@ -11,14 +11,14 @@ namespace xequation
 namespace python
 {
 
-class PyCodeParser
+class PythonParser
 {
   public:
-    PyCodeParser();
-    ~PyCodeParser();
+    PythonParser();
+    ~PythonParser();
 
-    PyCodeParser(const PyCodeParser &) = delete;
-    PyCodeParser &operator=(const PyCodeParser &) = delete;
+    PythonParser(const PythonParser &) = delete;
+    PythonParser &operator=(const PythonParser &) = delete;
 
     std::vector<std::string> SplitStatements(const std::string &code);
     ParseResult ParseSingleStatement(const std::string &code);

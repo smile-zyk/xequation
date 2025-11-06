@@ -2,8 +2,9 @@
 #include "dependency_graph.h"
 #include "equation.h"
 #include "event_stamp.h"
-#include "expr_common.h"
+#include "equation_common.h"
 #include <iterator>
+#include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -11,7 +12,8 @@
 using namespace xequation;
 
 EquationManager::EquationManager(
-    std::unique_ptr<ExprContext> context, ExecCallback eval_callback, ParseCallback parse_callback, EvalCallback exec_callback
+    std::unique_ptr<EquationContext> context, ExecCallback eval_callback, ParseCallback parse_callback,
+    EvalCallback exec_callback
 ) noexcept
     : graph_(std::unique_ptr<DependencyGraph>(new DependencyGraph())),
       context_(std::move(context)),
@@ -30,33 +32,83 @@ const Equation *EquationManager::GetEquation(const std::string &eqn_name) const
     return nullptr;
 }
 
-void EquationManager::SetEquation(const std::string &eqn_name, const std::string &expression)
+void EquationManager::AddEquation(const std::string &eqn_name, const std::string &expression)
 {
-    if (IsEquationExist(eqn_name))
+    std::string statement = eqn_name + "=" + expression;
+    auto res = parse_callback_(statement);
+    if (res.size() != 1)
     {
-        EditEquationStatement(GetEquation(eqn_name)->content(), eqn_name + "=" + expression);
+        throw std::runtime_error("'" + statement + "' is not a single variable equation");
     }
-    else
-    {
-        AddEquationStatement(eqn_name + "=" + expression);
-    }
+
+    AddEquationStatement(statement);
+    single_variable_equation_name_set_.insert(eqn_name);
 }
 
-void EquationManager::RemoveEquation(const std::string &eqn_name) noexcept
+void EquationManager::EditEquation(
+    const std::string &old_eqn_name, const std::string &new_eqn_name, const std::string &new_eqn_expr
+)
 {
-    if (IsEquationExist(eqn_name) == false)
+    if (single_variable_equation_name_set_.count(old_eqn_name) == 0)
     {
-        return;
+        throw std::runtime_error("equation '" + old_eqn_name + "' is not a single variable equation");
     }
-    graph_->InvalidateNode(eqn_name);
-    RemoveNodeInGraph(eqn_name);
-    equation_map_.erase(eqn_name);
-    context_->Remove(eqn_name);
+
+    std::string statement = new_eqn_name + "=" + new_eqn_expr;
+    auto res = parse_callback_(statement);
+    if (res.size() != 1)
+    {
+        throw std::runtime_error("'" + statement + "' is not a single variable equation");
+    }
+
+    EditEquationStatement(GetEquation(old_eqn_name)->content(), statement);
+
+    single_variable_equation_name_set_.erase(old_eqn_name);
+    single_variable_equation_name_set_.insert(new_eqn_name);
 }
 
-void EquationManager::AddEquationStatement(const std::string &equation_code)
+void EquationManager::RemoveEquation(const std::string &eqn_name)
 {
-    ParseResult res = parse_callback_(equation_code);
+    if (single_variable_equation_name_set_.count(eqn_name) == 0)
+    {
+        throw std::runtime_error("equation '" + eqn_name + "' is not a single variable equation");
+    }
+
+    RemoveEquationStatement(GetEquation(eqn_name)->content());
+
+    single_variable_equation_name_set_.erase(eqn_name);
+}
+
+void EquationManager::AddMultipleEquations(const std::string& eqn_code)
+{
+    AddEquationStatement(eqn_code);
+    multiple_variable_equation_code_set_.insert(eqn_code);
+}
+
+void EquationManager::EditMultipleEquations(const std::string& old_eqn_code, const std::string& new_eqn_code)
+{
+    if(multiple_variable_equation_code_set_.count(old_eqn_code) == 0)
+    {
+        throw std::runtime_error("statement '" + old_eqn_code + "' is not exist");
+    }
+    EditEquationStatement(old_eqn_code, new_eqn_code);
+    multiple_variable_equation_code_set_.erase(old_eqn_code);
+    multiple_variable_equation_code_set_.insert(new_eqn_code);
+}
+
+void EquationManager::RemoveMultipleEquations(const std::string& eqn_code)
+{
+    if(multiple_variable_equation_code_set_.count(eqn_code) == 0)
+    {
+        throw std::runtime_error("statement '" + eqn_code + "' is not exist");
+    }
+    RemoveEquationStatement(eqn_code);
+    multiple_variable_equation_code_set_.erase(eqn_code);
+}
+
+void EquationManager::AddEquationStatement(const std::string &eqn_code)
+{
+    ParseResult res = parse_callback_(eqn_code);
 
     for (const auto &eqn : res)
     {
@@ -79,10 +131,10 @@ void EquationManager::AddEquationStatement(const std::string &equation_code)
     }
 }
 
-void EquationManager::EditEquationStatement(const std::string &old_equation_code, const std::string &equation_code)
+void EquationManager::EditEquationStatement(const std::string &old_eqn_code, const std::string &new_eqn_code)
 {
-    ParseResult old_res = parse_callback_(old_equation_code);
-    ParseResult new_res = parse_callback_(equation_code);
+    ParseResult old_res = parse_callback_(old_eqn_code);
+    ParseResult new_res = parse_callback_(new_eqn_code);
 
     std::unordered_set<std::string> old_name_map;
     for (const auto &eqn : old_res)
@@ -143,7 +195,7 @@ void EquationManager::EditEquationStatement(const std::string &old_equation_code
             }
         }
     }
-    
+
     for (const auto &eqn : to_add)
     {
         graph_->InvalidateNode(eqn.name());
@@ -151,25 +203,35 @@ void EquationManager::EditEquationStatement(const std::string &old_equation_code
     }
 }
 
-void EquationManager::RemoveEquationStatement(const std::string &equation_code) noexcept
+void EquationManager::RemoveEquationStatement(const std::string &eqn_code)
 {
-    ParseResult res = parse_callback_(equation_code);
+    ParseResult res = parse_callback_(eqn_code);
 
     for (const auto &eqn : res)
     {
-        RemoveEquation(eqn.name());
+        if(IsEquationExist(eqn.name()) == false)
+        {
+            throw std::runtime_error("equation '" + eqn.name() + "' is not exist.");
+        }
     }
-}
 
-std::vector<Equation> EquationManager::GetEquations(const std::string &equation_code) const
-{
-    auto parse_result = parse_callback_(equation_code);
-    return parse_result;
+    for (const auto &eqn : res)
+    {
+        graph_->InvalidateNode(eqn.name());
+        RemoveNodeInGraph(eqn.name());
+        equation_map_.erase(eqn.name());
+        context_->Remove(eqn.name());
+    }
 }
 
 bool EquationManager::IsEquationExist(const std::string &var_name) const
 {
     return graph_->IsNodeExist(var_name) && equation_map_.count(var_name);
+}
+
+EvalResult EquationManager::Eval(const std::string &expression) const
+{
+    return eval_callback_(expression, context_.get());
 }
 
 void EquationManager::Reset()
@@ -272,15 +334,31 @@ void EquationManager::RemoveNodeInGraph(const std::string &node_name)
 
 void EquationManager::Update()
 {
-    graph_->Traversal([&](const std::string &var_name) { UpdateEquationInternal(var_name); });
+    graph_->Traversal([&](const std::string &eqn_name) { UpdateEquationInternal(eqn_name); });
 }
 
-void EquationManager::UpdateEquation(const std::string &var_name)
+void EquationManager::UpdateEquation(const std::string &eqn_name)
 {
-    auto topo_order = graph_->TopologicalSort(var_name);
+    if (single_variable_equation_name_set_.count(eqn_name) == 0)
+    {
+        throw std::runtime_error("equation '" + eqn_name + "' is not a single variable equation");
+    }
+    auto topo_order = graph_->TopologicalSort(eqn_name);
 
     for (const auto &node_name : topo_order)
     {
         UpdateEquationInternal(node_name);
     }
+}
+
+void EquationManager::UpdateMultipleEquations(const std::string& eqn_code)
+{
+    if(multiple_variable_equation_code_set_.count(eqn_code) == 0)
+    {
+        throw std::runtime_error("statement '" + eqn_code + "' is not exist");
+    }
+
+    ParseResult res = parse_callback_(eqn_code);
+
+    // TODO : add a interface to get vector node topo sort result
 }

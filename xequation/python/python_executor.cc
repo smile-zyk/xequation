@@ -1,6 +1,6 @@
 // Copyright 2024 Your Company. All rights reserved.
 
-#include "py_code_executor.h"
+#include "python_executor.h"
 #include "core/value.h"
 
 namespace xequation
@@ -10,7 +10,7 @@ namespace python
 const char kExecutorPythonCode[] = R"(
 import builtins
 
-class PyCodeExecutor:
+class PythonExecutor:
     def exec(self, code_string, local_dict):
         # Execute code
         exec(code_string, local_dict)
@@ -20,22 +20,25 @@ class PyCodeExecutor:
         return eval(expression, local_dict)
 )";
 
-PyCodeExecutor::PyCodeExecutor()
+PythonExecutor::PythonExecutor()
 {
+    py::gil_scoped_acquire acquire;
+
     py::exec(kExecutorPythonCode);
 
     py::module main = py::module::import("__main__");
-    py::object python_class = main.attr("PyCodeExecutor");
+    py::object python_class = main.attr("PythonExecutor");
     executor_ = python_class();
 }
 
-PyCodeExecutor::~PyCodeExecutor()
+PythonExecutor::~PythonExecutor()
 {
-    executor_.release();
 }
 
-Equation::Status PyCodeExecutor::MapPythonExceptionToStatus(const py::error_already_set &e)
+Equation::Status PythonExecutor::MapPythonExceptionToStatus(const py::error_already_set &e)
 {
+    py::gil_scoped_acquire acquire;
+
     // Extract Python exception type
     py::object type = e.type();
     py::object type_name = type.attr("__name__");
@@ -90,8 +93,10 @@ Equation::Status PyCodeExecutor::MapPythonExceptionToStatus(const py::error_alre
     return Equation::Status::kValueError;
 }
 
-ExecResult PyCodeExecutor::Exec(const std::string &code_string, const py::dict &local_dict)
+ExecResult PythonExecutor::Exec(const std::string &code_string, const py::dict &local_dict)
 {
+    py::gil_scoped_acquire acquire;
+
     ExecResult res;
     try
     {
@@ -108,8 +113,10 @@ ExecResult PyCodeExecutor::Exec(const std::string &code_string, const py::dict &
     return res;
 }
 
-EvalResult PyCodeExecutor::Eval(const std::string &expression, const py::dict &local_dict)
+EvalResult PythonExecutor::Eval(const std::string &expression, const py::dict &local_dict)
 {
+    py::gil_scoped_acquire acquire;
+
     EvalResult res;
     try
     {
