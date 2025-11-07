@@ -1,7 +1,6 @@
 {
   "dependencies": [
     "gtest",
-    "boost-multi-index",
-    "boost-filesystem"
+    "boost-multi-index"
   ]
 }
