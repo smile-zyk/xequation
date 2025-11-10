@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include "core/equation_common.h"
 #include "dependency_graph.h"
 #include "equation.h"
 #include "equation_common.h"
@@ -106,6 +107,9 @@ class EquationManager
 
     void AddNodeToGraph(const std::string &node_name, const std::vector<std::string> &dependencies);
     void RemoveNodeInGraph(const std::string &node_name);
+
+    std::unique_ptr<Equation> ConstructEquationPtr(const ParseResultItem& item);
+    void UpdateEquationPtr(const ParseResultItem& item);
 
   private:
     std::unique_ptr<DependencyGraph> graph_;

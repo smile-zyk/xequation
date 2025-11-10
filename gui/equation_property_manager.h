@@ -46,8 +46,8 @@ class EquationPropertyManager : public QtVariantPropertyManager
     QtVariantPropertyManager *attribute_property_manager_ = nullptr;
 
   private:
-    static bool registerMetaType();
-    static bool metaTypeRegistered;
+    static bool RegisterMetaType();
+    static bool meta_type_registered;
     void initializeAttributeProperties(const Equation *equation, QtProperty *equation_property);
 };
 } // namespace gui

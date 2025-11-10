@@ -7,11 +7,11 @@ namespace xequation
 {
 namespace gui
 {
-bool EquationPropertyManager::metaTypeRegistered = false;
+bool EquationPropertyManager::meta_type_registered = false;
 
 EquationPropertyManager::EquationPropertyManager(QObject *parent) : QtVariantPropertyManager(parent)
 {
-    static bool registered = registerMetaType();
+    static bool registered = RegisterMetaType();
     attribute_property_manager_ = new QtVariantPropertyManager(this);
 }
 
@@ -55,6 +55,11 @@ void EquationPropertyManager::initializeAttributeProperties(const Equation *equa
     QtVariantProperty *status_property = attribute_property_manager_->addProperty(QVariant::String, "Status");
     QtVariantProperty *message_property = attribute_property_manager_->addProperty(QVariant::String, "Message");
 
+    content_property->setVisible(true);
+    type_property->setVisible(true);
+    status_property->setVisible(true);
+    message_property->setVisible(true);
+
     content_property->setValue(QString::fromStdString(equation->content()));
     type_property->setValue(QString::fromStdString(Equation::TypeToString(equation->type())));
     status_property->setValue(QString::fromStdString(Equation::StatusToString(equation->status())));
@@ -84,12 +89,12 @@ void EquationPropertyManager::initializeAttributeProperties(const Equation *equa
     equation_property->addSubProperty(message_property);
 }
 
-bool EquationPropertyManager::registerMetaType()
+bool EquationPropertyManager::RegisterMetaType()
 {
-    if (!metaTypeRegistered)
+    if (!meta_type_registered)
     {
         qRegisterMetaType<const xequation::Equation *>("const xequation::Equation*");
-        metaTypeRegistered = true;
+        meta_type_registered = true;
     }
     return true;
 }
@@ -98,9 +103,10 @@ QtProperty *EquationPropertyManager::addEquationProperty(const Equation *equatio
 {
     QtVariantProperty *equation_property =
         addProperty(qMetaTypeId<const xequation::Equation *>(), QString::fromStdString(equation->name()));
+    equation_property->setVisible(true);
     property_equation_map_[equation_property] = equation;
     initializeAttributeProperties(equation, equation_property);
-
+    
     return equation_property;
 }
 } // namespace gui

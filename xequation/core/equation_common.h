@@ -36,6 +36,11 @@ struct ParseResultItem
         return name == other.name && content == other.content && type == other.type &&
                dependencies == other.dependencies;
     }
+
+    bool operator!=(const ParseResultItem &other) const
+    {
+        return !(*this == other);
+    }
 };
 
 using ParseResult = std::vector<ParseResultItem>;

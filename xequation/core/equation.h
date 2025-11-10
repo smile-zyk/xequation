@@ -1,10 +1,14 @@
 #pragma once
+
 #include <string>
 #include <vector>
 
+#include "value.h"
 
 namespace xequation
 {
+class EquationManager;
+
 class Equation
 {
   public:
@@ -36,181 +40,36 @@ class Equation
     };
 
     Equation() = default;
-    Equation(const std::string &name) : name_(name) {}
+    Equation(EquationManager* manager) : manager_(manager) {}
     virtual ~Equation() = default;
 
-    void set_name(const std::string &name)
-    {
-        name_ = name;
-    }
+    void set_name(const std::string &name) { name_ = name; }
+    const std::string &name() const { return name_; }
 
-    const std::string &name() const
-    {
-        return name_;
-    }
+    void set_content(const std::string &content) { content_ = content; }
+    const std::string &content() const { return content_; }
 
-    void set_content(const std::string &content)
-    {
-        content_ = content;
-    }
+    void set_dependencies(const std::vector<std::string> &dependencies) { dependencies_ = dependencies; }
+    const std::vector<std::string> &dependencies() const { return dependencies_; }
 
-    const std::string &content() const
-    {
-        return content_;
-    }
+    void set_type(Type type) { type_ = type; }
+    Type type() const { return type_; }
 
-    void set_dependencies(const std::vector<std::string> &dependencies)
-    {
-        dependencies_ = dependencies;
-    }
+    void set_status(Status status) { status_ = status; }
+    Status status() const { return status_; }
 
-    const std::vector<std::string> &dependencies() const
-    {
-        return dependencies_;
-    }
+    void set_message(const std::string &message) { message_ = message; }
+    const std::string &message() const { return message_; }
 
-    void set_type(Type type)
-    {
-        type_ = type;
-    }
+    Value GetValue();
 
-    Type type() const
-    {
-        return type_;
-    }
+    bool operator==(const Equation &other) const;
+    bool operator!=(const Equation &other) const;
 
-    void set_status(Status status)
-    {
-        status_ = status;
-    }
-
-    Status status() const
-    {
-        return status_;
-    }
-
-    void set_message(const std::string &message)
-    {
-        message_ = message;
-    }
-
-    const std::string &message() const
-    {
-        return message_;
-    }
-
-    bool operator==(const Equation &other) const
-    {
-        return name_ == other.name_ && content_ == other.content_ && dependencies_ == other.dependencies_ &&
-               type_ == other.type_ && status_ == other.status_ && message_ == other.message_;
-    }
-
-    bool operator!=(const Equation &other) const
-    {
-        return !(*this == other);
-    }
-
-    static Type StringToType(const std::string &type_str)
-    {
-        if (type_str == "Variable")
-            return Type::kVariable;
-        else if (type_str == "Function")
-            return Type::kFunction;
-        else if (type_str == "Class")
-            return Type::kClass;
-        else if (type_str == "Import")
-            return Type::kImport;
-        else if (type_str == "ImportFrom")
-            return Type::kImportFrom;
-        else
-            return Type::kError;
-    }
-
-    static Status StringToStatus(const std::string &status_str)
-    {
-        if (status_str == "Init")
-            return Status::kInit;
-        else if (status_str == "Success")
-            return Status::kSuccess;
-        else if (status_str == "SyntaxError")
-            return Status::kSyntaxError;
-        else if (status_str == "NameError")
-            return Status::kNameError;
-        else if (status_str == "TypeError")
-            return Status::kTypeError;
-        else if (status_str == "ZeroDivisionError")
-            return Status::kZeroDivisionError;
-        else if (status_str == "ValueError")
-            return Status::kValueError;
-        else if (status_str == "MemoryError")
-            return Status::kMemoryError;
-        else if (status_str == "OverflowError")
-            return Status::kOverflowError;
-        else if (status_str == "RecursionError")
-            return Status::kRecursionError;
-        else if (status_str == "IndexError")
-            return Status::kIndexError;
-        else if (status_str == "KeyError")
-            return Status::kKeyError;
-        else if (status_str == "AttributeError")
-            return Status::kAttributeError;
-        else
-            return Status::kInit;
-    }
-
-    static std::string TypeToString(Type type)
-    {
-        switch (type)
-        {
-        case Type::kVariable:
-            return "Variable";
-        case Type::kFunction:
-            return "Function";
-        case Type::kClass:
-            return "Class";
-        case Type::kImport:
-            return "Import";
-        case Type::kImportFrom:
-            return "ImportFrom";
-        default:
-            return "Error";
-        }
-    }
-
-    static std::string StatusToString(Status status)
-    {
-        switch (status)
-        {
-        case Status::kInit:
-            return "Init";
-        case Status::kSuccess:
-            return "Success";
-        case Status::kSyntaxError:
-            return "SyntaxError";
-        case Status::kNameError:
-            return "NameError";
-        case Status::kTypeError:
-            return "TypeError";
-        case Status::kZeroDivisionError:
-            return "ZeroDivisionError";
-        case Status::kValueError:
-            return "ValueError";
-        case Status::kMemoryError:
-            return "MemoryError";
-        case Status::kOverflowError:
-            return "OverflowError";
-        case Status::kRecursionError:
-            return "RecursionError";
-        case Status::kIndexError:
-            return "IndexError";
-        case Status::kKeyError:
-            return "KeyError";
-        case Status::kAttributeError:
-            return "AttributeError";
-        default:
-            return "Unknown";
-        }
-    }
+    static Type StringToType(const std::string &type_str);
+    static Status StringToStatus(const std::string &status_str);
+    static std::string TypeToString(Type type);
+    static std::string StatusToString(Status status);
 
   private:
     std::string name_;
@@ -219,5 +78,6 @@ class Equation
     Type type_ = Type::kError;
     Status status_ = Status::kInit;
     std::string message_;
+    EquationManager* manager_ = nullptr;
 };
 } // namespace xequation
