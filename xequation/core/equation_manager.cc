@@ -6,12 +6,12 @@
 #include <unordered_set>
 #include <vector>
 
+#include "core/equation_signals_manager.h"
 #include "dependency_graph.h"
 #include "equation.h"
 #include "equation_common.h"
 #include "equation_group.h"
 #include "event_stamp.h"
-
 
 namespace xequation
 {
@@ -104,8 +104,8 @@ EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_st
         graph_->InvalidateNode(item.name);
         EquationPtr equation = Equation::Create(item, id, this);
         group->AddEquation(std::move(equation));
+        equation_name_to_group_id_map_.insert({item.name, id});
     }
-
     equation_group_map_.insert({id, std::move(group)});
     NotifyEquationGroupAdded(id);
     return id;
@@ -113,21 +113,16 @@ EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_st
 
 void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const std::string &equation_statement)
 {
-    if(IsEquationGroupExist(group_id) == false)
+    if (IsEquationGroupExist(group_id) == false)
     {
         throw EquationException::EquationGroupNotFound(group_id);
     }
 
-    const EquationGroup* group = GetEquationGroup(group_id);
+    EquationGroup *group = GetEquationGroupInternal(group_id);
 
-    ParseResult old_res = parse_handler_(group->statement());
+    std::vector<std::string> old_equation_names = group->GetEquationNames();
+
     ParseResult new_res = parse_handler_(equation_statement);
-
-    std::unordered_map<std::string, ParseResultItem> old_name_map;
-    for (const auto &item : old_res)
-    {
-        old_name_map.insert({item.name, item});
-    }
 
     std::unordered_map<std::string, ParseResultItem> new_name_map;
     for (const auto &item : new_res)
@@ -138,24 +133,25 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
     for (const auto &new_eqn : new_name_map)
     {
         std::string new_eqn_name = new_eqn.first;
-        if (old_name_map.find(new_eqn_name) == old_name_map.end() && IsEquationExist(new_eqn_name))
+        if (std::find(old_equation_names.begin(), old_equation_names.end(), new_eqn_name) == old_equation_names.end() &&
+            IsEquationExist(new_eqn_name))
         {
             throw EquationException::EquationAlreadyExists(new_eqn_name);
         }
     }
 
-    std::vector<ParseResultItem> to_remove;
-    std::vector<ParseResultItem> to_add;
-    std::vector<std::pair<ParseResultItem, ParseResultItem>> to_update; // pair<old_item, new_item>
+    std::vector<std::string> to_remove_names;
+    std::vector<ParseResultItem> to_add_items;
+    std::vector<std::pair<std::string, ParseResultItem>> to_update_items; // pair<old_name, new_item>
 
-    for (const auto &old_item : old_res)
+    for (const auto &old_eqn_name : old_equation_names)
     {
-        auto new_it = new_name_map.find(old_item.name);
+        auto new_it = new_name_map.find(old_eqn_name);
         if (new_it == new_name_map.end())
         {
-            to_remove.push_back(old_item);
+            to_remove_names.push_back(old_eqn_namem);
         }
-        else if (old_item != new_it->second)
+        else if (group->GetEquation(old_eqn_name)->content() != )
         {
             to_update.push_back({old_item, new_it->second});
         }
@@ -192,6 +188,7 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
 
     for (const auto &item : to_remove)
     {
+        signals_manager_->emit<EquationEvent::kEquationRemoving>(GetEquation(item.name));
         if (new_name_map.find(item.name) == new_name_map.end())
         {
             auto range = graph_->GetEdgesByTo(item.name);
@@ -201,8 +198,7 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
             }
         }
         RemoveValueInContext(item.name);
-        NotifyEquationRemoving(item.name);
-        equation_map_.erase(item.name);
+        group->RemoveEquation(item.name);
     }
 
     for (const auto &entry : to_update)
@@ -608,8 +604,8 @@ void EquationManager::UnRegisterEquationAddedCallback(EquationManager::CallbackI
     equation_add_callback_set_.erase(callback_id);
 }
 
-EquationManager::CallbackId
-EquationManager::RegisterEquationRemovingCallback(EquationManager::EquationCallback callback)
+EquationManager::CallbackId EquationManager::RegisterEquationRemovingCallback(EquationManager::EquationCallback callback
+)
 {
     CallbackId cur_id = next_callback_id++;
     equation_callback_map_.insert({cur_id, callback});

@@ -5,7 +5,7 @@
 namespace xequation
 {
 
-EquationGroupPtr Create(const EquationManager* manager)
+EquationGroupPtr Create(const EquationManager *manager)
 {
     EquationGroupPtr group = EquationGroupPtr(new EquationGroup(manager));
     return group;
@@ -29,16 +29,26 @@ void EquationGroup::RemoveEquation(const std::string &equation_name)
 
 const Equation *EquationGroup::GetEquation(const std::string &equation_name) const
 {
-    if(equation_map_.contains(equation_name))
+    if (equation_map_.contains(equation_name))
     {
         return equation_map_.at(equation_name).get();
     }
     return nullptr;
 }
 
-bool EquationGroup::IsEquationExist(const std::string& equation_name) const
+bool EquationGroup::IsEquationExist(const std::string &equation_name) const
 {
     return equation_map_.contains(equation_name);
+}
+
+std::vector<std::string> EquationGroup::GetEquationNames() const
+{
+    std::vector<std::string> res;
+    for (const auto &entry : equation_map_)
+    {
+        res.push_back(entry.first);
+    }
+    return res;
 }
 
 } // namespace xequation

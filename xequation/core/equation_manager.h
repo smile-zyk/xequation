@@ -11,6 +11,7 @@
 #include "equation_common.h"
 #include "equation_context.h"
 #include "equation_group.h"
+#include "equation_signals_manager.h"
 
 namespace xequation
 {
@@ -50,19 +51,23 @@ class EquationException : public std::exception
         return error_code_;
     }
 
-    static EquationException EquationGroupNotFound(EquationGroupId group_id) {
+    static EquationException EquationGroupNotFound(EquationGroupId group_id)
+    {
         return EquationException(ErrorCode::kEquationGroupNotFound, group_id);
     }
-    
-    static EquationException EquationGroupAlreadyExists(EquationGroupId group_id) {
+
+    static EquationException EquationGroupAlreadyExists(EquationGroupId group_id)
+    {
         return EquationException(ErrorCode::kEquationGroupAlreadyExists, group_id);
     }
-    
-    static EquationException EquationNotFound(const std::string& equation_name) {
+
+    static EquationException EquationNotFound(const std::string &equation_name)
+    {
         return EquationException(ErrorCode::kEquationNotFound, equation_name);
     }
-    
-    static EquationException EquationAlreadyExists(const std::string& equation_name) {
+
+    static EquationException EquationAlreadyExists(const std::string &equation_name)
+    {
         return EquationException(ErrorCode::kEquationAlreayExists, equation_name);
     }
 
@@ -116,11 +121,6 @@ class EquationException : public std::exception
 class EquationManager
 {
   public:
-    using EquationCallback = std::function<void(const EquationManager *manager, const std::string &equation_name)>;
-    using EquationGroupCallback = std::function<void(const EquationManager *manager, const EquationGroupId &group_id)>;
-
-    using CallbackId = size_t;
-
     EquationManager(
         std::unique_ptr<EquationContext> context, ExecHandler exec_handler, ParseHandler parse_callback,
         EvalHandler eval_callback = nullptr
@@ -162,29 +162,15 @@ class EquationManager
         return context_.get();
     }
 
+    EquationSignalsManager *signals_manager()
+    {
+        return signals_manager_.get();
+    }
+
     const EquationGroupPtrOrderedMap &equation_group_map()
     {
         return equation_group_map_;
     }
-
-    CallbackId RegisterEquationAddedCallback(EquationCallback callback);
-    void UnRegisterEquationAddedCallback(CallbackId callback_id);
-
-    CallbackId RegisterEquationRemovingCallback(EquationCallback callback);
-    void UnRegisterEquationRemovingCallback(CallbackId callback_id);
-
-    void NotifyEquationAdded(const std::string &equation_name) const;
-    void NotifyEquationRemoving(const std::string &equation_name) const;
-
-    CallbackId RegisterEquationGroupAddedCallback(EquationGroupCallback callback);
-    void UnRegisterEquationGroupAddedCallback(CallbackId callback_id);
-
-    CallbackId RegisterEquationGroupRemovingCallback(EquationGroupCallback callback);
-    void UnRegisterEquationGroupRemovingCallback(CallbackId callback_id);
-
-    void NotifyEquationGroupAdded(const EquationGroupId &group_id) const;
-    void NotifyEquationGroupRemoving(const EquationGroupId &group_id) const;
-    void NotifyEquationGroupUpdated(const EquationGroupId &group_id) const;
 
   private:
     EquationManager(const EquationManager &) = delete;
@@ -193,7 +179,8 @@ class EquationManager
     EquationManager(EquationManager &&) noexcept = delete;
     EquationManager &operator=(EquationManager &&) noexcept = delete;
 
-    Equation *GetEquationInteral(const std::string &equation_name);
+    Equation *GetEquationInternal(const std::string &equation_name);
+    EquationGroup *GetEquationGroupInternal(const EquationGroupId &group_id);
     void UpdateEquationInternal(const std::string &var_name);
 
     void AddNodeToGraph(const std::string &node_name, const std::vector<std::string> &dependencies);
@@ -202,9 +189,13 @@ class EquationManager
     void UpdateValueToContext(const std::string &equation_name, const Value &old_value);
     void RemoveValueInContext(const std::string &equation_name);
 
+    void NotifyEquationGroupAdded(const EquationGroupId& group_id);
+    void NotifyEquationGroupRemoving(const EquationGroupId& group_id);
+
   private:
     std::unique_ptr<DependencyGraph> graph_;
     std::unique_ptr<EquationContext> context_;
+    std::unique_ptr<EquationSignalsManager> signals_manager_;
 
     EquationGroupPtrOrderedMap equation_group_map_;
     std::unordered_map<std::string, boost::uuids::uuid> equation_name_to_group_id_map_;
@@ -212,16 +203,5 @@ class EquationManager
     ExecHandler exec_handler_ = nullptr;
     ParseHandler parse_handler_ = nullptr;
     EvalHandler eval_handler_ = nullptr;
-
-    CallbackId next_callback_id = 0;
-
-    std::unordered_map<CallbackId, EquationCallback> equation_callback_map_;
-    std::unordered_set<CallbackId> equation_added_callback_set_;
-    std::unordered_set<CallbackId> equation_removing_callback_set_;
-
-    std::unordered_map<CallbackId, EquationGroupCallback> equation_group_callback_map_;
-    std::unordered_set<CallbackId> equation_group_add_callback_set_;
-    std::unordered_set<CallbackId> equation_group_removing_callback_set_;
-    std::unordered_set<CallbackId> equation_group_update_callback_set_;
 };
 } // namespace xequation

@@ -23,6 +23,8 @@ class EquationGroup
 
     bool IsEquationExist(const std::string& equation_name) const;
 
+    std::vector<std::string> GetEquationNames() const;
+
     void set_statement(const std::string& statement)
     {
         statement_ = statement;

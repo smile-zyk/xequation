@@ -65,9 +65,9 @@ class ParseException : public std::exception
     }
 };
 
-typedef std::function<ExecResult(const std::string &, EquationContext *)> ExecHandler;
-typedef std::function<EvalResult(const std::string &, EquationContext *)> EvalHandler;
-typedef std::function<ParseResult(const std::string &)> ParseHandler;
+using ExecHandler = std::function<ExecResult(const std::string &, EquationContext *)>;
+using EvalHandler = std::function<EvalResult(const std::string &, EquationContext *)>;
+using ParseHandler = std::function<ParseResult(const std::string &)>;
 } // namespace xequation
 
 namespace std
