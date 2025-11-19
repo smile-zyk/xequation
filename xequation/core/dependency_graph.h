@@ -11,8 +11,6 @@
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index_container.hpp>
 
-#include "event_stamp.h"
-
 namespace xequation
 {
 class DependencyCycleException : public std::runtime_error
@@ -68,26 +66,16 @@ class DependencyGraph
             return dirty_flag_;
         }
 
-        EventStamp event_stamp() const
-        {
-            return event_stamp_;
-        }
-
         void set_dirty_flag(bool dirty_flag)
         {
             dirty_flag_ = dirty_flag;
-        }
-
-        void set_event_stamp(EventStamp event_stamp)
-        {
-            event_stamp_ = event_stamp;
         }
 
       private:
         std::unordered_set<std::string> dependencies_;
         std::unordered_set<std::string> dependents_;
         bool dirty_flag_;
-        EventStamp event_stamp_;
+        
         friend class DependencyGraph;
     };
 
@@ -224,7 +212,6 @@ class DependencyGraph
 
     void InvalidateNode(const std::string &node_name);
     void MakeNodeDirty(const std::string& node_name, bool dirty, bool make_dependent = false);
-    void UpdateNodeEventStamp(const std::string &node_name);
     void Traversal(std::function<void(const std::string &)> callback) const;
     void Reset();
 

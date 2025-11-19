@@ -132,6 +132,8 @@ class EquationManager
 
     const Equation *GetEquation(const std::string &equation_name) const;
 
+    std::vector<EquationGroupId> GetEquationGroupIds() const;
+
     bool IsEquationGroupExist(const EquationGroupId &group_id) const;
 
     bool IsEquationExist(const std::string &eqn_name) const;
@@ -167,11 +169,6 @@ class EquationManager
         return signals_manager_.get();
     }
 
-    const EquationGroupPtrOrderedMap &equation_group_map()
-    {
-        return equation_group_map_;
-    }
-
   private:
     EquationManager(const EquationManager &) = delete;
     EquationManager &operator=(const EquationManager &) = delete;
@@ -181,16 +178,16 @@ class EquationManager
 
     Equation *GetEquationInternal(const std::string &equation_name);
     EquationGroup *GetEquationGroupInternal(const EquationGroupId &group_id);
-    void UpdateEquationInternal(const std::string &var_name);
+    void UpdateEquationInternal(const std::string &equation_name);
 
     void AddNodeToGraph(const std::string &node_name, const std::vector<std::string> &dependencies);
     void RemoveNodeInGraph(const std::string &node_name);
 
-    void UpdateValueToContext(const std::string &equation_name, const Value &old_value);
-    void RemoveValueInContext(const std::string &equation_name);
+    void AddEquationToGroup(EquationGroup* group, EquationPtr equation);
+    void RemoveEquationInGroup(EquationGroup* group, const std::string& equation_name);
 
-    void NotifyEquationGroupAdded(const EquationGroupId& group_id);
-    void NotifyEquationGroupRemoving(const EquationGroupId& group_id);
+    void NotifyEquationGroupAdded(const EquationGroupId& group_id) const;
+    void NotifyEquationGroupRemoving(const EquationGroupId& group_id) const;
 
   private:
     std::unique_ptr<DependencyGraph> graph_;

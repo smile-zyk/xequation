@@ -5,6 +5,7 @@
 namespace xequation
 {
 class EquationGroup;
+class EquationManager;
 using EquationGroupPtr = std::unique_ptr<EquationGroup>;
 using EquationGroupPtrOrderedMap = tsl::ordered_map<boost::uuids::uuid, EquationGroupPtr>;
 
@@ -20,6 +21,8 @@ class EquationGroup
     void RemoveEquation(const std::string &equation_name);
 
     const Equation *GetEquation(const std::string &equation_name) const;
+
+    Equation* GetEquation(const std::string& equation_name);
 
     bool IsEquationExist(const std::string& equation_name) const;
 
@@ -40,14 +43,14 @@ class EquationGroup
         return manager_;
     }
 
-    const EquationPtrOrderedMap &equation_map() const
-    {
-        return equation_map_;
-    }
-
     const EquationGroupId &id() const
     {
         return id_;
+    }
+
+    const EquationPtrOrderedMap& equation_map()
+    {
+        return equation_map_;
     }
 
   private:

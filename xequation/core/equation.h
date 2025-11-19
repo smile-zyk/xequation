@@ -75,7 +75,10 @@ class Equation
         status_ = status;
     }
 
-    void SetMessage(const std::string &message);
+    void set_message(const std::string &message)
+    {
+        message_ = message;
+    }
 
     const std::string &name() const
     {

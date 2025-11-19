@@ -1,6 +1,6 @@
 #include "dependency_graph.h"
+#include <iostream>
 #include <queue>
-#include <string>
 
 using namespace xequation;
 
@@ -482,18 +482,6 @@ void DependencyGraph::MakeNodeDirty(const std::string &node_name, bool dirty, bo
     }
 }
 
-void DependencyGraph::UpdateNodeEventStamp(const std::string &node_name)
-{
-    if(node_map_.count(node_name) == 0)
-    {
-        return;
-    }
-    auto node = node_map_.at(node_name).get();
-    node->set_event_stamp(EventStampGenerator::GetInstance().GetNextStamp());
-}
-
-
-
 void DependencyGraph::Traversal(std::function<void(const std::string &)> callback) const
 {
     auto topo_order = TopologicalSort();
@@ -540,70 +528,63 @@ bool DependencyGraph::CheckCycle(std::vector<std::string> &cycle_path) const
 {
     std::unordered_map<std::string, int> visited; // 0: unvisited, 1: visiting, 2: visited
     std::stack<std::pair<std::string, std::unordered_set<std::string>::iterator>>
-        stack;                                                     // Stores current node and its current iterator
-    std::unordered_map<std::string, std::string> path_predecessor; // Used to reconstruct the cycle path
+        stack;
+    std::unordered_map<std::string, std::string> path_predecessor;
 
-    // Initialize all nodes as unvisited
     for (const auto &entry : node_map_)
     {
         visited[entry.first] = 0;
     }
 
-    // Perform DFS for each unvisited node
     for (const auto &entry : node_map_)
     {
         const std::string &start_node = entry.first;
         if (visited[start_node] == 0)
         {
             stack.push(std::make_pair(start_node, node_map_.at(start_node)->dependencies_.begin()));
-            visited[start_node] = 1;           // Mark as visiting
-            path_predecessor[start_node] = ""; // Start node has no predecessor
+            visited[start_node] = 1;
+            path_predecessor[start_node] = "";
 
             while (!stack.empty())
             {
                 std::string current_node = stack.top().first;
                 auto &current_iter = stack.top().second;
 
-                // Check if we have more neighbors to visit
                 if (current_iter != node_map_.at(current_node)->dependencies_.end())
                 {
                     std::string next_neighbor = *current_iter;
-                    ++current_iter; // Move to next neighbor
+                    ++current_iter;
 
                     if (visited[next_neighbor] == 0)
                     {
-                        // Encountered unvisited node, continue DFS
                         visited[next_neighbor] = 1;
                         stack.push(std::make_pair(next_neighbor, node_map_.at(next_neighbor)->dependencies_.begin()));
-                        path_predecessor[next_neighbor] = current_node; // Record predecessor
+                        path_predecessor[next_neighbor] = current_node; 
                     }
                     else if (visited[next_neighbor] == 1)
                     {
-                        // Found a cycle! Build cycle path based on path_predecessor
                         cycle_path.clear();
                         cycle_path.push_back(next_neighbor);
                         std::string temp = current_node;
                         while (temp != next_neighbor)
-                        { // Backtrack until cycle start is encountered
+                        {
                             cycle_path.push_back(temp);
                             temp = path_predecessor[temp];
                         }
-                        cycle_path.push_back(next_neighbor); // Make the cycle complete
+                        cycle_path.push_back(next_neighbor);
                         std::reverse(cycle_path.begin(), cycle_path.end());
                         return true;
                     }
-                    // If neighbor is already fully visited (status 2), ignore it
                 }
                 else
                 {
-                    // All neighbors of current node have been processed
-                    visited[current_node] = 2; // Mark as visited
+                    visited[current_node] = 2;
                     stack.pop();
                 }
             }
         }
     }
-    return false; // No cycle found
+    return false;
 }
 
 void DependencyGraph::RollBack() noexcept

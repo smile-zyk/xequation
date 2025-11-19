@@ -9,13 +9,12 @@ set(xequation_SRC
     core/equation.cc
     core/equation_group.h
     core/equation_group.cc
-    core/event_stamp.h
-    core/event_stamp.cc
     core/equation_manager.h
     core/equation_manager.cc
     core/equation_engine.h
     core/equation_context.h
     core/equation_common.h
+    core/equation_signals_manager.h
     python/python_base.h
     python/python_executor.h
     python/python_executor.cc

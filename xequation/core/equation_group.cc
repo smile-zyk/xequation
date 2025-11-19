@@ -36,6 +36,15 @@ const Equation *EquationGroup::GetEquation(const std::string &equation_name) con
     return nullptr;
 }
 
+Equation *EquationGroup::GetEquation(const std::string &equation_name)
+{
+    if (equation_map_.contains(equation_name))
+    {
+        return equation_map_.at(equation_name).get();
+    }
+    return nullptr;
+}
+
 bool EquationGroup::IsEquationExist(const std::string &equation_name) const
 {
     return equation_map_.contains(equation_name);
