@@ -19,6 +19,7 @@ private:
 
     void OnEquationGroupAdded(const xequation::EquationGroup* group);
     void OnEquationGroupRemoving(const xequation::EquationGroup* group);
+    void OnEquationGroupUpdated(const xequation::EquationGroup* group, bitmask::bitmask<xequation::EquationGroupUpdateFlag> change_type);
 
 private:
     xequation::EquationManager* manager_;
@@ -26,4 +27,5 @@ private:
 
     xequation::ScopedConnection group_added_connection_;
     xequation::ScopedConnection group_removing_connection_;
+    xequation::ScopedConnection group_updated_connection_;
 };

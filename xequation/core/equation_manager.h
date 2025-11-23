@@ -134,15 +134,25 @@ class EquationManager
 
     std::vector<EquationGroupId> GetEquationGroupIds() const;
 
+    std::vector<std::string> GetEquationNames() const;
+
+    const tsl::ordered_set<std::string>& GetExternalVariableNames() const;
+
     bool IsEquationGroupExist(const EquationGroupId &group_id) const;
 
     bool IsEquationExist(const std::string &eqn_name) const;
+
+    bool IsStatementSingleEquation(const std::string &equation_statement) const;
 
     EquationGroupId AddEquationGroup(const std::string &equation_statement);
 
     void EditEquationGroup(const EquationGroupId &group_id, const std::string &equation_statement);
 
     void RemoveEquationGroup(const EquationGroupId &group_id);
+
+    void SetExternalVariable(const std::string &var_name, const Value &value);
+
+    void RemoveExternalVariable(const std::string &var_name);
 
     EvalResult Eval(const std::string &expression) const;
 
@@ -164,7 +174,7 @@ class EquationManager
         return *context_;
     }
 
-    EquationSignalsManager& signals_manager()
+    const EquationSignalsManager& signals_manager() const
     {
         return *signals_manager_;
     }
@@ -189,6 +199,10 @@ class EquationManager
     void NotifyEquationGroupAdded(const EquationGroupId& group_id) const;
     void NotifyEquationGroupRemoving(const EquationGroupId& group_id) const;
 
+    void ConnectGraphNodeSignals();
+    void NotifyEquationDependentsUpdated(const std::string& equation_name) const;
+    void NotifyEquationDependenciesUpdated(const std::string& equation_name) const;
+
   private:
     std::unique_ptr<DependencyGraph> graph_;
     std::unique_ptr<EquationContext> context_;
@@ -196,6 +210,7 @@ class EquationManager
 
     EquationGroupPtrOrderedMap equation_group_map_;
     std::unordered_map<std::string, boost::uuids::uuid> equation_name_to_group_id_map_;
+    tsl::ordered_set<std::string> external_variable_names_;
 
     ExecHandler exec_handler_ = nullptr;
     ParseHandler parse_handler_ = nullptr;

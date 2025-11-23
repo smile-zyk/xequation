@@ -21,6 +21,9 @@ MockEquationListWidget::MockEquationListWidget(xequation::EquationManager *manag
     group_removing_connection_ = manager_->signals_manager().ConnectScoped<EquationEvent::kEquationGroupRemoving>([this](const EquationGroup *group) {
         OnEquationGroupRemoving(group);
     });
+
+    group_updated_connection_ = manager_->signals_manager().ConnectScoped<EquationEvent::kEquationGroupUpdated>([this](const EquationGroup *group, bitmask::bitmask<EquationGroupUpdateFlag> change_type) {
+    });
 }
 
 void MockEquationListWidget::SetupUI()
@@ -39,7 +42,7 @@ void MockEquationListWidget::OnEquationGroupAdded(const xequation::EquationGroup
     if (!group)
         return;
 
-    QString show_text = "Py:\n" + QString::fromStdString(group->statement());
+    QString show_text = QString::fromStdString(group->statement());
 
     QListWidgetItem *item = new QListWidgetItem(show_text);
     addItem(item);
@@ -63,5 +66,23 @@ void MockEquationListWidget::OnEquationGroupRemoving(const xequation::EquationGr
         }
         delete item;
         item_map_.remove(group->id());
+    }
+}
+
+void MockEquationListWidget::OnEquationGroupUpdated(const xequation::EquationGroup *group, bitmask::bitmask<xequation::EquationGroupUpdateFlag> change_type)
+{
+    if (!group || !item_map_.contains(group->id()))
+    {
+        return;
+    }
+
+    if (change_type & EquationGroupUpdateFlag::kStatement)
+    {
+        QListWidgetItem *item = item_map_.value(group->id());
+        if (item)
+        {
+            QString show_text = QString::fromStdString(group->statement());
+            item->setText(show_text);
+        }
     }
 }

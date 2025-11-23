@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "equation_manager_widget.h"
+#include "equation_insert_editor.h"
 #include "mock_equation_list_widget.h"
 
 class QMenu;
@@ -45,6 +46,7 @@ private:
     QAction *equationInspectorAction;
 
     xequation::gui::EquationManagerWidget* equation_manager_widget_;
+    xequation::gui::EquationInsertEditor* equation_insert_editor_;
     MockEquationListWidget* mock_equation_list_widget_;
     std::unique_ptr<xequation::EquationManager> equation_manager_;
 };

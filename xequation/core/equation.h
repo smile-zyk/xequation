@@ -2,12 +2,12 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include <boost/uuid/uuid.hpp>
 #include <tsl/ordered_map.h>
 
 #include "value.h"
+#include "dependency_graph.h"
 
 namespace xequation
 {
@@ -60,11 +60,6 @@ class Equation
         content_ = content;
     }
 
-    void set_dependencies(const std::vector<std::string> &dependencies)
-    {
-        dependencies_ = dependencies;
-    }
-
     void set_type(Type type)
     {
         type_ = type;
@@ -88,11 +83,6 @@ class Equation
     const std::string &content() const
     {
         return content_;
-    }
-
-    const std::vector<std::string> dependencies() const
-    {
-        return dependencies_;
     }
 
     Type type() const
@@ -120,7 +110,9 @@ class Equation
         return group_id_;
     }
 
-    Value GetValue();
+    Value GetValue() const;
+    const DependencyGraph::NodeNameSet& GetDependencies() const;
+    const DependencyGraph::NodeNameSet& GetDependents() const;
 
     bool operator==(const Equation &other) const;
     bool operator!=(const Equation &other) const;
@@ -139,7 +131,6 @@ class Equation
     Type type_;
     Status status_;
     std::string message_;
-    std::vector<std::string> dependencies_;
     EquationGroupId group_id_;
     EquationManager *manager_ = nullptr;
 };

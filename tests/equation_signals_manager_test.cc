@@ -72,17 +72,17 @@ TEST_F(EquationSignalsManagerTest, EquationUpdate)
     auto eq = CreateMockEquation("test");
     bool callbackCalled = false;
     const Equation* capturedEq = nullptr;
-    bitmask::bitmask<EquationField> capturedFields;
+    bitmask::bitmask<EquationUpdateFlag> capturedFields;
 
-    auto connection = manager->Connect<EquationEvent::kEquationUpdate>(
-        [&](const Equation* equation, bitmask::bitmask<EquationField> fields) {
+    auto connection = manager->Connect<EquationEvent::kEquationUpdated>(
+        [&](const Equation* equation, bitmask::bitmask<EquationUpdateFlag> fields) {
             callbackCalled = true;
             capturedEq = equation;
             capturedFields = fields;
         });
 
-    auto fields = EquationField::kContent | EquationField::kStatus;
-    manager->Emit<EquationEvent::kEquationUpdate>(eq.get(), fields);
+    auto fields = EquationUpdateFlag::kContent | EquationUpdateFlag::kStatus;
+    manager->Emit<EquationEvent::kEquationUpdated>(eq.get(), fields);
 
     EXPECT_TRUE(callbackCalled);
     EXPECT_EQ(capturedEq, eq.get());
@@ -130,17 +130,17 @@ TEST_F(EquationSignalsManagerTest, EquationGroupUpdate)
     auto group = CreateMockEquationGroup();
     bool callbackCalled = false;
     const EquationGroup* capturedGroup = nullptr;
-    bitmask::bitmask<EquationGroupField> capturedFields;
+    bitmask::bitmask<EquationGroupUpdateFlag> capturedFields;
 
-    auto connection = manager->Connect<EquationEvent::kEquationGroupUpdate>(
-        [&](const EquationGroup* equationGroup, bitmask::bitmask<EquationGroupField> fields) {
+    auto connection = manager->Connect<EquationEvent::kEquationGroupUpdated>(
+        [&](const EquationGroup* equationGroup, bitmask::bitmask<EquationGroupUpdateFlag> fields) {
             callbackCalled = true;
             capturedGroup = equationGroup;
             capturedFields = fields;
         });
 
-    auto fields = EquationGroupField::kStatement | EquationGroupField::kEquationCount;
-    manager->Emit<EquationEvent::kEquationGroupUpdate>(group.get(), fields);
+    auto fields = EquationGroupUpdateFlag::kStatement | EquationGroupUpdateFlag::kEquationCount;
+    manager->Emit<EquationEvent::kEquationGroupUpdated>(group.get(), fields);
 
     EXPECT_TRUE(callbackCalled);
     EXPECT_EQ(capturedGroup, group.get());
@@ -246,35 +246,35 @@ TEST_F(EquationSignalsManagerTest, DisconnectAllEvents)
 // 测试空信号检查
 TEST_F(EquationSignalsManagerTest, EmptySignal)
 {
-    EXPECT_TRUE(manager->empty<EquationEvent::kEquationAdded>());
+    EXPECT_TRUE(manager->IsEmpty<EquationEvent::kEquationAdded>());
     
     auto connection = manager->Connect<EquationEvent::kEquationAdded>(
         [](const Equation*) {});
     
-    EXPECT_FALSE(manager->empty<EquationEvent::kEquationAdded>());
+    EXPECT_FALSE(manager->IsEmpty<EquationEvent::kEquationAdded>());
     
     manager->Disconnect(connection);
-    EXPECT_TRUE(manager->empty<EquationEvent::kEquationAdded>());
+    EXPECT_TRUE(manager->IsEmpty<EquationEvent::kEquationAdded>());
 }
 
 // 测试槽数量统计
 TEST_F(EquationSignalsManagerTest, NumSlots)
 {
-    EXPECT_EQ(manager->num_slots<EquationEvent::kEquationAdded>(), 0);
+    EXPECT_EQ(manager->GetNumSlots<EquationEvent::kEquationAdded>(), 0);
     
     auto conn1 = manager->Connect<EquationEvent::kEquationAdded>(
         [](const Equation*) {});
-    EXPECT_EQ(manager->num_slots<EquationEvent::kEquationAdded>(), 1);
+    EXPECT_EQ(manager->GetNumSlots<EquationEvent::kEquationAdded>(), 1);
     
     auto conn2 = manager->Connect<EquationEvent::kEquationAdded>(
         [](const Equation*) {});
-    EXPECT_EQ(manager->num_slots<EquationEvent::kEquationAdded>(), 2);
+    EXPECT_EQ(manager->GetNumSlots<EquationEvent::kEquationAdded>(), 2);
     
     manager->Disconnect(conn1);
-    EXPECT_EQ(manager->num_slots<EquationEvent::kEquationAdded>(), 1);
+    EXPECT_EQ(manager->GetNumSlots<EquationEvent::kEquationAdded>(), 1);
     
     manager->DisconnectAll<EquationEvent::kEquationAdded>();
-    EXPECT_EQ(manager->num_slots<EquationEvent::kEquationAdded>(), 0);
+    EXPECT_EQ(manager->GetNumSlots<EquationEvent::kEquationAdded>(), 0);
 }
 
 // 测试所有事件类型的连接和发射
@@ -289,22 +289,22 @@ TEST_F(EquationSignalsManagerTest, AllEventTypes)
         [&](const Equation*) { eventCounter++; });
     auto conn2 = manager->Connect<EquationEvent::kEquationRemoving>(
         [&](const Equation*) { eventCounter++; });
-    auto conn3 = manager->Connect<EquationEvent::kEquationUpdate>(
+    auto conn3 = manager->Connect<EquationEvent::kEquationUpdated>(
         [&](const Equation*, auto) { eventCounter++; });
     auto conn4 = manager->Connect<EquationEvent::kEquationGroupAdded>(
         [&](const EquationGroup*) { eventCounter++; });
     auto conn5 = manager->Connect<EquationEvent::kEquationGroupRemoving>(
         [&](const EquationGroup*) { eventCounter++; });
-    auto conn6 = manager->Connect<EquationEvent::kEquationGroupUpdate>(
+    auto conn6 = manager->Connect<EquationEvent::kEquationGroupUpdated>(
         [&](const EquationGroup*, auto) { eventCounter++; });
     
     // 发射所有事件
     manager->Emit<EquationEvent::kEquationAdded>(eq.get());
     manager->Emit<EquationEvent::kEquationRemoving>(eq.get());
-    manager->Emit<EquationEvent::kEquationUpdate>(eq.get(), EquationField::kContent);
+    manager->Emit<EquationEvent::kEquationUpdated>(eq.get(), EquationUpdateFlag::kContent);
     manager->Emit<EquationEvent::kEquationGroupAdded>(group.get());
     manager->Emit<EquationEvent::kEquationGroupRemoving>(group.get());
-    manager->Emit<EquationEvent::kEquationGroupUpdate>(group.get(), EquationGroupField::kStatement);
+    manager->Emit<EquationEvent::kEquationGroupUpdated>(group.get(), EquationGroupUpdateFlag::kStatement);
     
     EXPECT_EQ(eventCounter, 6);
 }
@@ -313,26 +313,26 @@ TEST_F(EquationSignalsManagerTest, AllEventTypes)
 TEST_F(EquationSignalsManagerTest, BitmaskOperations)
 {
     auto eq = CreateMockEquation("test");
-    bitmask::bitmask<EquationField> receivedFields;
+    bitmask::bitmask<EquationUpdateFlag> receivedFields;
     
-    auto connection = manager->Connect<EquationEvent::kEquationUpdate>(
-        [&](const Equation*, bitmask::bitmask<EquationField> fields) {
+    auto connection = manager->Connect<EquationEvent::kEquationUpdated>(
+        [&](const Equation*, bitmask::bitmask<EquationUpdateFlag> fields) {
             receivedFields = fields;
         });
     
     // 测试单个字段
-    manager->Emit<EquationEvent::kEquationUpdate>(eq.get(), EquationField::kContent);
-    EXPECT_TRUE(receivedFields & EquationField::kContent);
-    EXPECT_FALSE(receivedFields & EquationField::kStatus);
+    manager->Emit<EquationEvent::kEquationUpdated>(eq.get(), EquationUpdateFlag::kContent);
+    EXPECT_TRUE(receivedFields & EquationUpdateFlag::kContent);
+    EXPECT_FALSE(receivedFields & EquationUpdateFlag::kStatus);
     
     // 测试多个字段组合
-    auto multipleFields = EquationField::kContent | EquationField::kStatus | EquationField::kValue;
-    manager->Emit<EquationEvent::kEquationUpdate>(eq.get(), multipleFields);
+    auto multipleFields = EquationUpdateFlag::kContent | EquationUpdateFlag::kStatus | EquationUpdateFlag::kValue;
+    manager->Emit<EquationEvent::kEquationUpdated>(eq.get(), multipleFields);
     
-    EXPECT_TRUE(receivedFields & EquationField::kContent);
-    EXPECT_TRUE(receivedFields & EquationField::kStatus);
-    EXPECT_TRUE(receivedFields & EquationField::kValue);
-    EXPECT_FALSE(receivedFields & EquationField::kType);
+    EXPECT_TRUE(receivedFields & EquationUpdateFlag::kContent);
+    EXPECT_TRUE(receivedFields & EquationUpdateFlag::kStatus);
+    EXPECT_TRUE(receivedFields & EquationUpdateFlag::kValue);
+    EXPECT_FALSE(receivedFields & EquationUpdateFlag::kType);
 }
 
 int main(int argc, char **argv)

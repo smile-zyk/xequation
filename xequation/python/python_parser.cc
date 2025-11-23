@@ -270,7 +270,7 @@ class PythonParser:
         visitor = DependencyVisitor(dependencies)
         visitor.visit(node)
         
-        return list(set(dependencies))
+        return dependencies
 )";
 
 PythonParser::PythonParser()

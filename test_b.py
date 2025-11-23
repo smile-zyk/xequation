@@ -264,7 +264,7 @@ class PythonParser:
         visitor.visit(node)
         
         # 去重并返回
-        return list(set(dependencies))
+        return dependencies
 
 
 def test_parser():

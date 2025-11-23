@@ -9,7 +9,6 @@ namespace xequation
 Equation::Equation(const ParseResultItem &item, const boost::uuids::uuid &group_id, EquationManager *manager)
     : name_(item.name),
       content_(item.content),
-      dependencies_(item.dependencies),
       type_(item.type),
       status_(Status::kPending),
       group_id_(group_id),
@@ -22,7 +21,7 @@ Equation::Equation(const std::string &name, const boost::uuids::uuid &group_id, 
 {
 }
 
-EquationPtr Equation::Create(const ParseResultItem& item, const boost::uuids::uuid &group_id, EquationManager *manager)
+EquationPtr Equation::Create(const ParseResultItem &item, const boost::uuids::uuid &group_id, EquationManager *manager)
 {
     EquationPtr equation = EquationPtr(new Equation(item, group_id, manager));
     return equation;
@@ -30,9 +29,8 @@ EquationPtr Equation::Create(const ParseResultItem& item, const boost::uuids::uu
 
 bool Equation::operator==(const Equation &other) const
 {
-    return name_ == other.name_ && content_ == other.content_ && dependencies_ == other.dependencies_ &&
-           type_ == other.type_ && status_ == other.status_ && message_ == other.message_ &&
-           group_id_ == other.group_id_ && manager_ == other.manager_;
+    return name_ == other.name_ && content_ == other.content_ && type_ == other.type_ && status_ == other.status_ &&
+           message_ == other.message_ && group_id_ == other.group_id_ && manager_ == other.manager_;
 }
 
 bool Equation::operator!=(const Equation &other) const
@@ -40,9 +38,19 @@ bool Equation::operator!=(const Equation &other) const
     return !(*this == other);
 }
 
-Value Equation::GetValue()
+Value Equation::GetValue() const
 {
     return manager_->context().Get(name_);
+}
+
+const DependencyGraph::NodeNameSet &Equation::GetDependencies() const
+{
+    return manager_->graph().GetNode(name_)->dependencies();
+}
+
+const DependencyGraph::NodeNameSet &Equation::GetDependents() const
+{
+    return manager_->graph().GetNode(name_)->dependents();
 }
 
 Equation::Type Equation::StringToType(const std::string &type_str)

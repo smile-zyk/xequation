@@ -1,4 +1,5 @@
 #include "equation_manager.h"
+#include "core/equation_signals_manager.h"
 
 namespace xequation
 {
@@ -40,6 +41,12 @@ bool EquationManager::IsEquationExist(const std::string &equation_name) const
     return is_equation_exist;
 }
 
+bool EquationManager::IsStatementSingleEquation(const std::string &equation_statement) const
+{
+    auto res = parse_handler_(equation_statement);
+    return res.size() == 1;
+}
+
 const EquationGroup *EquationManager::GetEquationGroup(const EquationGroupId &group_id) const
 {
     if (equation_group_map_.contains(group_id))
@@ -72,6 +79,31 @@ const Equation *EquationManager::GetEquation(const std::string &equation_name) c
     }
 
     return group->GetEquation(equation_name);
+}
+
+std::vector<EquationGroupId> EquationManager::GetEquationGroupIds() const
+{
+    std::vector<EquationGroupId> result;
+    for (const auto &entry : equation_group_map_)
+    {
+        result.push_back(entry.first);
+    }
+    return result;
+}
+
+std::vector<std::string> EquationManager::GetEquationNames() const
+{
+    std::vector<std::string> result;
+    for (const auto &entry : equation_name_to_group_id_map_)
+    {
+        result.push_back(entry.first);
+    }
+    return result;
+}
+
+const tsl::ordered_set<std::string>& EquationManager::GetExternalVariableNames() const
+{
+    return external_variable_names_;
 }
 
 EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_statement)
@@ -201,10 +233,9 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
         Equation *update_eqn = group->GetEquation(update_item.name);
         update_eqn->set_content(update_item.content);
         update_eqn->set_type(update_item.type);
-        update_eqn->set_dependencies(update_item.dependencies);
         context_->Remove(update_item.name);
-        signals_manager_->Emit<EquationEvent::kEquationUpdate>(
-            update_eqn, EquationField::kContent | EquationField::kType | EquationField::kDependencies
+        signals_manager_->Emit<EquationEvent::kEquationUpdated>(
+            update_eqn, EquationUpdateFlag::kContent | EquationUpdateFlag::kType
         );
     }
 
@@ -218,13 +249,13 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
 
     if (to_add_items.size() != 0 || to_remove_equation_names.size() != 0)
     {
-        signals_manager_->Emit<EquationEvent::kEquationGroupUpdate>(
-            group, EquationGroupField::kEquationCount | EquationGroupField::kStatement
+        signals_manager_->Emit<EquationEvent::kEquationGroupUpdated>(
+            group, EquationGroupUpdateFlag::kEquationCount | EquationGroupUpdateFlag::kStatement
         );
     }
     else
     {
-        signals_manager_->Emit<EquationEvent::kEquationGroupUpdate>(group, EquationGroupField::kStatement);
+        signals_manager_->Emit<EquationEvent::kEquationGroupUpdated>(group, EquationGroupUpdateFlag::kStatement);
     }
 }
 
@@ -248,6 +279,18 @@ void EquationManager::RemoveEquationGroup(const EquationGroupId &group_id)
         context_->Remove(equation_name);
     }
     equation_group_map_.erase(group_id);
+}
+
+void EquationManager::SetExternalVariable(const std::string &var_name, const Value &value)
+{
+    context_->Set(var_name, value);
+    external_variable_names_.insert(var_name);
+}
+
+void EquationManager::RemoveExternalVariable(const std::string &var_name)
+{
+    context_->Remove(var_name);
+    external_variable_names_.erase(var_name);
 }
 
 EvalResult EquationManager::Eval(const std::string &expression) const
@@ -290,12 +333,12 @@ void EquationManager::UpdateEquationInternal(const std::string &equation_name)
     ExecResult result = exec_handler_(equation_statement, context_.get());
     equation->set_status(result.status);
     equation->set_message(result.message);
-    if(equation->status() != Equation::Status::kSuccess)
+    if (equation->status() != Equation::Status::kSuccess)
     {
         context_->Remove(equation_name);
     }
-    signals_manager_->Emit<EquationEvent::kEquationUpdate>(
-        equation, EquationField::kStatus | EquationField::kMessage | EquationField::kValue
+    signals_manager_->Emit<EquationEvent::kEquationUpdated>(
+        equation, EquationUpdateFlag::kStatus | EquationUpdateFlag::kMessage | EquationUpdateFlag::kValue
     );
 }
 
@@ -435,5 +478,25 @@ EquationGroup *EquationManager::GetEquationGroupInternal(const EquationGroupId &
     }
     return nullptr;
 }
+
+void EquationManager::ConnectGraphNodeSignals()
+{
+    graph_->ConnectNodeDependencyChangedSignal(
+        [this](const std::string &node_name) { NotifyEquationDependenciesUpdated(node_name); });
+
+    graph_->ConnectNodeDependentChangedSignal(
+        [this](const std::string &node_name) { NotifyEquationDependentsUpdated(node_name); });
+}
+
+void EquationManager::NotifyEquationDependentsUpdated(const std::string& node_name) const
+{
+    signals_manager_->Emit<EquationEvent::kEquationUpdated>(GetEquation(node_name), EquationUpdateFlag::kDependents);
+}
+
+void EquationManager::NotifyEquationDependenciesUpdated(const std::string& node_name) const
+{
+    signals_manager_->Emit<EquationEvent::kEquationUpdated>(GetEquation(node_name), EquationUpdateFlag::kDependencies);
+}
+
 
 } // namespace xequation

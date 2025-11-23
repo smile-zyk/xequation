@@ -1,6 +1,7 @@
 #include "dependency_graph.h"
 #include <iostream>
 #include <queue>
+#include <unordered_set>
 
 using namespace xequation;
 
@@ -509,6 +510,8 @@ void DependencyGraph::ActiveEdge(const DependencyGraph::Edge &edge)
     {
         node_map_[edge.from()]->dependencies_.insert(edge.to());
         node_map_[edge.to()]->dependents_.insert(edge.from());
+        node_dependency_changed_signal_(edge.from());
+        node_dependent_changed_signal_(edge.to());
     }
 }
 
@@ -517,17 +520,19 @@ void DependencyGraph::DeactiveEdge(const DependencyGraph::Edge &edge)
     if (node_map_.count(edge.from()))
     {
         node_map_[edge.from()]->dependencies_.erase(edge.to());
+        node_dependency_changed_signal_(edge.from());
     }
     if (node_map_.count(edge.to()))
     {
         node_map_[edge.to()]->dependents_.erase(edge.from());
+        node_dependent_changed_signal_(edge.to());
     }
 }
 
 bool DependencyGraph::CheckCycle(std::vector<std::string> &cycle_path) const
 {
     std::unordered_map<std::string, int> visited; // 0: unvisited, 1: visiting, 2: visited
-    std::stack<std::pair<std::string, std::unordered_set<std::string>::iterator>>
+    std::stack<std::pair<std::string, NodeNameSet::iterator>>
         stack;
     std::unordered_map<std::string, std::string> path_predecessor;
 
@@ -620,4 +625,16 @@ void DependencyGraph::RollBack() noexcept
     {
         std::cerr << "Rollback failed due to unknown exception." << std::endl;
     }
+}
+
+void DependencyGraph::ConnectNodeDependencyChangedSignal(
+    const boost::signals2::signal<void(const std::string &)> ::slot_type &slot)
+{
+    node_dependency_changed_signal_.connect(slot);
+}
+
+void DependencyGraph::ConnectNodeDependentChangedSignal(
+    const boost::signals2::signal<void(const std::string &)> ::slot_type &slot)
+{
+    node_dependent_changed_signal_.connect(slot);
 }

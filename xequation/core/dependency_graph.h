@@ -4,12 +4,13 @@
 #include <stack>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index_container.hpp>
+#include <boost/signals2.hpp>
+#include <tsl/ordered_set.h>
 
 namespace xequation
 {
@@ -40,6 +41,7 @@ class DependencyCycleException : public std::runtime_error
 class DependencyGraph
 {
   public:
+    using NodeNameSet = tsl::ordered_set<std::string>;
     class Node
     {
       public:
@@ -51,12 +53,12 @@ class DependencyGraph
         Node(Node &&) = default;
         Node &operator=(Node &&) = default;
 
-        const std::unordered_set<std::string> &dependencies() const
+        const NodeNameSet &dependencies() const
         {
             return dependencies_;
         }
 
-        const std::unordered_set<std::string> &dependents() const
+        const NodeNameSet &dependents() const
         {
             return dependents_;
         }
@@ -72,8 +74,8 @@ class DependencyGraph
         }
 
       private:
-        std::unordered_set<std::string> dependencies_;
-        std::unordered_set<std::string> dependents_;
+        NodeNameSet dependencies_;
+        NodeNameSet dependents_;
         bool dirty_flag_;
         
         friend class DependencyGraph;
@@ -220,6 +222,11 @@ class DependencyGraph
     std::vector<std::string> TopologicalSort(const std::string& node) const;
     std::vector<std::string> TopologicalSort(const std::vector<std::string>& nodes) const;
 
+    void ConnectNodeDependencyChangedSignal(
+        const boost::signals2::signal<void(const std::string &)> ::slot_type &slot);
+    void ConnectNodeDependentChangedSignal(
+        const boost::signals2::signal<void(const std::string &)> ::slot_type &slot);
+
   private:
     // for rollback
     struct Operation
@@ -323,5 +330,8 @@ class DependencyGraph
     EdgeContainer::Type edge_container_;
     bool batch_update_in_progress_{false};
     std::stack<Operation> operation_stack_;
+
+    boost::signals2::signal<void(const std::string&)> node_dependency_changed_signal_;
+    boost::signals2::signal<void(const std::string&)> node_dependent_changed_signal_;
 };
 } // namespace xequation

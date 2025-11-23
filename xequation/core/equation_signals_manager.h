@@ -11,53 +11,54 @@
 namespace xequation
 {
 
-enum class EquationField
+enum class EquationUpdateFlag
 {
     kContent = 1 << 0,
     kType = 1 << 1,
     kStatus = 1 << 2,
     kMessage = 1 << 3,
-    kDependencies = 1 << 4,
     kValue = 1 << 5,
+    kDependencies = 1 << 6,
+    kDependents = 1 << 7,
 };
 
-BITMASK_DEFINE_MAX_ELEMENT(EquationField, kValue)
+BITMASK_DEFINE_MAX_ELEMENT(EquationUpdateFlag, kDependents)
 
-enum class EquationGroupField
+enum class EquationGroupUpdateFlag
 {
     kStatement = 1 << 0,
     kEquationCount = 1 << 1,
 };
 
-BITMASK_DEFINE_MAX_ELEMENT(EquationGroupField, kEquationCount)
+BITMASK_DEFINE_MAX_ELEMENT(EquationGroupUpdateFlag, kEquationCount)
 
 enum class EquationEvent
 {
     kEquationAdded,
     kEquationRemoving,
-    kEquationUpdate,
+    kEquationUpdated,
     kEquationGroupAdded,
     kEquationGroupRemoving,
-    kEquationGroupUpdate,
+    kEquationGroupUpdated,
 };
 
 using EquationAddedCallback = std::function<void(const Equation *)>;
 using EquationRemovingCallback = std::function<void(const Equation *)>;
-using EquationUpdateCallback = std::function<void(const Equation *, bitmask::bitmask<EquationField>)>;
+using EquationUpdatedCallback = std::function<void(const Equation *, bitmask::bitmask<EquationUpdateFlag>)>;
 using EquationGroupAddedCallback = std::function<void(const EquationGroup *)>;
 using EquationGroupRemovingCallback = std::function<void(const EquationGroup *)>;
-using EquationGroupUpdateCallback = std::function<void(const EquationGroup *, bitmask::bitmask<EquationGroupField>)>;
+using EquationGroupUpdatedCallback = std::function<void(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>)>;
 
 using Connection = boost::signals2::connection;
 using ScopedConnection = boost::signals2::scoped_connection;
 
 using EquationAddedSignal = boost::signals2::signal<void(const Equation *)>;
 using EquationRemovingSignal = boost::signals2::signal<void(const Equation *)>;
-using EquationUpdateSignal = boost::signals2::signal<void(const Equation *, bitmask::bitmask<EquationField>)>;
+using EquationUpdatedSignal = boost::signals2::signal<void(const Equation *, bitmask::bitmask<EquationUpdateFlag>)>;
 using EquationGroupAddedSignal = boost::signals2::signal<void(const EquationGroup *)>;
 using EquationGroupRemovingSignal = boost::signals2::signal<void(const EquationGroup *)>;
-using EquationGroupUpdateSignal =
-    boost::signals2::signal<void(const EquationGroup *, bitmask::bitmask<EquationGroupField>)>;
+using EquationGroupUpdatedSignal =
+    boost::signals2::signal<void(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>)>;
 
 template <EquationEvent Event>
 struct GetSignalType;
@@ -78,9 +79,9 @@ struct GetSignalType<EquationEvent::kEquationRemoving>
 };
 
 template <>
-struct GetSignalType<EquationEvent::kEquationUpdate>
+struct GetSignalType<EquationEvent::kEquationUpdated>
 {
-    using type = EquationUpdateSignal;
+    using type = EquationUpdatedSignal;
 };
 
 template <>
@@ -96,9 +97,9 @@ struct GetSignalType<EquationEvent::kEquationGroupRemoving>
 };
 
 template <>
-struct GetSignalType<EquationEvent::kEquationGroupUpdate>
+struct GetSignalType<EquationEvent::kEquationGroupUpdated>
 {
-    using type = EquationGroupUpdateSignal;
+    using type = EquationGroupUpdatedSignal;
 };
 
 template <>
@@ -114,9 +115,9 @@ struct GetCallbackType<EquationEvent::kEquationRemoving>
 };
 
 template <>
-struct GetCallbackType<EquationEvent::kEquationUpdate>
+struct GetCallbackType<EquationEvent::kEquationUpdated>
 {
-    using type = EquationUpdateCallback;
+    using type = EquationUpdatedCallback;
 };
 
 template <>
@@ -132,9 +133,9 @@ struct GetCallbackType<EquationEvent::kEquationGroupRemoving>
 };
 
 template <>
-struct GetCallbackType<EquationEvent::kEquationGroupUpdate>
+struct GetCallbackType<EquationEvent::kEquationGroupUpdated>
 {
-    using type = EquationGroupUpdateCallback;
+    using type = EquationGroupUpdatedCallback;
 };
 
 class EquationSignalsManager
@@ -148,13 +149,13 @@ class EquationSignalsManager
         signals_[EquationEvent::kEquationAdded] = std::unique_ptr<EquationAddedSignal>(new EquationAddedSignal());
         signals_[EquationEvent::kEquationRemoving] =
             std::unique_ptr<EquationRemovingSignal>(new EquationRemovingSignal());
-        signals_[EquationEvent::kEquationUpdate] = std::unique_ptr<EquationUpdateSignal>(new EquationUpdateSignal());
+        signals_[EquationEvent::kEquationUpdated] = std::unique_ptr<EquationUpdatedSignal>(new EquationUpdatedSignal());
         signals_[EquationEvent::kEquationGroupAdded] =
             std::unique_ptr<EquationGroupAddedSignal>(new EquationGroupAddedSignal());
         signals_[EquationEvent::kEquationGroupRemoving] =
             std::unique_ptr<EquationGroupRemovingSignal>(new EquationGroupRemovingSignal());
-        signals_[EquationEvent::kEquationGroupUpdate] =
-            std::unique_ptr<EquationGroupUpdateSignal>(new EquationGroupUpdateSignal());
+        signals_[EquationEvent::kEquationGroupUpdated] =
+            std::unique_ptr<EquationGroupUpdatedSignal>(new EquationGroupUpdatedSignal());
     }
 
     EquationSignalsManager(const EquationSignalsManager &) = delete;
@@ -164,7 +165,7 @@ class EquationSignalsManager
     EquationSignalsManager &operator=(EquationSignalsManager &&) = delete;
 
     template <EquationEvent Event>
-    Connection Connect(typename GetCallbackType<Event>::type callback)
+    Connection Connect(typename GetCallbackType<Event>::type callback) const
     {
         auto it = signals_.find(Event);
         if (it == signals_.end())
@@ -178,7 +179,7 @@ class EquationSignalsManager
     }
 
     template <EquationEvent Event>
-    ScopedConnection ConnectScoped(typename GetCallbackType<Event>::type callback)
+    ScopedConnection ConnectScoped(typename GetCallbackType<Event>::type callback) const
     {
         auto it = signals_.find(Event);
         if (it == signals_.end())
@@ -192,7 +193,7 @@ class EquationSignalsManager
     }
 
     template <EquationEvent Event, typename... Args>
-    void Emit(Args &&...args)
+    void Emit(Args &&...args) const
     {
         auto it = signals_.find(Event);
         if (it == signals_.end())
@@ -205,13 +206,13 @@ class EquationSignalsManager
         (*signal)(std::forward<Args>(args)...);
     }
 
-    void Disconnect(Connection &connection)
+    void Disconnect(Connection &connection) const
     {
         connection.disconnect();
     }
 
     template <EquationEvent Event>
-    void DisconnectAll()
+    void DisconnectAll() const
     {
         auto it = signals_.find(Event);
         if (it == signals_.end())
@@ -224,18 +225,18 @@ class EquationSignalsManager
         return signal->disconnect_all_slots();
     }
 
-    void DisconnectAllEvent()
+    void DisconnectAllEvent() const
     {
         DisconnectAll<EquationEvent::kEquationAdded>();
         DisconnectAll<EquationEvent::kEquationRemoving>();
-        DisconnectAll<EquationEvent::kEquationUpdate>();
+        DisconnectAll<EquationEvent::kEquationUpdated>();
         DisconnectAll<EquationEvent::kEquationGroupAdded>();
         DisconnectAll<EquationEvent::kEquationGroupRemoving>();
-        DisconnectAll<EquationEvent::kEquationGroupUpdate>();
+        DisconnectAll<EquationEvent::kEquationGroupUpdated>();
     }
 
     template <EquationEvent Event>
-    bool empty() const
+    bool IsEmpty() const
     {
         auto it = signals_.find(Event);
         if (it == signals_.end())
@@ -249,7 +250,7 @@ class EquationSignalsManager
     }
 
     template <EquationEvent Event>
-    std::size_t num_slots() const
+    std::size_t GetNumSlots() const
     {
         auto it = signals_.find(Event);
         if (it == signals_.end())

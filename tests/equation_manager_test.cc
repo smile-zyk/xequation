@@ -323,7 +323,6 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_TRUE(group_0->IsEquationExist("A"));
     EXPECT_TRUE(equation_a == group_0->GetEquation("A"));
     EXPECT_EQ(equation_a->name(), "A");
-    EXPECT_EQ(equation_a->dependencies(), std::vector<std::string>{});
     EXPECT_EQ(equation_a->content(), "1");
     EXPECT_EQ(equation_a->group_id(), id_0);
     EXPECT_EQ(equation_a->manager(), &manager_);
@@ -339,7 +338,6 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_TRUE(group_0->IsEquationExist("A"));
     EXPECT_TRUE(equation_a == group_0->GetEquation("A"));
     EXPECT_EQ(equation_a->name(), "A");
-    EXPECT_EQ(equation_a->dependencies(), std::vector<std::string>{});
     EXPECT_EQ(equation_a->content(), "2");
     EXPECT_EQ(equation_a->group_id(), id_0);
     EXPECT_EQ(equation_a->manager(), &manager_);
@@ -352,7 +350,6 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_TRUE(group_0->IsEquationExist("B"));
     EXPECT_TRUE(equation_b == group_0->GetEquation("B"));
     EXPECT_EQ(equation_b->name(), "B");
-    EXPECT_EQ(equation_b->dependencies(), std::vector<std::string>{"A"});
     EXPECT_EQ(equation_b->content(), "A");
     EXPECT_EQ(equation_b->group_id(), id_0);
     EXPECT_EQ(equation_b->manager(), &manager_);
@@ -369,7 +366,6 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_TRUE(group_0->IsEquationExist("B"));
     EXPECT_TRUE(equation_b == group_0->GetEquation("B"));
     EXPECT_EQ(equation_b->name(), "B");
-    EXPECT_EQ(equation_b->dependencies(), std::vector<std::string>{});
     EXPECT_EQ(equation_b->content(), "3");
     EXPECT_EQ(equation_b->group_id(), id_0);
     EXPECT_EQ(equation_b->manager(), &manager_);
@@ -382,7 +378,6 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_TRUE(group_0->IsEquationExist("C"));
     EXPECT_TRUE(equation_c == group_0->GetEquation("C"));
     EXPECT_EQ(equation_c->name(), "C");
-    EXPECT_EQ(equation_c->dependencies(), std::vector<std::string>{"B"});
     EXPECT_EQ(equation_c->content(), "B+1");
     EXPECT_EQ(equation_c->group_id(), id_0);
     EXPECT_EQ(equation_c->manager(), &manager_);
@@ -407,7 +402,6 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_TRUE(group_1->IsEquationExist("D"));
     EXPECT_TRUE(equation_d == group_1->GetEquation("D"));
     EXPECT_EQ(equation_d->name(), "D");
-    EXPECT_EQ(equation_d->dependencies(), std::vector<std::string>{"B"});
     EXPECT_EQ(equation_d->content(), "B+2");
     EXPECT_EQ(equation_d->group_id(), id_1);
     EXPECT_EQ(equation_d->manager(), &manager_);
@@ -419,7 +413,6 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_TRUE(group_1->IsEquationExist("E"));
     EXPECT_TRUE(equation_e == group_1->GetEquation("E"));
     EXPECT_EQ(equation_e->name(), "E");
-    EXPECT_THAT(equation_e->dependencies(), ::testing::ElementsAre("D", "B"));
     EXPECT_EQ(equation_e->content(), "D+B");
     EXPECT_EQ(equation_e->group_id(), id_1);
     EXPECT_EQ(equation_e->manager(), &manager_);
