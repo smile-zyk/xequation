@@ -238,6 +238,7 @@ void EquationManagerWidget::ClearPropertySubItems(QtVariantProperty *property)
 
 void EquationManagerWidget::SetupUI()
 {
+    setWindowTitle("Equation Manager");
     setWindowFlags(
         Qt::Window | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint
     );

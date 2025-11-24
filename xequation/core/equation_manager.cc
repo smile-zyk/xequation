@@ -428,6 +428,16 @@ void EquationManager::UpdateEquation(const std::string &equation_name)
     }
 }
 
+void EquationManager::UpdateSingleEquation(const std::string &equation_name)
+{
+    if(IsEquationExist(equation_name) == false)
+    {
+        throw EquationException::EquationNotFound(equation_name);
+    }
+
+    UpdateEquationInternal(equation_name);
+}
+
 void EquationManager::UpdateEquationGroup(const EquationGroupId &group_id)
 {
     if (IsEquationGroupExist(group_id) == false)

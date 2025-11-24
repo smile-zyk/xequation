@@ -5,8 +5,8 @@ set(CMAKE_AUTORCC ON)
 set(xequation_gui_SRC
 equation_manager_widget.h
 equation_manager_widget.cc
-equation_insert_editor.h
-equation_insert_editor.cc
+equation_editor.h
+equation_editor.cc
 )
 
 add_library(xequation_gui STATIC ${xequation_gui_SRC})

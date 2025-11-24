@@ -31,7 +31,7 @@ class PythonParser
     void EvictLRU();
 
   private:
-    py::object parser_;
+    pybind11::object parser_;
     struct CacheEntry
     {
         std::string key;

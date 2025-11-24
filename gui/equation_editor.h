@@ -8,7 +8,7 @@
 #include <QPushButton>
 #include <QWidget>
 
-
+#include "core/equation_group.h"
 #include "core/equation_manager.h"
 
 namespace xequation
@@ -37,16 +37,23 @@ class ContextSelectionWidget : public QWidget
     QListWidget *context_list_widget_;
 };
 
-class EquationInsertEditor : public QDialog
+class EquationEditor : public QDialog
 {
     Q_OBJECT
   public:
-    EquationInsertEditor(const EquationManager *manager, QWidget *parent = nullptr);
-    ~EquationInsertEditor() {}
-    void OnEquationAddSuccess();
+    enum class Mode
+    {
+      kInsert,
+      kEdit
+    };
+    EquationEditor(const EquationManager *manager, QWidget *parent = nullptr);
+    EquationEditor(const Equation* equation, QWidget* parent = nullptr);
+    ~EquationEditor() {}
+    void OnSuccess();
 
   signals:
     void AddEquationRequest(const QString& statement);
+    void EditEquationRequest(const EquationGroupId& group_id, const QString& statement);
 
   private:
     void SetupUI();
@@ -57,16 +64,18 @@ class EquationInsertEditor : public QDialog
     void OnCancelButtonClicked();
 
   private:
-    const EquationManager *manager_;
-    QLabel *equation_name_label_;
-    QLineEdit *equation_name_edit_;
-    QLabel *expression_label_;
-    QLineEdit *expression_edit_;
-    QPushButton *context_button_;
-    ContextSelectionWidget *context_selection_widget_;
-    QPushButton *insert_button_;
-    QPushButton *ok_button_;
-    QPushButton *cancel_button_;
+    const EquationManager *manager_{};
+    const Equation* equation_{};
+    Mode mode_ = Mode::kInsert;
+    QLabel *equation_name_label_{};
+    QLineEdit *equation_name_edit_{};
+    QLabel *expression_label_{};
+    QLineEdit *expression_edit_{};
+    QPushButton *context_button_{};
+    ContextSelectionWidget *context_selection_widget_{};
+    QPushButton *insert_button_{};
+    QPushButton *ok_button_{};
+    QPushButton *cancel_button_{};
 };
 } // namespace gui
 } // namespace xequation

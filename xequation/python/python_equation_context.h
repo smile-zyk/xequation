@@ -33,8 +33,8 @@ class PythonEquationContext : public EquationContext
     // Checks if the dictionary is empty.
      bool empty() const override;
 
-    py::dict& dict() { return dict_; }
-    const py::dict& dict() const { return dict_; }
+    pybind11::dict& dict() { return dict_; }
+    const pybind11::dict& dict() const { return dict_; }
 
   private:
     friend class PythonEquationEngine;
@@ -45,7 +45,7 @@ class PythonEquationContext : public EquationContext
 
     PythonEquationContext(PythonEquationContext &&) noexcept = delete;
     PythonEquationContext &operator=(PythonEquationContext &&) noexcept = delete;
-    py::dict dict_;
+    pybind11::dict dict_;
 };
 }
 } // namespace xequation

@@ -275,11 +275,11 @@ class PythonParser:
 
 PythonParser::PythonParser()
 {
-    py::gil_scoped_acquire acquire;
-    py::exec(kParserPythonCode);
+    pybind11::gil_scoped_acquire acquire;
+    pybind11::exec(kParserPythonCode);
 
-    py::module main = py::module::import("__main__");
-    py::object python_class = main.attr("PythonParser");
+    pybind11::module main = pybind11::module::import("__main__");
+    pybind11::object python_class = main.attr("PythonParser");
     parser_ = python_class();
 }
 
@@ -308,10 +308,10 @@ Equation::Type StringToType(const std::string &type_str)
 
 std::vector<std::string> PythonParser::SplitStatements(const std::string &code)
 {
-    py::gil_scoped_acquire acquire;
+    pybind11::gil_scoped_acquire acquire;
     try
     {
-        py::list result = parser_.attr("split_statements")(code);
+        pybind11::list result = parser_.attr("split_statements")(code);
 
         std::vector<std::string> statements;
         for (const auto& item : result)
@@ -321,10 +321,10 @@ std::vector<std::string> PythonParser::SplitStatements(const std::string &code)
 
         return statements;
     }
-    catch (const py::error_already_set &e)
+    catch (const pybind11::error_already_set &e)
     {
-        py::object pv = e.value();
-        py::object str_func = py::module_::import("builtins").attr("str");
+        pybind11::object pv = e.value();
+        pybind11::object str_func = pybind11::module_::import("builtins").attr("str");
         std::string error_msg = str_func(pv).cast<std::string>();
         throw ParseException(error_msg);
     }
@@ -332,7 +332,7 @@ std::vector<std::string> PythonParser::SplitStatements(const std::string &code)
 
 ParseResult PythonParser::ParseMultipleStatements(const std::string &code)
 {
-    py::gil_scoped_acquire acquire;
+    pybind11::gil_scoped_acquire acquire;
     try
     {
         std::vector<std::string> statements = SplitStatements(code);
@@ -344,10 +344,10 @@ ParseResult PythonParser::ParseMultipleStatements(const std::string &code)
         }
         return results;
     }
-    catch (const py::error_already_set &e)
+    catch (const pybind11::error_already_set &e)
     {
-        py::object pv = e.value();
-        py::object str_func = py::module_::import("builtins").attr("str");
+        pybind11::object pv = e.value();
+        pybind11::object str_func = pybind11::module_::import("builtins").attr("str");
         std::string error_msg = str_func(pv).cast<std::string>();
         throw ParseException(error_msg);
     }
@@ -355,7 +355,7 @@ ParseResult PythonParser::ParseMultipleStatements(const std::string &code)
 
 ParseResult PythonParser::ParseSingleStatement(const std::string &code)
 {
-    py::gil_scoped_acquire acquire;
+    pybind11::gil_scoped_acquire acquire;
 
     std::string code_hash = parser_.attr("get_ast_signature")(code).cast<std::string>();
 
@@ -366,12 +366,12 @@ ParseResult PythonParser::ParseSingleStatement(const std::string &code)
     }
     try
     {
-        py::list result = parser_.attr("parse_single_statement")(code);
+        pybind11::list result = parser_.attr("parse_single_statement")(code);
 
         ParseResult res;
         for (const auto& item : result)
         {
-            py::dict item_dict = item.cast<py::dict>();
+            pybind11::dict item_dict = item.cast<pybind11::dict>();
             std::string name = item_dict["name"].cast<std::string>();
             std::vector<std::string> dependencies = item_dict["dependencies"].cast<std::vector<std::string>>();
             Equation::Type type = StringToType(item_dict["type"].cast<std::string>());
@@ -391,10 +391,10 @@ ParseResult PythonParser::ParseSingleStatement(const std::string &code)
         EvictLRU();
         return res;
     }
-    catch (const py::error_already_set &e)
+    catch (const pybind11::error_already_set &e)
     {
-        py::object pv = e.value();
-        py::object str_func = py::module_::import("builtins").attr("str");
+        pybind11::object pv = e.value();
+        pybind11::object str_func = pybind11::module_::import("builtins").attr("str");
         std::string error_msg = str_func(pv).cast<std::string>();
         throw ParseException(error_msg);
     }

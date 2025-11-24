@@ -25,82 +25,82 @@ class PythonExecutorTest : public ::testing::Test
 };
 
 TEST_F(PythonExecutorTest, BasicOperations) {
-  py::dict locals;
+  pybind11::dict locals;
   
   auto result1 = executor_->Exec("x = 5 + 3", locals);
   EXPECT_EQ(result1.status, Equation::Status::kSuccess);
   EXPECT_TRUE(result1.message.empty());
-  EXPECT_EQ(py::cast<int>(locals["x"]), 8);
+  EXPECT_EQ(pybind11::cast<int>(locals["x"]), 8);
   
   auto result2 = executor_->Eval("x * 2", locals);
   EXPECT_EQ(result2.status, Equation::Status::kSuccess);
   EXPECT_TRUE(result2.message.empty());
-  EXPECT_EQ(py::cast<int>(result2.value.Cast<py::object>()), 16);
+  EXPECT_EQ(pybind11::cast<int>(result2.value.Cast<pybind11::object>()), 16);
   
   locals["a"] = 10;
   locals["b"] = 2;
   auto result3 = executor_->Exec("c = a * b + x", locals);
   EXPECT_EQ(result3.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(locals["c"]), 28);
+  EXPECT_EQ(pybind11::cast<int>(locals["c"]), 28);
   
   auto result4 = executor_->Eval("c + 4", locals);
   EXPECT_EQ(result4.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(result4.value.Cast<py::object>()), 32);
+  EXPECT_EQ(pybind11::cast<int>(result4.value.Cast<pybind11::object>()), 32);
   
   auto result5 = executor_->Eval("5 > 3 and 2 < 4", locals);
   EXPECT_EQ(result5.status, Equation::Status::kSuccess);
-  EXPECT_TRUE(py::cast<bool>(result5.value.Cast<py::object>()));
+  EXPECT_TRUE(pybind11::cast<bool>(result5.value.Cast<pybind11::object>()));
   
   locals["name"] = "world";
   auto result6 = executor_->Eval("'Hello, ' + name", locals);
   EXPECT_EQ(result6.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<std::string>(result6.value.Cast<py::object>()), "Hello, world");
+  EXPECT_EQ(pybind11::cast<std::string>(result6.value.Cast<pybind11::object>()), "Hello, world");
 }
 
 TEST_F(PythonExecutorTest, VariableDefinitionAndAssignment) {
-  py::dict locals;
+  pybind11::dict locals;
   
   auto result1 = executor_->Exec("x = 42", locals);
   EXPECT_EQ(result1.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(locals["x"]), 42);
+  EXPECT_EQ(pybind11::cast<int>(locals["x"]), 42);
   
   auto result2 = executor_->Eval("x + 8", locals);
   EXPECT_EQ(result2.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(result2.value.Cast<py::object>()), 50);
+  EXPECT_EQ(pybind11::cast<int>(result2.value.Cast<pybind11::object>()), 50);
   
   auto result3 = executor_->Exec("name = 'test'", locals);
   EXPECT_EQ(result3.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<std::string>(locals["name"]), "test");
+  EXPECT_EQ(pybind11::cast<std::string>(locals["name"]), "test");
   
   auto result4 = executor_->Eval("name.upper()", locals);
   EXPECT_EQ(result4.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<std::string>(result4.value.Cast<py::object>()), "TEST");
+  EXPECT_EQ(pybind11::cast<std::string>(result4.value.Cast<pybind11::object>()), "TEST");
   
   auto result5 = executor_->Exec("numbers = [1, 2, 3]", locals);
   EXPECT_EQ(result5.status, Equation::Status::kSuccess);
   auto result6 = executor_->Eval("len(numbers)", locals);
   EXPECT_EQ(result6.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(result6.value.Cast<py::object>()), 3);
+  EXPECT_EQ(pybind11::cast<int>(result6.value.Cast<pybind11::object>()), 3);
   
   auto result7 = executor_->Exec("person = {'name': 'Alice', 'age': 25}", locals);
   EXPECT_EQ(result7.status, Equation::Status::kSuccess);
   auto result8 = executor_->Eval("person['name']", locals);
   EXPECT_EQ(result8.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<std::string>(result8.value.Cast<py::object>()), "Alice");
+  EXPECT_EQ(pybind11::cast<std::string>(result8.value.Cast<pybind11::object>()), "Alice");
   
   auto result9 = executor_->Exec("counter = 10", locals);
   EXPECT_EQ(result9.status, Equation::Status::kSuccess);
   auto result10 = executor_->Exec("counter += 5", locals);
   EXPECT_EQ(result10.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(locals["counter"]), 15);
+  EXPECT_EQ(pybind11::cast<int>(locals["counter"]), 15);
   
   auto result11 = executor_->Eval("counter * 2", locals);
   EXPECT_EQ(result11.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(result11.value.Cast<py::object>()), 30);
+  EXPECT_EQ(pybind11::cast<int>(result11.value.Cast<pybind11::object>()), 30);
 }
 
 TEST_F(PythonExecutorTest, FunctionDefinitionAndUsage) {
-  py::dict locals;
+  pybind11::dict locals;
   
   auto result1 = executor_->Exec(R"(
 def add_numbers(a, b):
@@ -111,7 +111,7 @@ def add_numbers(a, b):
   
   auto result2 = executor_->Eval("add_numbers(5, 3)", locals);
   EXPECT_EQ(result2.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(result2.value.Cast<py::object>()), 8);
+  EXPECT_EQ(pybind11::cast<int>(result2.value.Cast<pybind11::object>()), 8);
   
   auto result3 = executor_->Exec(R"(
 def get_message():
@@ -121,14 +121,14 @@ def get_message():
   
   auto result4 = executor_->Eval("get_message()", locals);
   EXPECT_EQ(result4.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<std::string>(result4.value.Cast<py::object>()), "Hello, World!");
+  EXPECT_EQ(pybind11::cast<std::string>(result4.value.Cast<pybind11::object>()), "Hello, World!");
   
   auto result5 = executor_->Exec("square = lambda x: x * x", locals);
   EXPECT_EQ(result5.status, Equation::Status::kSuccess);
   
   auto result6 = executor_->Eval("square(4)", locals);
   EXPECT_EQ(result6.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(result6.value.Cast<py::object>()), 16);
+  EXPECT_EQ(pybind11::cast<int>(result6.value.Cast<pybind11::object>()), 16);
   
   locals["base"] = 10;
   auto result7 = executor_->Exec(R"(
@@ -142,7 +142,7 @@ def add_base(x):
 }
 
 TEST_F(PythonExecutorTest, ClassDefinitionAndUsage) {
-  py::dict locals;
+  pybind11::dict locals;
   
   auto result1 = executor_->Exec(R"(
 class Person:
@@ -161,11 +161,11 @@ class Person:
   
   auto result3 = executor_->Eval("alice.greet()", locals);
   EXPECT_EQ(result3.status, Equation::Status::kSuccess);
-  EXPECT_NE(py::cast<std::string>(result3.value.Cast<py::object>()).find("Alice"), std::string::npos);
+  EXPECT_NE(pybind11::cast<std::string>(result3.value.Cast<pybind11::object>()).find("Alice"), std::string::npos);
   
   auto result4 = executor_->Eval("alice.name", locals);
   EXPECT_EQ(result4.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<std::string>(result4.value.Cast<py::object>()), "Alice");
+  EXPECT_EQ(pybind11::cast<std::string>(result4.value.Cast<pybind11::object>()), "Alice");
   
   auto result5 = executor_->Exec("class EmptyClass: pass", locals);
   EXPECT_EQ(result5.status, Equation::Status::kSuccess);
@@ -180,11 +180,11 @@ class Person:
   
   auto result8 = executor_->Eval("empty_obj.value", locals);
   EXPECT_EQ(result8.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(result8.value.Cast<py::object>()), 100);
+  EXPECT_EQ(pybind11::cast<int>(result8.value.Cast<pybind11::object>()), 100);
 }
 
 TEST_F(PythonExecutorTest, ModuleImportAndUsage) {
-  py::dict locals;
+  pybind11::dict locals;
   
   auto result1 = executor_->Exec("import math", locals);
   EXPECT_EQ(result1.status, Equation::Status::kSuccess);
@@ -192,7 +192,7 @@ TEST_F(PythonExecutorTest, ModuleImportAndUsage) {
   
   auto result2 = executor_->Eval("math.sqrt(16)", locals);
   EXPECT_EQ(result2.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<double>(result2.value.Cast<py::object>()), 4.0);
+  EXPECT_EQ(pybind11::cast<double>(result2.value.Cast<pybind11::object>()), 4.0);
   
   auto result3 = executor_->Exec("import datetime as dt", locals);
   EXPECT_EQ(result3.status, Equation::Status::kSuccess);
@@ -200,7 +200,7 @@ TEST_F(PythonExecutorTest, ModuleImportAndUsage) {
   
   auto result4 = executor_->Eval("dt.datetime.now().year > 2020", locals);
   EXPECT_EQ(result4.status, Equation::Status::kSuccess);
-  EXPECT_TRUE(py::cast<bool>(result4.value.Cast<py::object>()));
+  EXPECT_TRUE(pybind11::cast<bool>(result4.value.Cast<pybind11::object>()));
   
   auto result5 = executor_->Exec("from math import sqrt", locals);
   EXPECT_EQ(result5.status, Equation::Status::kSuccess);
@@ -208,7 +208,7 @@ TEST_F(PythonExecutorTest, ModuleImportAndUsage) {
   
   auto result6 = executor_->Eval("sqrt(9)", locals);
   EXPECT_EQ(result6.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<double>(result6.value.Cast<py::object>()), 3.0);
+  EXPECT_EQ(pybind11::cast<double>(result6.value.Cast<pybind11::object>()), 3.0);
   
   auto result7 = executor_->Exec("from math import pi", locals);
   EXPECT_EQ(result7.status, Equation::Status::kSuccess);
@@ -216,7 +216,7 @@ TEST_F(PythonExecutorTest, ModuleImportAndUsage) {
   
   auto result8 = executor_->Eval("pi > 3.14", locals);
   EXPECT_EQ(result8.status, Equation::Status::kSuccess);
-  EXPECT_TRUE(py::cast<bool>(result8.value.Cast<py::object>()));
+  EXPECT_TRUE(pybind11::cast<bool>(result8.value.Cast<pybind11::object>()));
   
   auto result9 = executor_->Exec("from math import factorial as fact", locals);
   EXPECT_EQ(result9.status, Equation::Status::kSuccess);
@@ -224,11 +224,11 @@ TEST_F(PythonExecutorTest, ModuleImportAndUsage) {
   
   auto result10 = executor_->Eval("fact(5)", locals);
   EXPECT_EQ(result10.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(result10.value.Cast<py::object>()), 120);
+  EXPECT_EQ(pybind11::cast<int>(result10.value.Cast<pybind11::object>()), 120);
 }
 
 TEST_F(PythonExecutorTest, ErrorHandling) {
-  py::dict locals;
+  pybind11::dict locals;
   
   auto result1 = executor_->Exec("invalid syntax!", locals);
   EXPECT_EQ(result1.status, Equation::Status::kSyntaxError);
@@ -264,7 +264,7 @@ TEST_F(PythonExecutorTest, ErrorHandling) {
 }
 
 TEST_F(PythonExecutorTest, ComplexScenarios) {
-  py::dict locals;
+  pybind11::dict locals;
   
   auto result1 = executor_->Exec("base_value = 10", locals);
   EXPECT_EQ(result1.status, Equation::Status::kSuccess);
@@ -298,47 +298,47 @@ class Processor:
   
   auto eval_result = executor_->Eval("sqrt(processor.process(5))", locals);
   EXPECT_EQ(eval_result.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<double>(eval_result.value.Cast<py::object>()), std::sqrt(400.0));
+  EXPECT_EQ(pybind11::cast<double>(eval_result.value.Cast<pybind11::object>()), std::sqrt(400.0));
 }
 
 TEST_F(PythonExecutorTest, EvalReturnTypes) {
-  py::dict locals;
+  pybind11::dict locals;
   
   auto result1 = executor_->Eval("42", locals);
   EXPECT_EQ(result1.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<int>(result1.value.Cast<py::object>()), 42);
+  EXPECT_EQ(pybind11::cast<int>(result1.value.Cast<pybind11::object>()), 42);
   
   auto result2 = executor_->Eval("3.14", locals);
   EXPECT_EQ(result2.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<double>(result2.value.Cast<py::object>()), 3.14);
+  EXPECT_EQ(pybind11::cast<double>(result2.value.Cast<pybind11::object>()), 3.14);
   
   auto result3 = executor_->Eval("'hello'", locals);
   EXPECT_EQ(result3.status, Equation::Status::kSuccess);
-  EXPECT_EQ(py::cast<std::string>(result3.value.Cast<py::object>()), "hello");
+  EXPECT_EQ(pybind11::cast<std::string>(result3.value.Cast<pybind11::object>()), "hello");
   
   auto result4 = executor_->Eval("True", locals);
   EXPECT_EQ(result4.status, Equation::Status::kSuccess);
-  EXPECT_TRUE(py::cast<bool>(result4.value.Cast<py::object>()));
+  EXPECT_TRUE(pybind11::cast<bool>(result4.value.Cast<pybind11::object>()));
   
   auto result5 = executor_->Eval("None", locals);
   EXPECT_EQ(result5.status, Equation::Status::kSuccess);
-  EXPECT_TRUE(result5.value.Cast<py::object>().is_none());
+  EXPECT_TRUE(result5.value.Cast<pybind11::object>().is_none());
   
   auto result6 = executor_->Eval("[1, 2, 3]", locals);
   EXPECT_EQ(result6.status, Equation::Status::kSuccess);
-  auto list = result6.value.Cast<py::object>().cast<py::list>();
-  EXPECT_EQ(py::len(list), 3);
+  auto list = result6.value.Cast<pybind11::object>().cast<pybind11::list>();
+  EXPECT_EQ(pybind11::len(list), 3);
   
   auto result7 = executor_->Eval("{'key': 'value'}", locals);
   EXPECT_EQ(result7.status, Equation::Status::kSuccess);
-  auto dict = result7.value.Cast<py::object>().cast<py::dict>();
-  EXPECT_EQ(py::cast<std::string>(dict["key"]), "value");
+  auto dict = result7.value.Cast<pybind11::object>().cast<pybind11::dict>();
+  EXPECT_EQ(pybind11::cast<std::string>(dict["key"]), "value");
 }
 
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
-    py::scoped_interpreter guard{};
+    pybind11::scoped_interpreter guard{};
     int ret = RUN_ALL_TESTS();
     return ret;
 }

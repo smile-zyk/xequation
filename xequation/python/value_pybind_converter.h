@@ -20,7 +20,7 @@ class PyObjectConverter
       public:
         virtual ~TypeConverter() {}
         virtual bool CanConvert(const Value &value) const = 0;
-        virtual py::object Convert(const Value &value) const = 0;
+        virtual pybind11::object Convert(const Value &value) const = 0;
     };
 
     template <typename T>
@@ -33,9 +33,9 @@ class PyObjectConverter
             return value.Type() == typeid(T);
         }
 
-        py::object Convert(const Value &value) const override
+        pybind11::object Convert(const Value &value) const override
         {
-            return py::cast(value.Cast<T>());
+            return pybind11::cast(value.Cast<T>());
         }
     };
 
@@ -48,9 +48,9 @@ class PyObjectConverter
             return value.Type() == typeid(void);
         }
 
-        py::object Convert(const Value &value) const override
+        pybind11::object Convert(const Value &value) const override
         {
-            return py::none();
+            return pybind11::none();
         }
     };
 
@@ -60,12 +60,12 @@ class PyObjectConverter
         ~ObjectConverter() {}
         bool CanConvert(const Value &value) const override
         {
-            return value.Type() == typeid(py::object);
+            return value.Type() == typeid(pybind11::object);
         }
 
-        py::object Convert(const Value &value) const override
+        pybind11::object Convert(const Value &value) const override
         {
-            return value.Cast<py::object>();
+            return value.Cast<pybind11::object>();
         }
     };
 
@@ -121,7 +121,7 @@ class PyObjectConverter
 } // namespace value_convert
 } // namespace xequation
 
-std::ostream &operator<<(std::ostream &os, const py::object &obj);
+std::ostream &operator<<(std::ostream &os, const pybind11::object &obj);
 
 namespace PYBIND11_NAMESPACE
 {
@@ -170,16 +170,16 @@ struct type_caster<xequation::Value>
             {
                 if (converter->CanConvert(src))
                 {
-                    py::object obj = converter->Convert(src);
+                    pybind11::object obj = converter->Convert(src);
                     return obj.release();
                 }
             }
 
-            return py::none().release();
+            return pybind11::none().release();
         }
         catch (const std::exception &e)
         {
-            py::pybind11_fail("Failed to convert Value to Python object: " + std::string(e.what()));
+            pybind11::pybind11_fail("Failed to convert Value to Python object: " + std::string(e.what()));
             return nullptr;
         }
     }

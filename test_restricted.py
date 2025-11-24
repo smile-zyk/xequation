@@ -16,20 +16,20 @@ def test_simple():
     
     try:
         # 对应 C++ 代码的第一行
-        # py::object compile_restricted = restrictedpython_module_.attr("compile_restricted");
+        # pybind11::object compile_restricted = restrictedpython_module_.attr("compile_restricted");
         compile_restricted_func = compile_restricted
         
         print("✓ 成功获取 compile_restricted 函数")
         
         # 对应 C++ 代码的第二行
-        # py::object bytecode = compile_restricted("1234", "<string>", "eval");
+        # pybind11::object bytecode = compile_restricted("1234", "<string>", "eval");
         bytecode = compile_restricted_func("1234", "<string>", "eval")
         
         print("✓ 成功编译字节码")
         print(f"字节码类型: {type(bytecode)}")
         
         # 对应 C++ 代码的第三行
-        # py::object result = py::eval(bytecode, safe_globals_, local);
+        # pybind11::object result = pybind11::eval(bytecode, safe_globals_, local);
         result = eval(bytecode, safe_globals_, local)
         
         print("✓ 成功执行字节码")

@@ -7,23 +7,32 @@
 
 #include <QListWidget>
 
-class MockEquationListWidget : public QListWidget
+class MockEquationGroupListWidget : public QListWidget
 {
     Q_OBJECT
 public:
-    MockEquationListWidget(xequation::EquationManager* manager, QWidget* parent = nullptr);
-    ~MockEquationListWidget() override = default;
+    MockEquationGroupListWidget(xequation::EquationManager* manager, QWidget* parent = nullptr);
+    ~MockEquationGroupListWidget() override = default;
+
+signals:
+    void OnEditEquationGroup(const xequation::EquationGroupId& id);
+    void OnRemoveEquationGroup(const xequation::EquationGroupId& id);
+    void OnCopyEquationGroup(const xequation::EquationGroupId& id);
 
 private:
     void SetupUI();
+    void SetupConnections();
 
     void OnEquationGroupAdded(const xequation::EquationGroup* group);
     void OnEquationGroupRemoving(const xequation::EquationGroup* group);
     void OnEquationGroupUpdated(const xequation::EquationGroup* group, bitmask::bitmask<xequation::EquationGroupUpdateFlag> change_type);
 
+    void OnCustomContextMenuRequested(const QPoint& pos);
+
 private:
     xequation::EquationManager* manager_;
-    QMap<xequation::EquationGroupId, QListWidgetItem*> item_map_;
+    QMap<xequation::EquationGroupId, QListWidgetItem*> id_to_item_map_;
+    QMap<QListWidgetItem*, xequation::EquationGroupId> item_to_id_map_;
 
     xequation::ScopedConnection group_added_connection_;
     xequation::ScopedConnection group_removing_connection_;

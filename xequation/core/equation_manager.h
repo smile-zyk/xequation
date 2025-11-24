@@ -162,6 +162,8 @@ class EquationManager
 
     void UpdateEquation(const std::string &equation_name);
 
+    void UpdateSingleEquation(const std::string &equation_name);
+
     void UpdateEquationGroup(const EquationGroupId &group_id);
 
     const DependencyGraph& graph()

@@ -22,12 +22,12 @@ class PythonExecutor:
 
 PythonExecutor::PythonExecutor()
 {
-    py::gil_scoped_acquire acquire;
+    pybind11::gil_scoped_acquire acquire;
 
-    py::exec(kExecutorPythonCode);
+    pybind11::exec(kExecutorPythonCode);
 
-    py::module main = py::module::import("__main__");
-    py::object python_class = main.attr("PythonExecutor");
+    pybind11::module main = pybind11::module::import("__main__");
+    pybind11::object python_class = main.attr("PythonExecutor");
     executor_ = python_class();
 }
 
@@ -35,13 +35,13 @@ PythonExecutor::~PythonExecutor()
 {
 }
 
-Equation::Status PythonExecutor::MapPythonExceptionToStatus(const py::error_already_set &e)
+Equation::Status PythonExecutor::MapPythonExceptionToStatus(const pybind11::error_already_set &e)
 {
-    py::gil_scoped_acquire acquire;
+    pybind11::gil_scoped_acquire acquire;
 
     // Extract Python exception type
-    py::object type = e.type();
-    py::object type_name = type.attr("__name__");
+    pybind11::object type = e.type();
+    pybind11::object type_name = type.attr("__name__");
     std::string type_name_str = type_name.cast<std::string>();
 
     if (type_name_str == "SyntaxError")
@@ -93,9 +93,9 @@ Equation::Status PythonExecutor::MapPythonExceptionToStatus(const py::error_alre
     return Equation::Status::kValueError;
 }
 
-ExecResult PythonExecutor::Exec(const std::string &code_string, const py::dict &local_dict)
+ExecResult PythonExecutor::Exec(const std::string &code_string, const pybind11::dict &local_dict)
 {
-    py::gil_scoped_acquire acquire;
+    pybind11::gil_scoped_acquire acquire;
 
     ExecResult res;
     try
@@ -104,37 +104,37 @@ ExecResult PythonExecutor::Exec(const std::string &code_string, const py::dict &
         res.status = Equation::Status::kSuccess;
         res.message = "";
     }
-    catch (const py::error_already_set &e)
+    catch (const pybind11::error_already_set &e)
     {
         Equation::Status status = MapPythonExceptionToStatus(e);
         res.status = status;
-        py::object pv = e.value();
-        py::object str_func = py::module_::import("builtins").attr("str");
+        pybind11::object pv = e.value();
+        pybind11::object str_func = pybind11::module_::import("builtins").attr("str");
         std::string error_msg = str_func(pv).cast<std::string>();
         res.message = error_msg;
     }
     return res;
 }
 
-EvalResult PythonExecutor::Eval(const std::string &expression, const py::dict &local_dict)
+EvalResult PythonExecutor::Eval(const std::string &expression, const pybind11::dict &local_dict)
 {
-    py::gil_scoped_acquire acquire;
+    pybind11::gil_scoped_acquire acquire;
 
     EvalResult res;
     try
     {
-        py::object result = executor_.attr("eval")(expression, local_dict);
+        pybind11::object result = executor_.attr("eval")(expression, local_dict);
         res.value = result;
         res.status = Equation::Status::kSuccess;
         res.message = "";
     }
-    catch (const py::error_already_set &e)
+    catch (const pybind11::error_already_set &e)
     {
         Equation::Status status = MapPythonExceptionToStatus(e);
         res.value = Value::Null();
         res.status = status;
-        py::object pv = e.value();
-        py::object str_func = py::module_::import("builtins").attr("str");
+        pybind11::object pv = e.value();
+        pybind11::object str_func = pybind11::module_::import("builtins").attr("str");
         std::string error_msg = str_func(pv).cast<std::string>();
         res.message = error_msg;
     }

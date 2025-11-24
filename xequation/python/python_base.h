@@ -8,5 +8,3 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/eval.h>
 #include <pybind11/gil.h>
-
-namespace py = pybind11;

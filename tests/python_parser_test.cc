@@ -563,7 +563,7 @@ TEST_F(PythonParserTest, ParseComplexImportScenarios)
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
-    py::scoped_interpreter guard{};
+    pybind11::scoped_interpreter guard{};
     int ret = RUN_ALL_TESTS();
     return ret;
 }

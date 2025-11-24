@@ -5,8 +5,8 @@ set(CMAKE_AUTORCC ON)
 set(xequation_demo_SRC
 demo_widget.h
 demo_widget.cc
-mock_equation_list_widget.h
-mock_equation_list_widget.cc
+mock_equation_group_list_widget.h
+mock_equation_group_list_widget.cc
 main.cc
 )
 

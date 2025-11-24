@@ -1,13 +1,15 @@
 #pragma once
 
+#include "core/equation.h"
+#include "core/equation_group.h"
 #include "core/equation_manager.h"
 #include <QWidget>
 #include <QMainWindow>
 #include <memory>
+#include <unordered_set>
 
 #include "equation_manager_widget.h"
-#include "equation_insert_editor.h"
-#include "mock_equation_list_widget.h"
+#include "mock_equation_group_list_widget.h"
 
 class QMenu;
 class QAction;
@@ -21,32 +23,42 @@ class DemoWidget : public QMainWindow
 public:
     explicit DemoWidget(QWidget *parent = nullptr);
 
-private slots:
-    void onOpen();
-    void onInsertEquation();
-    void onInsertMultiEquations();
-    void onShowDependencyGraph();
-    void onShowEquationManager();
-    void onShowEquationInspector();
-
 private:
-    void createMenus();
-    void createActions();
-    
-    QMenu *fileMenu;
-    QMenu *editMenu;
-    QMenu *viewMenu;
-    
-    QAction *openAction;
-    QAction *exitAction;
-    QAction *insertEquationAction;
-    QAction *insertMultiEquationsAction;
-    QAction *dependencyGraphAction;
-    QAction *equationManagerAction;
-    QAction *equationInspectorAction;
+    void OnOpen();
+    void OnInsertEquationRequest();
+    void OnEditEquationGroupRequest(const xequation::EquationGroupId& id);
+    void OnRemoveEquationGroupRequest(const xequation::EquationGroupId& id);
+    void OnInsertEquationGroupRequest();
+    void OnShowDependencyGraph();
+    void OnShowEquationManager();
+    void OnShowEquationInspector();
 
+    bool AddEquationGroup(const std::string& statement, xequation::EquationGroupId& id);
+    bool EditEquationGroup(const xequation::EquationGroupId& id, const std::string& statement);
+    bool RemoveEquationGroup(const xequation::EquationGroupId& id);
+    
+private:
+    void SetupUI();
+    void SetupConnections();
+
+    void CreateMenus();
+    void CreateActions();
+    
+    QMenu *file_menu_;
+    QMenu *edit_menu_;
+    QMenu *view_menu_;
+    
+    QAction *open_action_;
+    QAction *exit_action_;
+    QAction *insert_equation_action_;
+    QAction *insert_equation_group_action_;
+    QAction *show_dependency_graph_action_;
+    QAction *show_equation_manager_action_;
+    QAction *show_equation_inspector_action_;
+
+    std::unordered_set<xequation::EquationGroupId> single_equation_set_;
+    std::unordered_set<xequation::EquationGroupId> equation_group_set_;
     xequation::gui::EquationManagerWidget* equation_manager_widget_;
-    xequation::gui::EquationInsertEditor* equation_insert_editor_;
-    MockEquationListWidget* mock_equation_list_widget_;
+    MockEquationGroupListWidget* mock_equation_list_widget_;
     std::unique_ptr<xequation::EquationManager> equation_manager_;
 };

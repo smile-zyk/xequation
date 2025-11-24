@@ -42,7 +42,7 @@ d=a+b*c
     equation_manager->Update();
 
     auto v = equation_manager->context().Get("d");
-    auto obj = v.Cast<py::object>();
+    auto obj = v.Cast<pybind11::object>();
     EXPECT_EQ(obj.cast<int>(), 16);
 
     equation_manager->EditEquationGroup(id_0,
@@ -55,14 +55,14 @@ d=a+b*c
     );
     equation_manager->UpdateEquation("b");
     v = equation_manager->context().Get("d");
-    obj = v.Cast<py::object>();
+    obj = v.Cast<pybind11::object>();
     EXPECT_EQ(obj.cast<int>(), 26);
 
     EquationGroupId id_1 = equation_manager->AddEquationGroup("test=sum([a,b,c,d])");
     equation_manager->UpdateEquation("test");
 
     v = equation_manager->context().Get("test");
-    obj = v.Cast<py::object>();
+    obj = v.Cast<pybind11::object>();
     EXPECT_EQ(obj.cast<int>(), 37);
 
     auto import_id = equation_manager->AddEquationGroup("from math import*;p=pi");
@@ -70,7 +70,7 @@ d=a+b*c
     equation_manager->AddEquationGroup("f=sin(a*p)");
     equation_manager->UpdateEquation("f");
     v = equation_manager->context().Get("f");
-    obj = v.Cast<py::object>();
+    obj = v.Cast<pybind11::object>();
     double t = obj.cast<double>();
     EXPECT_NEAR(t, 0.0, 1e-15);
 
@@ -79,7 +79,7 @@ d=a+b*c
     auto path_group_id = equation_manager->AddEquationGroup("path1 = os.path.join('home', 'user', 'documents', 'file.txt')");
     equation_manager->UpdateEquation("path1");
     v = equation_manager->context().Get("path1");
-    obj = v.Cast<py::object>();
+    obj = v.Cast<pybind11::object>();
     std::string path = obj.cast<std::string>();
     EXPECT_EQ(path, R"(home\user\documents\file.txt)");
 }

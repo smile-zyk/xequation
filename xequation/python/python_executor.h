@@ -20,15 +20,15 @@ class PythonExecutor {
   PythonExecutor& operator=(const PythonExecutor&) = delete;
   
   // Executes Python code string in the given local dictionary.
-  ExecResult Exec(const std::string& code_string, const py::dict& local_dict = py::dict());
+  ExecResult Exec(const std::string& code_string, const pybind11::dict& local_dict = pybind11::dict());
   
   // Evaluates Python expression in the given local dictionary.
-  EvalResult Eval(const std::string& expression, const py::dict& local_dict = py::dict());
+  EvalResult Eval(const std::string& expression, const pybind11::dict& local_dict = pybind11::dict());
  private:
-  py::object executor_;
+  pybind11::object executor_;
   
   // Maps Python exception types to ExecStatus.
-  Equation::Status MapPythonExceptionToStatus(const py::error_already_set& e);
+  Equation::Status MapPythonExceptionToStatus(const pybind11::error_already_set& e);
 };
 } // namespace python
 } // namespace xequation
