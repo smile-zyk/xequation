@@ -4,30 +4,32 @@
 #include <QtTreePropertyBrowser>
 #include <QtVariantPropertyManager>
 
-#ifdef slots
-#undef slots
-#endif
-#include "python/python_base.h"
-#define slots Q_SLOTS
+#include "python_qt_wrapper.h"
+
 namespace xequation
 {
 namespace gui
 {
 namespace python
 {
-
 class PythonObjectInspector : public QWidget
 {
     Q_OBJECT
 
   public:
     explicit PythonObjectInspector(QWidget *parent = nullptr);
+
     
+
   private:
-    std::string object_name_;
-    pybind11::object object_;
-    QtTreePropertyBrowser* property_browser_;
-    QtVariantPropertyManager* variant_manager_;
+    struct ObjectProperty
+    {
+        pybind11::object object;
+        QtVariantProperty *property;
+    };
+    QtTreePropertyBrowser *property_browser_;
+    QtVariantPropertyManager *variant_manager_;
+    QMap<QString, pybind11::object> object_map_;
 };
 } // namespace python
 } // namespace gui

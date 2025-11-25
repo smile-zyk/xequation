@@ -435,7 +435,7 @@ void QtTreePropertyBrowserPrivate::init(QWidget *parent)
     m_treeWidget->setIconSize(QSize(18, 18));
     layout->addWidget(m_treeWidget);
 
-    m_treeWidget->setColumnCount(2);
+    m_treeWidget->setColumnCount(3);
     QStringList labels;
     labels.append(QCoreApplication::translate("QtTreePropertyBrowser", "Property"));
     labels.append(QCoreApplication::translate("QtTreePropertyBrowser", "Value"));
@@ -445,8 +445,8 @@ void QtTreePropertyBrowserPrivate::init(QWidget *parent)
     m_delegate = new QtPropertyEditorDelegate(parent);
     m_delegate->setEditorPrivate(this);
     m_treeWidget->setItemDelegate(m_delegate);
-    m_treeWidget->header()->setSectionsMovable(false);
-    m_treeWidget->header()->setSectionResizeMode(QHeaderView::Stretch);
+    m_treeWidget->header()->setSectionsMovable(true);
+    m_treeWidget->header()->setSectionResizeMode(QHeaderView::Interactive);
 
     m_expandIcon = drawIndicatorIcon(q_ptr->palette(), q_ptr->style());
 

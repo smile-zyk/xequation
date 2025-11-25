@@ -249,7 +249,7 @@ void EquationManagerWidget::SetupUI()
     main_layout->addWidget(property_browser_);
     setLayout(main_layout);
 
-    property_browser_->setHeaderVisible(false);
+    property_browser_->setHeaderVisible(true);
 
     for (const EquationGroupId &group_id : manager_->GetEquationGroupIds())
     {

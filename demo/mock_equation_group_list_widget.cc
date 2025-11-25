@@ -8,7 +8,6 @@
 #include <QDebug>
 #include <QMenu>
 #include <boost/uuid/uuid_io.hpp>
-#include <qvariant.h>
 
 using namespace xequation;
 
@@ -134,19 +133,16 @@ void MockEquationGroupListWidget::OnCustomContextMenuRequested(const QPoint &pos
         connect(edit_action, &QAction::triggered, [this]() {
             QListWidgetItem *item =
                 reinterpret_cast<QListWidgetItem *>(menu->property("CurrentItem").value<quintptr>());
-            qDebug() << "Edit action triggered for item:" << item->text();
             emit OnEditEquationGroup(item_to_id_map_.value(item));
         });
         connect(delete_action, &QAction::triggered, [this]() {
             QListWidgetItem *item =
                 reinterpret_cast<QListWidgetItem *>(menu->property("CurrentItem").value<quintptr>());
-            qDebug() << "Delete action triggered for item:" << item->text();
             emit OnRemoveEquationGroup(item_to_id_map_.value(item));
         });
         connect(copy_action, &QAction::triggered, [this]() {
             QListWidgetItem *item =
                 reinterpret_cast<QListWidgetItem *>(menu->property("CurrentItem").value<quintptr>());
-            qDebug() << "Copy action triggered for item:" << item->text();
             emit OnCopyEquationGroup(item_to_id_map_.value(item));
         });
     }
