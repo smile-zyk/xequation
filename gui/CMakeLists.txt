@@ -7,6 +7,8 @@ equation_manager_widget.h
 equation_manager_widget.cc
 equation_editor.h
 equation_editor.cc
+equation_debugger_browser.h
+equation_debugger_browser.cc
 )
 
 add_library(xequation_gui STATIC ${xequation_gui_SRC})
