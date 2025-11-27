@@ -60,6 +60,9 @@ class VariablePropertyBrowser : public QtAbstractPropertyBrowser
 
     void editItem(QtBrowserItem *item);
 
+    void expandAll();
+    void collapseAll();
+    
   Q_SIGNALS:
 
     void collapsed(QtBrowserItem *item);

@@ -43,8 +43,16 @@ bool EquationManager::IsEquationExist(const std::string &equation_name) const
 
 bool EquationManager::IsStatementSingleEquation(const std::string &equation_statement) const
 {
-    auto res = parse_handler_(equation_statement);
-    return res.size() == 1;
+    try
+    {
+        auto res = parse_handler_(equation_statement);
+        return res.size() == 1;
+    }
+    catch (const ParseException &e)
+    {
+        // If parsing fails, we consider it a single equation.
+        return true;
+    }
 }
 
 const EquationGroup *EquationManager::GetEquationGroup(const EquationGroupId &group_id) const

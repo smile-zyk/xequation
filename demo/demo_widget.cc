@@ -14,27 +14,27 @@
 #include <QWidget>
 #include <algorithm>
 
-#include "python_qt_wrapper.h"
+#include "python/python_qt_wrapper.h"
+#include "text_editor_dialog.h"
 
 using namespace xequation;
 
-DemoWidget::DemoWidget(QWidget *parent) : QMainWindow(parent), equation_manager_widget_(nullptr), variable_inspect_widget_(nullptr)
+DemoWidget::DemoWidget(QWidget *parent)
+    : QMainWindow(parent), equation_browser_widget_(nullptr), variable_inspect_widget_(nullptr)
 {
+    equation_manager_ = xequation::python::PythonEquationEngine::GetInstance().CreateEquationManager();
+    mock_equation_list_widget_ = new MockEquationGroupListWidget(equation_manager_.get(), this);
+    equation_browser_widget_ = new xequation::gui::EquationBrowserWidget(equation_manager_.get(), this);
+    variable_inspect_widget_ = new xequation::gui::VariableInspectWidget(this);
+
     SetupUI();
     SetupConnections();
-
-    auto id = equation_manager_->AddEquationGroup("from math import *");
-    equation_manager_->UpdateEquationGroup(id);
 }
 
 void DemoWidget::SetupUI()
 {
     setWindowTitle("xequation demo");
     setFixedSize(800, 600);
-
-    equation_manager_ = xequation::python::PythonEquationEngine::GetInstance().CreateEquationManager();
-
-    mock_equation_list_widget_ = new MockEquationGroupListWidget(equation_manager_.get(), this);
 
     setCentralWidget(mock_equation_list_widget_);
 
@@ -50,24 +50,48 @@ void DemoWidget::SetupConnections()
     connect(insert_equation_group_action_, &QAction::triggered, this, &DemoWidget::OnInsertEquationGroupRequest);
     connect(show_dependency_graph_action_, &QAction::triggered, this, &DemoWidget::OnShowDependencyGraph);
     connect(show_equation_manager_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationManager);
-    connect(show_equation_inspector_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationInspector);
+    connect(show_variable_inspector_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationInspector);
 
     connect(
-        mock_equation_list_widget_, &MockEquationGroupListWidget::OnEditEquationGroup, this,
+        mock_equation_list_widget_, &MockEquationGroupListWidget::EditEquationGroupRequested, this,
         &DemoWidget::OnEditEquationGroupRequest
     );
 
     connect(
-        mock_equation_list_widget_, &MockEquationGroupListWidget::OnRemoveEquationGroup, this,
+        mock_equation_list_widget_, &MockEquationGroupListWidget::RemoveEquationGroupRequested, this,
         &DemoWidget::OnRemoveEquationGroupRequest
     );
 
     connect(
-        mock_equation_list_widget_, &MockEquationGroupListWidget::OnCopyEquationGroup,
-        [this](const xequation::EquationGroupId &id) {
-            QApplication::clipboard()->setText(
-                QString::fromStdString(equation_manager_->GetEquationGroup(id)->statement())
-            );
+        mock_equation_list_widget_, &MockEquationGroupListWidget::CopyEquationGroupRequested, this,
+        &DemoWidget::OnCopyEquationGroupRequest
+    );
+
+    connect(
+        mock_equation_list_widget_, &MockEquationGroupListWidget::EquationGroupSelected, this,
+        &DemoWidget::OnEquationGroupSelected
+    );
+
+    connect(
+        equation_browser_widget_, &xequation::gui::EquationBrowserWidget::EquationSelected, this,
+        &DemoWidget::OnEquationSelected
+    );
+
+    equation_manager_->signals_manager().Connect<EquationEvent::kEquationUpdated>(
+        [this](const Equation *equation, bitmask::bitmask<EquationUpdateFlag> change_type) {
+            if (variable_inspect_widget_->current_equation() == equation)
+            {
+                variable_inspect_widget_->OnEquationUpdated(equation, change_type);
+            }
+        }
+    );
+
+    equation_manager_->signals_manager().Connect<EquationEvent::kEquationRemoving>(
+        [this](const Equation *equation) {
+            if (variable_inspect_widget_->current_equation() == equation)
+            {
+                variable_inspect_widget_->OnEquationRemoving(equation);
+            }
         }
     );
 }
@@ -84,26 +108,24 @@ void DemoWidget::CreateActions()
     exit_action_->setStatusTip("Exit the application");
 
     // Edit menu actions
-    insert_equation_action_ = new QAction("Insert &Equation", this);
-    insert_equation_action_->setShortcut(QKeySequence("Ctrl+E"));
+    insert_equation_action_ = new QAction("Insert Equation", this);
     insert_equation_action_->setStatusTip("Insert a single equation");
 
     insert_equation_group_action_ = new QAction("Insert Equation Group", this);
-    insert_equation_group_action_->setShortcut(QKeySequence("Ctrl+Shift+E"));
     insert_equation_group_action_->setStatusTip("Insert multiple equations");
 
     // View menu actions
-    show_dependency_graph_action_ = new QAction("&Dependency Graph", this);
-    show_dependency_graph_action_->setShortcut(QKeySequence("Ctrl+G"));
+    show_dependency_graph_action_ = new QAction("Dependency Graph", this);
     show_dependency_graph_action_->setStatusTip("Show equation dependency graph");
 
-    show_equation_manager_action_ = new QAction("Equation &Manager", this);
-    show_equation_manager_action_->setShortcut(QKeySequence("Ctrl+M"));
-    show_equation_manager_action_->setStatusTip("Manage equations");
+    show_equation_manager_action_ = new QAction("Equation Browser", this);
+    show_equation_manager_action_->setStatusTip("browser equations");
 
-    show_equation_inspector_action_ = new QAction("Equation &Inspector", this);
-    show_equation_inspector_action_->setShortcut(QKeySequence("Ctrl+I"));
-    show_equation_inspector_action_->setStatusTip("Inspect equation properties");
+    show_variable_inspector_action_ = new QAction("Variable &Inspector", this);
+    show_variable_inspector_action_->setStatusTip("Inspect variable");
+
+    show_variable_monitor_action_ = new QAction("Variable Monitor", this);
+    show_variable_monitor_action_->setStatusTip("Monitor variable");
 }
 
 void DemoWidget::OnOpen() {}
@@ -124,7 +146,8 @@ void DemoWidget::CreateMenus()
     view_menu_->addAction(show_dependency_graph_action_);
     view_menu_->addAction(show_dependency_graph_action_);
     view_menu_->addAction(show_equation_manager_action_);
-    view_menu_->addAction(show_equation_inspector_action_);
+    view_menu_->addAction(show_variable_inspector_action_);
+    view_menu_->addAction(show_variable_monitor_action_);
 }
 
 void DemoWidget::OnInsertEquationRequest()
@@ -162,6 +185,20 @@ void DemoWidget::OnEditEquationGroupRequest(const xequation::EquationGroupId &id
 
         editor->exec();
     }
+
+    if (equation_group_set_.count(id) != 0)
+    {
+        TextEditorDialog *editor = new TextEditorDialog(this, "Edit Equation Group");
+        editor->setText(QString::fromStdString(equation_manager_->GetEquationGroup(id)->statement()));
+        connect(editor, &TextEditorDialog::textSubmitted, [this, editor, id](const QString &statement) {
+            if (EditEquationGroup(id, statement.toStdString()))
+            {
+                editor->accept();
+            }
+        });
+
+        editor->exec();
+    }
 }
 
 void DemoWidget::OnRemoveEquationGroupRequest(const xequation::EquationGroupId &id)
@@ -172,7 +209,17 @@ void DemoWidget::OnRemoveEquationGroupRequest(const xequation::EquationGroupId &
         {
             single_equation_set_.erase(id);
         }
+
+        if (equation_group_set_.count(id) != 0)
+        {
+            equation_group_set_.erase(id);
+        }
     }
+}
+
+void DemoWidget::OnCopyEquationGroupRequest(const xequation::EquationGroupId &id)
+{
+    QApplication::clipboard()->setText(QString::fromStdString(equation_manager_->GetEquationGroup(id)->statement()));
 }
 
 bool DemoWidget::AddEquationGroup(const std::string &statement, xequation::EquationGroupId &id)
@@ -184,6 +231,11 @@ bool DemoWidget::AddEquationGroup(const std::string &statement, xequation::Equat
         return true;
     }
     catch (const EquationException &e)
+    {
+        QMessageBox::warning(this, "Warning", e.what(), QMessageBox::Ok);
+        return false;
+    }
+    catch (const ParseException &e)
     {
         QMessageBox::warning(this, "Warning", e.what(), QMessageBox::Ok);
         return false;
@@ -242,19 +294,93 @@ bool DemoWidget::RemoveEquationGroup(const xequation::EquationGroupId &id)
     }
 }
 
+void DemoWidget::OnEquationGroupSelected(const xequation::EquationGroupId &id)
+{
+    if (equation_browser_widget_)
+    {
+        equation_browser_widget_->blockSignals(true);
+    }
+    if (variable_inspect_widget_)
+    {
+        variable_inspect_widget_->blockSignals(true);
+    }
+
+    if (equation_manager_->IsEquationGroupExist(id))
+    {
+        const auto &group = equation_manager_->GetEquationGroup(id);
+        auto equation_names = group->GetEquationNames();
+        if (equation_names.size() >= 1)
+        {
+            const auto &equation = group->GetEquation(equation_names[0]);
+            if (variable_inspect_widget_)
+            {
+                variable_inspect_widget_->SetCurrentEquation(equation);
+            }
+            if (equation_browser_widget_)
+            {
+                equation_browser_widget_->SetCurrentEquation(equation, false);
+            }
+        }
+    }
+
+    if (equation_browser_widget_)
+    {
+        equation_browser_widget_->blockSignals(false);
+    }
+    if (variable_inspect_widget_)
+    {
+        variable_inspect_widget_->blockSignals(false);
+    }
+}
+
+void DemoWidget::OnEquationSelected(const xequation::Equation *equation)
+{
+    if (mock_equation_list_widget_)
+    {
+        mock_equation_list_widget_->blockSignals(true);
+    }
+    if (variable_inspect_widget_)
+    {
+        variable_inspect_widget_->blockSignals(true);
+    }
+
+    if (equation_manager_->IsEquationExist(equation->name()))
+    {
+        if (mock_equation_list_widget_)
+        {
+            const auto &group_id = equation->group_id();
+            mock_equation_list_widget_->SetCurrentEquationGroup(group_id);
+        }
+        if (variable_inspect_widget_)
+        {
+            variable_inspect_widget_->SetCurrentEquation(equation);
+        }
+    }
+
+    if (mock_equation_list_widget_)
+    {
+        mock_equation_list_widget_->blockSignals(false);
+    }
+    if (variable_inspect_widget_)
+    {
+        variable_inspect_widget_->blockSignals(false);
+    }
+}
+
 void DemoWidget::OnInsertEquationGroupRequest()
 {
-    QString equations = "\\begin{align}\n"
-                        "  F &= ma \\\\\n"
-                        "  v &= u + at \\\\\n"
-                        "  s &= ut + \\frac{1}{2}at^2\n"
-                        "\\end{align}";
+    TextEditorDialog *editor = new TextEditorDialog(this, "Insert Equation Group");
 
-    statusBar()->showMessage("Multiple equations inserted", 2000);
+    connect(editor, &TextEditorDialog::textSubmitted, [this, editor](const QString &statement) {
+        xequation::EquationGroupId id;
+        if (AddEquationGroup(statement.toStdString(), id))
+        {
+            equation_group_set_.insert(id);
+            editor->accept();
+        }
+    });
 
-    QMessageBox::information(
-        this, "Insert Multi-Equations", "Multiple equations inserted into document.\nContains related equation set."
-    );
+    editor->exec();
 }
 
 void DemoWidget::OnShowDependencyGraph()
@@ -271,16 +397,16 @@ void DemoWidget::OnShowDependencyGraph()
 
 void DemoWidget::OnShowEquationManager()
 {
-    if (equation_manager_widget_ == nullptr)
+    if (equation_browser_widget_ == nullptr)
     {
-        equation_manager_widget_ = new xequation::gui::EquationManagerWidget(equation_manager_.get(), this);
-        equation_manager_widget_->show();
+        equation_browser_widget_ = new xequation::gui::EquationBrowserWidget(equation_manager_.get(), this);
+        equation_browser_widget_->show();
     }
     else
     {
-        equation_manager_widget_->show();
-        equation_manager_widget_->raise();
-        equation_manager_widget_->activateWindow();
+        equation_browser_widget_->show();
+        equation_browser_widget_->raise();
+        equation_browser_widget_->activateWindow();
     }
 
     statusBar()->showMessage("Opening equation manager", 2000);

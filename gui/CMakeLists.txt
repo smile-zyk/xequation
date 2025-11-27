@@ -3,8 +3,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 set(xequation_gui_SRC
-equation_manager_widget.h
-equation_manager_widget.cc
+equation_browser_widget.h
+equation_browser_widget.cc
 equation_editor.h
 equation_editor.cc
 variable_property_browser.h

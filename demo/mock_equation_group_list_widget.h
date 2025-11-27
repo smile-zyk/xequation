@@ -14,10 +14,14 @@ public:
     MockEquationGroupListWidget(xequation::EquationManager* manager, QWidget* parent = nullptr);
     ~MockEquationGroupListWidget() override = default;
 
+    void SetCurrentEquationGroup(const xequation::EquationGroupId& id);
+    const xequation::EquationGroupId& GetCurrentEquationGroupId() const;
+
 signals:
-    void OnEditEquationGroup(const xequation::EquationGroupId& id);
-    void OnRemoveEquationGroup(const xequation::EquationGroupId& id);
-    void OnCopyEquationGroup(const xequation::EquationGroupId& id);
+    void EditEquationGroupRequested(const xequation::EquationGroupId& id);
+    void RemoveEquationGroupRequested(const xequation::EquationGroupId& id);
+    void CopyEquationGroupRequested(const xequation::EquationGroupId& id);
+    void EquationGroupSelected(const xequation::EquationGroupId& id);
 
 private:
     void SetupUI();
@@ -28,6 +32,7 @@ private:
     void OnEquationGroupUpdated(const xequation::EquationGroup* group, bitmask::bitmask<xequation::EquationGroupUpdateFlag> change_type);
 
     void OnCustomContextMenuRequested(const QPoint& pos);
+    void OnCurrentItemChanged(QListWidgetItem* current, QListWidgetItem* previous);
 
 private:
     xequation::EquationManager* manager_;

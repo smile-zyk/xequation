@@ -20,6 +20,30 @@ MockEquationGroupListWidget::MockEquationGroupListWidget(xequation::EquationMana
     SetupConnections();
 }
 
+void MockEquationGroupListWidget::SetCurrentEquationGroup(const xequation::EquationGroupId& id)
+{
+    if (id_to_item_map_.contains(id))
+    {
+        QListWidgetItem* item = id_to_item_map_.value(id);
+        setCurrentItem(item);
+    }
+}
+
+const xequation::EquationGroupId& MockEquationGroupListWidget::GetCurrentEquationGroupId() const
+{
+    QListWidgetItem* current_item = currentItem();
+    if (current_item && item_to_id_map_.contains(current_item))
+    {
+        auto it = item_to_id_map_.constFind(current_item);
+        if (it != item_to_id_map_.constEnd())
+        {
+            return it.value();
+        }
+    }
+    static const xequation::EquationGroupId empty_id = EquationGroupId();
+    return empty_id;
+}
+
 void MockEquationGroupListWidget::SetupUI()
 {
     std::vector<EquationGroupId> ids = manager_->GetEquationGroupIds();
@@ -35,10 +59,6 @@ void MockEquationGroupListWidget::SetupUI()
 
 void MockEquationGroupListWidget::SetupConnections()
 {
-    connect(
-        this, &QListWidget::customContextMenuRequested, this, &MockEquationGroupListWidget::OnCustomContextMenuRequested
-    );
-
     group_added_connection_ = manager_->signals_manager().ConnectScoped<EquationEvent::kEquationGroupAdded>(
         [this](const EquationGroup *group) { OnEquationGroupAdded(group); }
     );
@@ -51,6 +71,14 @@ void MockEquationGroupListWidget::SetupConnections()
         [this](const EquationGroup *group, bitmask::bitmask<EquationGroupUpdateFlag> change_type) {
             OnEquationGroupUpdated(group, change_type);
         }
+    );
+    
+    connect(
+        this, &QListWidget::customContextMenuRequested, this, &MockEquationGroupListWidget::OnCustomContextMenuRequested
+    );
+
+    connect(
+        this, &QListWidget::currentItemChanged, this, &MockEquationGroupListWidget::OnCurrentItemChanged
     );
 }
 
@@ -133,19 +161,31 @@ void MockEquationGroupListWidget::OnCustomContextMenuRequested(const QPoint &pos
         connect(edit_action, &QAction::triggered, [this]() {
             QListWidgetItem *item =
                 reinterpret_cast<QListWidgetItem *>(menu->property("CurrentItem").value<quintptr>());
-            emit OnEditEquationGroup(item_to_id_map_.value(item));
+            emit EditEquationGroupRequested(item_to_id_map_.value(item));
         });
         connect(delete_action, &QAction::triggered, [this]() {
             QListWidgetItem *item =
                 reinterpret_cast<QListWidgetItem *>(menu->property("CurrentItem").value<quintptr>());
-            emit OnRemoveEquationGroup(item_to_id_map_.value(item));
+            emit RemoveEquationGroupRequested(item_to_id_map_.value(item));
         });
         connect(copy_action, &QAction::triggered, [this]() {
             QListWidgetItem *item =
                 reinterpret_cast<QListWidgetItem *>(menu->property("CurrentItem").value<quintptr>());
-            emit OnCopyEquationGroup(item_to_id_map_.value(item));
+            emit CopyEquationGroupRequested(item_to_id_map_.value(item));
         });
     }
     menu->setProperty("CurrentItem", reinterpret_cast<quintptr>(item));
     menu->exec(mapToGlobal(pos));
+}
+
+void MockEquationGroupListWidget::OnCurrentItemChanged(QListWidgetItem *current, QListWidgetItem *previous)
+{
+    Q_UNUSED(previous);
+
+    if (!current)
+    {
+        return;
+    }
+
+    emit EquationGroupSelected(item_to_id_map_.value(current));
 }

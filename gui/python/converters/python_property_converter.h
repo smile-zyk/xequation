@@ -2,7 +2,7 @@
 
 #include <QString>
 
-#include "python_qt_wrapper.h"
+#include "python/python_qt_wrapper.h"
 
 class QtProperty;
 namespace xequation

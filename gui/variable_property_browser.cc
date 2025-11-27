@@ -1167,6 +1167,23 @@ void VariablePropertyBrowser::editItem(QtBrowserItem *item)
 {
     d_ptr->editItem(item);
 }
+
+/*!
+    Expands all items in the tree.
+*/
+void VariablePropertyBrowser::expandAll()
+{
+    d_ptr->m_treeWidget->expandAll();
+}
+
+/*!
+    Collapses all items in the tree.
+*/
+void VariablePropertyBrowser::collapseAll()
+{
+    d_ptr->m_treeWidget->collapseAll();
+}
+
 } // namespace gui
 } // namespace xequation
 
