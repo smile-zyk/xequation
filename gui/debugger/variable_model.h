@@ -24,11 +24,11 @@ class VariableModel : public QAbstractItemModel
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 
-    void SetRootData(const QList<Variable *> &root_data);
-    void AddRootData(Variable *data);
-    void RemoveRootData(Variable *data);
-    void ClearRootData();
-    Variable *GetRootData() const;
+    void SetRootVariable(const QList<Variable *> &variable_list);
+    void AddRootVariable(Variable *variable);
+    void RemoveRootVariable(Variable *variable);
+    void ClearRootVariables();
+    Variable *GetRootVariableAt(int index) const;
 
   protected:
     void OnVariableChanged(Variable* variable);
@@ -38,15 +38,17 @@ class VariableModel : public QAbstractItemModel
     void OnVariableChildrenInserted(Variable* parent, const QList<Variable*>& children);
     void OnVariableChildrenRemoved(Variable* parent, const QList<Variable*>& children);
 
+    void VariableInserted(Variable* variable, Variable* parent = nullptr);
+    void VariableRemoved(Variable* variable, Variable* parent = nullptr);
+
   private:
     Variable *GetVariableFromIndex(const QModelIndex &index) const;
     QModelIndex GetIndexFromVariable(Variable *data) const;
     int RowOfChildInParent(Variable *parent, Variable *child) const;
 
   private:
-    QList<Variable *> root_data_;
-    QHash<Variable*, QPair<int, Variable*>> data_index_cache_; // variable -> (row, parent)
-    QHash<Variable*, VariableManager*> variable_manager_cache_;
+    QList<Variable *> root_variable_list_;
+    QHash<VariableManager*, QList<Variable*>> variable_manager_cache_;
 };
 
 } // namespace gui

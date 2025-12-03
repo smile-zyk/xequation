@@ -15,45 +15,47 @@ VariableModel::~VariableModel()
 {
 }
 
-void VariableModel::SetRootData(const QList<Variable *> &root_data)
+void VariableModel::SetRootVariable(const QList<Variable *> &variable_list)
 {
     beginResetModel();
-    root_data_ = root_data;
+    root_variable_list_ = variable_list;
     endResetModel();
 }
 
-void VariableModel::AddRootData(Variable *data)
+void VariableModel::AddRootVariable(Variable *variable)
 {
-    if (!data) return;
-    int row = root_data_.size();
+    if (!variable) return;
+    int row = root_variable_list_.size();
     beginInsertRows(QModelIndex(), row, row);
-    root_data_.append(data);
+    root_variable_list_.append(variable);
+    VariableInserted(variable);
     endInsertRows();
 }
 
-void VariableModel::RemoveRootData(Variable *data)
+void VariableModel::RemoveRootVariable(Variable *variable)
 {
-    if (!data) return;
-    int row = root_data_.indexOf(data);
+    if (!variable) return;
+    int row = root_variable_list_.indexOf(variable);
     if (row < 0) return;
-    
+
     beginRemoveRows(QModelIndex(), row, row);
-    root_data_.removeAt(row);
+    root_variable_list_.removeAt(row);
     endRemoveRows();
 }
 
-void VariableModel::ClearRootData()
+void VariableModel::ClearRootVariables()
 {
-    if (root_data_.isEmpty()) return;
+    if (root_variable_list_.isEmpty()) return;
     
     beginResetModel();
-    root_data_.clear();
+    root_variable_list_.clear();
     endResetModel();
 }
 
-Variable *VariableModel::GetRootData() const
+Variable *VariableModel::GetRootVariableAt(int index) const
 {
-    return root_data_.isEmpty() ? nullptr : root_data_.first();
+    if (index < 0 || index >= root_variable_list_.size()) return nullptr;
+    return root_variable_list_[index];
 }
 
 int VariableModel::columnCount(const QModelIndex &parent) const
@@ -65,7 +67,7 @@ int VariableModel::columnCount(const QModelIndex &parent) const
 int VariableModel::rowCount(const QModelIndex &parent) const
 {
     if (!parent.isValid())
-        return root_data_.size();
+        return root_variable_list_.size();
 
     auto *parent_data = GetVariableFromIndex(parent);
     if (!parent_data) return 0;
@@ -78,8 +80,8 @@ QModelIndex VariableModel::index(int row, int column, const QModelIndex &parent)
 
     if (!parent.isValid())
     {
-        if (row < 0 || row >= root_data_.size()) return QModelIndex();
-        return createIndex(row, column, root_data_[row]);
+        if (row < 0 || row >= root_variable_list_.size()) return QModelIndex();
+        return createIndex(row, column, root_variable_list_[row]);
     }
 
     auto *parent_data = GetVariableFromIndex(parent);
@@ -101,9 +103,9 @@ QModelIndex VariableModel::parent(const QModelIndex &child) const
     auto *parent_data = child_data->parent();
     if (!parent_data) return QModelIndex();
 
-    for (int i = 0; i < root_data_.size(); ++i)
+    for (int i = 0; i < root_variable_list_.size(); ++i)
     {
-        if (root_data_[i] == parent_data)
+        if (root_variable_list_[i] == parent_data)
             return createIndex(i, 0, parent_data);
     }
 
@@ -148,6 +150,90 @@ QVariant VariableModel::headerData(int section, Qt::Orientation orientation, int
     return QVariant();
 }
 
+void VariableModel::OnVariableChanged(Variable* variable)
+{
+    QModelIndex index = GetIndexFromVariable(variable);
+    if (index.isValid())
+    {
+        emit dataChanged(index, index);
+    }
+}
+
+void VariableModel::OnVariablesChanged(const QList<Variable*>& variables)
+{
+    // emit one time
+    if (variables.isEmpty()) return;
+    QModelIndex first_index = GetIndexFromVariable(variables.first());
+    QModelIndex last_index = GetIndexFromVariable(variables.last());
+    if (first_index.isValid() && last_index.isValid())
+    {
+        emit dataChanged(first_index, last_index);
+    }
+}
+
+void VariableModel::OnVariableChildInserted(Variable* parent, Variable* child)
+{
+
+}
+
+void VariableModel::OnVariableChildRemoved(Variable* parent, Variable* child)
+{
+
+}
+
+void VariableModel::OnVariableChildrenInserted(Variable* parent, const QList<Variable*>& children)
+{
+
+}
+
+void VariableModel::OnVariableChildrenRemoved(Variable* parent, const QList<Variable*>& children)
+{
+
+}
+
+void VariableModel::VariableInserted(Variable* variable, Variable* parent)
+{
+    if(variable_manager_cache_[variable->manager()].isEmpty())
+    {
+        connect(variable->manager(), &VariableManager::VariableChanged,
+                this, &VariableModel::OnVariableChanged);
+        connect(variable->manager(), &VariableManager::VariablesChanged,
+                this, &VariableModel::OnVariablesChanged);
+        connect(variable->manager(), &VariableManager::VariableChildInserted,
+                this, &VariableModel::OnVariableChildInserted);
+        connect(variable->manager(), &VariableManager::VariableChildRemoved,
+                this, &VariableModel::OnVariableChildRemoved);
+        connect(variable->manager(), &VariableManager::VariableChildrenInserted,
+                this, &VariableModel::OnVariableChildrenInserted);
+        connect(variable->manager(), &VariableManager::VariableChildrenRemoved,
+                this, &VariableModel::OnVariableChildrenRemoved);
+    }
+    variable_manager_cache_[variable->manager()].append(variable);
+}
+
+void VariableModel::VariableRemoved(Variable* variable, Variable* parent)
+{
+    if(!variable_manager_cache_.contains(variable->manager()))
+        return;
+
+    variable_manager_cache_[variable->manager()].removeOne(variable);
+    if(variable_manager_cache_[variable->manager()].isEmpty())
+    {
+        disconnect(variable->manager(), &VariableManager::VariableChanged,
+                this, &VariableModel::OnVariableChanged);
+        disconnect(variable->manager(), &VariableManager::VariablesChanged,
+                this, &VariableModel::OnVariablesChanged);
+        disconnect(variable->manager(), &VariableManager::VariableChildInserted,
+                this, &VariableModel::OnVariableChildInserted);
+        disconnect(variable->manager(), &VariableManager::VariableChildRemoved,
+                this, &VariableModel::OnVariableChildRemoved);
+        disconnect(variable->manager(), &VariableManager::VariableChildrenInserted,
+                this, &VariableModel::OnVariableChildrenInserted);
+        disconnect(variable->manager(), &VariableManager::VariableChildrenRemoved,
+                this, &VariableModel::OnVariableChildrenRemoved);
+    }
+}
+
 Variable *VariableModel::GetVariableFromIndex(const QModelIndex &index) const
 {
     return index.isValid() ? static_cast<Variable *>(index.internalPointer()) : nullptr;
@@ -157,7 +243,7 @@ QModelIndex VariableModel::GetIndexFromVariable(Variable *data) const
 {
     if (!data) return QModelIndex();
 
-    int idx = root_data_.indexOf(data);
+    int idx = root_variable_list_.indexOf(data);
     if (idx >= 0)
         return createIndex(idx, 0, data);
 
@@ -166,9 +252,6 @@ QModelIndex VariableModel::GetIndexFromVariable(Variable *data) const
 
     int row = RowOfChildInParent(parent_data, data);
     if (row < 0) return QModelIndex();
-
-    QModelIndex parent_index = GetIndexFromVariable(parent_data);
-    if (!parent_index.isValid()) return QModelIndex();
 
     return createIndex(row, 0, data);
 }
