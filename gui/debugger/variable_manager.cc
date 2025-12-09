@@ -1,4 +1,5 @@
 #include "variable_manager.h"
+#include "tsl/ordered_hash.h"
 
 namespace xequation
 {
@@ -11,12 +12,12 @@ Variable::Variable(const QString &name, const QString &value, const QString &typ
 
 Variable::~Variable()
 {
-    for (auto *child : child_list_)
+    for (auto *child : child_ordered_set_)
     {
         if (child)
             child->parent_ = nullptr;
     }
-    child_list_.clear();
+    child_ordered_set_.clear();
     parent_ = nullptr;
 }
 
@@ -42,14 +43,19 @@ void Variable::RemoveChildren(const QList<Variable *> &children)
 
 Variable *Variable::GetChildAt(int index) const
 {
-    if (index < 0 || index >= child_list_.size())
+    if (index < 0 || index >= child_ordered_set_.size())
         return nullptr;
-    return child_list_.at(index);
+    return *child_ordered_set_.nth(index);
 }
 
 void Variable::ClearChildren()
 {
-    manager_->RemoveVariableChildren(this, child_list_);
+    QList<Variable *> children;
+    for (auto *child : child_ordered_set_)
+    {
+        children.append(child);
+    }
+    manager_->RemoveVariableChildren(this, children);
 }
 
 void Variable::SetValue(const QString &value)
@@ -64,7 +70,15 @@ void Variable::SetType(const QString &type)
 
 int Variable::IndexOfChild(Variable *child) const
 {
-    return child_list_.indexOf(child);
+    auto it = child_ordered_set_.find(child);
+    if (it == child_ordered_set_.end())
+        return -1;
+    return std::distance(child_ordered_set_.begin(), it);
+}
+
+bool Variable::HasChild(Variable *child) const
+{
+    return child_ordered_set_.contains(child);
 }
 
 VariableManager::VariableManager(QObject *parent) : QObject(parent) {}
@@ -76,18 +90,25 @@ VariableManager::~VariableManager()
 
 Variable *VariableManager::CreateVariable(const QString &name, const QString &value, const QString &type)
 {
-    Variable *raw = new Variable(name, value, type);
-    raw->manager_ = this;
-    variable_set_.insert(raw);
-    return raw;
+    Variable *var = new Variable(name, value, type);
+    var->manager_ = this;
+    variable_set_.insert(var);
+    return var;
 }
 
 void VariableManager::RemoveVariable(Variable *variable)
 {
     if (!variable || !variable_set_.contains(variable))
         return;
-    variable_set_.remove(variable);
+    variable_set_.erase(variable);
     delete variable;
+}
+
+Variable *VariableManager::GetVariableAt(int index)
+{
+    if (index < 0 || index >= static_cast<int>(variable_set_.size()))
+        return nullptr;
+    return *variable_set_.nth(index);
 }
 
 void VariableManager::Clear()
@@ -99,7 +120,7 @@ void VariableManager::Clear()
     variable_set_.clear();
 }
 
-bool VariableManager::IsContain(Variable* variable) const
+bool VariableManager::IsContain(Variable *variable) const
 {
     return variable_set_.contains(variable);
 }
@@ -116,73 +137,125 @@ void VariableManager::EndUpdate()
     updated_variables_.clear();
 }
 
-void VariableManager::SetVariableValue(Variable* variable, const QString &value)
+void VariableManager::SetVariableValue(Variable *variable, const QString &value)
 {
     variable->value_ = value;
-    if(updating_ == false)
+    if (updating_ == false)
     {
         emit VariableChanged(variable);
     }
-    else 
+    else
     {
         updated_variables_.append(variable);
     }
 }
 
-void VariableManager::SetVariableType(Variable* variable, const QString &type)
+void VariableManager::SetVariableType(Variable *variable, const QString &type)
 {
     variable->type_ = type;
-    if(updating_ == false)
+    if (updating_ == false)
     {
         emit VariableChanged(variable);
     }
-    else 
+    else
     {
         updated_variables_.append(variable);
     }
 }
-    
-void VariableManager::AddVariableChild(Variable* parent, Variable* child)
+
+void VariableManager::AddVariableChild(Variable *parent, Variable *child)
 {
-    if( !parent || !child || parent == child)
+    if (!parent || !child || parent->HasChild(child))
         return;
-    parent->child_list_.append(child);
+    emit VariableBeginInsert(parent, parent->ChildCount(), 1);
+    parent->child_ordered_set_.insert(child);
     child->parent_ = parent;
-    emit VariableChildInserted(parent, child);
+    emit VariableEndInsert();
 }
 
-void VariableManager::RemoveVariableChild(Variable* parent, Variable* child)
+void VariableManager::RemoveVariableChild(Variable *parent, Variable *child)
 {
-    if (!parent || !child)
+    if (!parent || !child || !parent->HasChild(child))
         return;
-    parent->child_list_.removeOne(child);
+    emit VariableBeginRemove(parent, parent->IndexOfChild(child), 1);
+    parent->child_ordered_set_.erase(child);
     child->parent_ = nullptr;
-    emit VariableChildRemoved(parent, child);
+    emit VariableEndRemove();
 }
 
-void VariableManager::AddVariableChildren(Variable* parent, const QList<Variable*>& children)
+void VariableManager::AddVariableChildren(Variable *parent, const QList<Variable *> &children)
 {
+    int count = 0;
+
     for (Variable *child : children)
     {
-        if(!parent || !child || parent == child)
+        if (!parent || !child || parent->HasChild(child))
             continue;
-        parent->child_list_.append(child);
+        count++;
+    }
+    emit VariableBeginInsert(parent, parent->ChildCount(), count);
+    for (Variable *child : children)
+    {
+        if (!parent || !child || parent->HasChild(child))
+            continue;
+        parent->child_ordered_set_.insert(child);
         child->parent_ = parent;
     }
-    emit VariableChildrenInserted(parent, children);
+    emit VariableEndInsert();
 }
 
-void VariableManager::RemoveVariableChildren(Variable* parent, const QList<Variable*>& children)
+void VariableManager::RemoveVariableChildren(Variable *parent, const QList<Variable *> &children)
 {
+    std::vector<int> indices;
     for (Variable *child : children)
     {
-        if (!parent || !child)
+        if (!parent || !child || !parent->HasChild(child))
             continue;
-        parent->child_list_.removeOne(child);
-        child->parent_ = nullptr;
+        int index = parent->IndexOfChild(child);
+        if (index >= 0)
+            indices.push_back(index);
     }
-    emit VariableChildrenRemoved(parent, children);
-}
 
+    std::sort(indices.begin(), indices.end());
+    std::vector<std::pair<int, int>> ranges;
+    if (indices.empty())
+    {
+        return;
+    }
+    int start = indices[0];
+    int end = start;
+    ;
+    for (size_t i = 1; i < indices.size(); i++)
+    {
+        if (indices[i] == end + 1)
+        {
+            end = indices[i];
+        }
+        else
+        {
+            ranges.emplace_back(std::make_pair(start, end));
+            start = indices[i];
+            end = start;
+        }
+    }
+    ranges.emplace_back(std::make_pair(start, end));
+
+    std::reverse(ranges.begin(), ranges.end());
+
+    for (const auto &range : ranges)
+    {
+        emit VariableBeginRemove(parent, range.first, range.second - range.first + 1);
+        for (int i = range.second; i >= range.first; i--)
+        {
+            Variable *child = parent->GetChildAt(i);
+            if (child)
+            {
+                parent->child_ordered_set_.erase(child);
+                child->parent_ = nullptr;
+            }
+        }
+        emit VariableEndRemove();
+    }
+}
 } // namespace gui
 } // namespace xequation

@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QString>
 #include <QSet>
+#include <tsl/ordered_set.h>
 
 namespace xequation
 {
@@ -13,17 +14,19 @@ class VariableManager;
 class Variable
 {
   public:
+    using OrderedSet = tsl::ordered_set<Variable*>;
     Variable(const QString &name, const QString &value, const QString &type);
     ~Variable();
 
     void AddChild(Variable *child);
-    void AddChildren(const QList<Variable *> &children);
+    void AddChildren(const QList<Variable*> &children);
     void RemoveChild(Variable *child);
-    void RemoveChildren(const QList<Variable *> &children);
+    void RemoveChildren(const QList<Variable*> &children);
     void ClearChildren();
 
     Variable *GetChildAt(int index) const;
     int IndexOfChild(Variable *child) const;
+    bool HasChild(Variable *child) const;
 
     void SetValue(const QString &value);
     void SetType(const QString &type);
@@ -50,12 +53,12 @@ class Variable
 
     int ChildCount() const
     {
-        return child_list_.size();
+        return child_ordered_set_.size();
     }
     
-    QList<Variable *> children() const
+    const OrderedSet& children() const
     {
-        return child_list_;
+        return child_ordered_set_;
     }
 
     VariableManager* manager()
@@ -68,7 +71,7 @@ class Variable
     QString name_;
     QString value_;
     QString type_;
-    QList<Variable*> child_list_;
+    OrderedSet child_ordered_set_;
     Variable *parent_;
     VariableManager* manager_;
 };
@@ -83,6 +86,7 @@ class VariableManager : public QObject
 
     Variable *CreateVariable(const QString &name, const QString &value, const QString &type);
     void RemoveVariable(Variable* variable);
+    Variable* GetVariableAt(int index);
     void Clear();
 
     bool IsContain(Variable* variable) const;
@@ -101,21 +105,16 @@ class VariableManager : public QObject
         return variable_set_.size();
     }
 
-    const QSet<Variable*>& variable_set() const
-    {
-        return variable_set_;
-    }
-
   signals:
+    void VariableBeginInsert(Variable* parent, int index, int count);
+    void VariableEndInsert();
+    void VariableBeginRemove(Variable* parent, int index, int count);
+    void VariableEndRemove();
     void VariableChanged(Variable* variable);
     void VariablesChanged(const QList<Variable*>& variables);
-    void VariableChildInserted(Variable* parent, Variable* child);
-    void VariableChildRemoved(Variable* parent, Variable* child);
-    void VariableChildrenInserted(Variable* parent, const QList<Variable*>& children);
-    void VariableChildrenRemoved(Variable* parent, const QList<Variable*>& children);
 
   private:
-    QSet<Variable*> variable_set_;
+    Variable::OrderedSet variable_set_;
     bool updating_ = false;
     QList<Variable*> updated_variables_;
 };

@@ -3,13 +3,12 @@
 #include <QAbstractItemModel>
 #include <QObject>
 #include <QVector>
+#include "variable_manager.h"
 
 namespace xequation
 {
 namespace gui
 {
-class Variable;
-class VariableManager;
 class VariableModel : public QAbstractItemModel
 {
     Q_OBJECT
@@ -29,25 +28,26 @@ class VariableModel : public QAbstractItemModel
     void RemoveRootVariable(Variable *variable);
     void ClearRootVariables();
     Variable *GetRootVariableAt(int index) const;
+    int IndexOfRootVariable(Variable *variable) const;
+    bool IsContainRootVariable(Variable *variable) const;
 
   protected:
+    void OnVariableBeginInsert(Variable* parent, int index, int count);
+    void OnVariableEndInsert();
+    void OnVariableBeginRemove(Variable* parent, int index, int count);
+    void OnVariableEndRemove();
     void OnVariableChanged(Variable* variable);
     void OnVariablesChanged(const QList<Variable*>& variables);
-    void OnVariableChildInserted(Variable* parent, Variable* child);
-    void OnVariableChildRemoved(Variable* parent, Variable* child);
-    void OnVariableChildrenInserted(Variable* parent, const QList<Variable*>& children);
-    void OnVariableChildrenRemoved(Variable* parent, const QList<Variable*>& children);
 
-    void VariableInserted(Variable* variable, Variable* parent = nullptr);
-    void VariableRemoved(Variable* variable, Variable* parent = nullptr);
+    void ConnectVariableManager(Variable* variable);
+    void DisconnectVariableManager(Variable* variable);
 
   private:
     Variable *GetVariableFromIndex(const QModelIndex &index) const;
-    QModelIndex GetIndexFromVariable(Variable *data) const;
-    int RowOfChildInParent(Variable *parent, Variable *child) const;
+    QModelIndex GetIndexFromVariable(Variable *variable) const;
 
   private:
-    QList<Variable *> root_variable_list_;
+    Variable::OrderedSet root_variable_set_;
     QHash<VariableManager*, QList<Variable*>> variable_manager_cache_;
 };
 
