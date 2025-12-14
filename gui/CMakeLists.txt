@@ -13,16 +13,14 @@ variable_inspect_widget.h
 variable_inspect_widget.cc
 variable_property_manager.h
 variable_property_manager.cc
-python/converters/python_property_converter.h
-python/converters/python_property_converter.cc
-python/converters/basic_python_converter.h
-python/converters/basic_python_converter.cc
 debugger/variable_view.h
 debugger/variable_view.cc
 debugger/variable_model.h
 debugger/variable_model.cc
-debugger/variable_data_manager.h
-debugger/variable_data_manager.cc
+debugger/variable_manager.h
+debugger/variable_manager.cc
+debugger/variable_test_widget.h
+debugger/variable_test_widget.cc
 )
 
 add_library(xequation_gui STATIC ${xequation_gui_SRC})

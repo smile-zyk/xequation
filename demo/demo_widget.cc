@@ -20,7 +20,7 @@
 using namespace xequation;
 
 DemoWidget::DemoWidget(QWidget *parent)
-    : QMainWindow(parent), equation_browser_widget_(nullptr), variable_inspect_widget_(nullptr)
+    : QMainWindow(parent), equation_browser_widget_(nullptr), variable_inspect_widget_(nullptr), variable_test_widget_(nullptr)
 {
     equation_manager_ = xequation::python::PythonEquationEngine::GetInstance().CreateEquationManager();
     mock_equation_list_widget_ = new MockEquationGroupListWidget(equation_manager_.get(), this);
@@ -51,6 +51,15 @@ void DemoWidget::SetupConnections()
     connect(show_dependency_graph_action_, &QAction::triggered, this, &DemoWidget::OnShowDependencyGraph);
     connect(show_equation_manager_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationManager);
     connect(show_variable_inspector_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationInspector);
+    connect(show_variable_test_widget_action_, &QAction::triggered, [this]() {
+        if (!variable_test_widget_)
+        {
+            variable_test_widget_ = new xequation::gui::VariableTestWidget(this);
+        }
+        variable_test_widget_->show();
+        variable_test_widget_->raise();
+        variable_test_widget_->activateWindow();
+    });
 
     connect(
         mock_equation_list_widget_, &MockEquationGroupListWidget::EditEquationGroupRequested, this,
@@ -126,6 +135,9 @@ void DemoWidget::CreateActions()
 
     show_variable_monitor_action_ = new QAction("Variable Monitor", this);
     show_variable_monitor_action_->setStatusTip("Monitor variable");
+
+    show_variable_test_widget_action_ = new QAction("Variable Test Widget", this);
+    show_variable_test_widget_action_->setStatusTip("Show variable test widget");
 }
 
 void DemoWidget::OnOpen() {}
@@ -148,6 +160,7 @@ void DemoWidget::CreateMenus()
     view_menu_->addAction(show_equation_manager_action_);
     view_menu_->addAction(show_variable_inspector_action_);
     view_menu_->addAction(show_variable_monitor_action_);
+    view_menu_->addAction(show_variable_test_widget_action_);
 }
 
 void DemoWidget::OnInsertEquationRequest()

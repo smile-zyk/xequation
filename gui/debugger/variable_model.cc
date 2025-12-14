@@ -1,81 +1,185 @@
 #include "variable_model.h"
-#include "variable_manager.h"
 
 namespace xequation
 {
 namespace gui
 {
 
-VariableModel::VariableModel(QObject *parent) : QAbstractItemModel(parent) {}
+// ============================================================================
+// Variable Implementation
+// ============================================================================
 
-VariableModel::~VariableModel() {}
-
-void VariableModel::SetRootVariable(const QList<Variable *> &variable_list)
+Variable::Variable(const QString &name, const QString &value, const QString &type)
+    : name_(name), value_(value), type_(type), parent_(nullptr)
 {
-    beginResetModel();
-    root_variable_set_.clear();
-    for (Variable *var : variable_list)
+}
+
+Variable::~Variable()
+{
+    ClearChildren();
+}
+
+std::unique_ptr<Variable> Variable::Create(const QString &name, const QString &value, const QString &type)
+{
+    return std::unique_ptr<Variable>(new Variable(name, value, type));
+}
+
+void Variable::AddChild(std::unique_ptr<Variable> child)
+{
+    if (!child)
+        return;
+
+    Variable *child_ptr = child.get();
+    if (children_.contains(child_ptr))
+        return;
+
+    child->parent_ = this;
+    children_.emplace(child_ptr, std::move(child));
+}
+
+void Variable::RemoveChild(Variable *child)
+{
+    if (!child)
+        return;
+
+    auto it = children_.find(child);
+    if (it == children_.end())
+        return;
+
+    children_.erase(it);
+}
+
+void Variable::ClearChildren()
+{
+    children_.clear();
+}
+
+int Variable::ChildCount() const
+{
+    return children_.size();
+}
+
+QList<Variable*> Variable::GetChildren() const
+{
+    QList<Variable*> result;
+    result.reserve(children_.size());
+    for (const auto &pair : children_)
     {
-        if (var)
-            root_variable_set_.insert(var);
+        result.append(pair.first);
     }
-    endResetModel();
+    return result;
+}
+
+Variable *Variable::GetChildAt(int index) const
+{
+    if (index < 0 || index >= static_cast<int>(children_.size()))
+        return nullptr;
+
+    auto it = children_.nth(index);
+    return it != children_.end() ? it->first : nullptr;
+}
+
+int Variable::IndexOfChild(Variable *child) const
+{
+    if (!child)
+        return -1;
+
+    auto it = children_.find(child);
+    if (it == children_.end())
+        return -1;
+
+    return std::distance(children_.begin(), it);
+}
+
+bool Variable::HasChild(Variable *child) const
+{
+    return child && children_.contains(child);
+}
+
+// ============================================================================
+// VariableModel Implementation
+// ============================================================================
+
+VariableModel::VariableModel(QObject *parent) 
+    : QAbstractItemModel(parent)
+{
+}
+
+VariableModel::~VariableModel()
+{
+    ClearRootVariables();
 }
 
 void VariableModel::AddRootVariable(Variable *variable)
 {
-    if (!variable)
+    if (!variable || root_variable_map_.contains(variable))
         return;
 
-    int row = root_variable_set_.size();
+    int row = root_variable_map_.size();
     beginInsertRows(QModelIndex(), row, row);
-    root_variable_set_.insert(variable);
+    root_variable_map_.emplace(variable, std::unique_ptr<Variable>());
     endInsertRows();
-    ConnectVariableManager(variable);
 }
 
 void VariableModel::RemoveRootVariable(Variable *variable)
 {
-    if (!variable)
+    if (!variable || !root_variable_map_.contains(variable))
         return;
-    if(!IsContainRootVariable(variable))
-        return;
+
     int row = IndexOfRootVariable(variable);
-    DisconnectVariableManager(variable);
+    if (row < 0)
+        return;
+
     beginRemoveRows(QModelIndex(), row, row);
-    root_variable_set_.erase(variable);
+    root_variable_map_.erase(variable);
     endRemoveRows();
 }
 
 void VariableModel::ClearRootVariables()
 {
-    if (root_variable_set_.empty())
+    if (root_variable_map_.empty())
         return;
 
     beginResetModel();
-    root_variable_set_.clear();
-    variable_manager_cache_.clear();
+    root_variable_map_.clear();
     endResetModel();
+}
+
+QList<Variable*> VariableModel::GetRootVariables() const
+{
+    QList<Variable*> result;
+    result.reserve(root_variable_map_.size());
+    for (const auto &pair : root_variable_map_)
+    {
+        result.append(pair.first);
+    }
+    return result;
 }
 
 Variable *VariableModel::GetRootVariableAt(int index) const
 {
-    if (index < 0 || index >= root_variable_set_.size())
+    if (index < 0 || index >= static_cast<int>(root_variable_map_.size()))
         return nullptr;
-    return *root_variable_set_.nth(index);
+    
+    auto it = root_variable_map_.nth(index);
+    return it != root_variable_map_.end() ? it->first : nullptr;
 }
 
 int VariableModel::IndexOfRootVariable(Variable *variable) const
 {
-    auto it = root_variable_set_.find(variable);
-    if (it == root_variable_set_.end())
+    if (!variable)
         return -1;
-    return std::distance(root_variable_set_.begin(), it);
+
+    auto it = root_variable_map_.find(variable);
+    if (it == root_variable_map_.end())
+        return -1;
+    
+    return std::distance(root_variable_map_.begin(), it);
 }
 
 bool VariableModel::IsContainRootVariable(Variable *variable) const
 {
-    return root_variable_set_.contains(variable);
+    return variable && root_variable_map_.contains(variable);
 }
 
 int VariableModel::columnCount(const QModelIndex &parent) const
@@ -87,12 +191,13 @@ int VariableModel::columnCount(const QModelIndex &parent) const
 int VariableModel::rowCount(const QModelIndex &parent) const
 {
     if (!parent.isValid())
-        return root_variable_set_.size();
+        return root_variable_map_.size();
 
-    auto *parent_data = GetVariableFromIndex(parent);
-    if (!parent_data)
+    auto *parent_variable = GetVariableFromIndex(parent);
+    if (!parent_variable)
         return 0;
-    return parent_data->ChildCount();
+    
+    return parent_variable->ChildCount();
 }
 
 QModelIndex VariableModel::index(int row, int column, const QModelIndex &parent) const
@@ -102,9 +207,8 @@ QModelIndex VariableModel::index(int row, int column, const QModelIndex &parent)
 
     if (!parent.isValid())
     {
-        if (row < 0 || row >= root_variable_set_.size())
-            return QModelIndex();
-        return createIndex(row, column, GetRootVariableAt(row));
+        auto *variable = GetRootVariableAt(row);
+        return variable ? createIndex(row, column, variable) : QModelIndex();
     }
 
     auto *parent_variable = GetVariableFromIndex(parent);
@@ -112,10 +216,7 @@ QModelIndex VariableModel::index(int row, int column, const QModelIndex &parent)
         return QModelIndex();
 
     auto *child = parent_variable->GetChildAt(row);
-    if (!child)
-        return QModelIndex();
-
-    return createIndex(row, column, child);
+    return child ? createIndex(row, column, child) : QModelIndex();
 }
 
 QModelIndex VariableModel::parent(const QModelIndex &child) const
@@ -127,21 +228,23 @@ QModelIndex VariableModel::parent(const QModelIndex &child) const
     if (!child_variable)
         return QModelIndex();
 
-    auto *parent_variable = child_variable->parent();
+    auto *parent_variable = const_cast<Variable*>(child_variable->parent());
     if (!parent_variable)
         return QModelIndex();
 
+    // 检查是否为根节点
     int root_index = IndexOfRootVariable(parent_variable);
     if (root_index >= 0)
     {
         return createIndex(root_index, 0, parent_variable);
     }
 
-    auto *grand = parent_variable->parent();
-    if (!grand)
+    // 获取祖父节点来确定父节点的行号
+    auto *grand_parent = parent_variable->parent();
+    if (!grand_parent)
         return QModelIndex();
 
-    int row = grand->IndexOfChild(parent_variable);
+    int row = grand_parent->IndexOfChild(parent_variable);
     if (row < 0)
         return QModelIndex();
 
@@ -152,21 +255,22 @@ QVariant VariableModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid())
         return QVariant();
+    
     if (role != Qt::DisplayRole && role != Qt::EditRole)
         return QVariant();
 
-    auto *d = GetVariableFromIndex(index);
-    if (!d)
+    auto *variable = GetVariableFromIndex(index);
+    if (!variable)
         return QVariant();
 
     switch (index.column())
     {
     case 0:
-        return d->name();
+        return variable->name();
     case 1:
-        return d->value();
+        return variable->value();
     case 2:
-        return d->type();
+        return variable->type();
     default:
         return QVariant();
     }
@@ -191,131 +295,6 @@ QVariant VariableModel::headerData(int section, Qt::Orientation orientation, int
     return QVariant();
 }
 
-void VariableModel::OnVariableChanged(Variable *variable)
-{
-    QModelIndex begin_index = GetIndexFromVariable(variable);
-    QModelIndex end_index = createIndex(begin_index.row(), columnCount() - 1, variable); // Update the entire row
-    if (begin_index.isValid() && end_index.isValid())
-    {
-        emit dataChanged(begin_index, end_index);
-    }
-}
-
-void VariableModel::OnVariablesChanged(const QList<Variable *> &variables)
-{
-    if (variables.isEmpty())
-        return;
-
-    QMap<QModelIndex, QPair<int, int>> parent_row_ranges;
-
-    foreach (Variable *variable, variables)
-    {
-        QModelIndex index = GetIndexFromVariable(variable);
-        if (!index.isValid())
-            continue;
-
-        QModelIndex parent = index.parent();
-        int row = index.row();
-
-        if (!parent_row_ranges.contains(parent))
-        {
-            parent_row_ranges[parent] = qMakePair(row, row);
-        }
-        else
-        {
-            QPair<int, int> &range = parent_row_ranges[parent];
-            if (row < range.first)
-                range.first = row;
-            if (row > range.second)
-                range.second = row;
-        }
-    }
-
-    QMap<QModelIndex, QPair<int, int>>::const_iterator it;
-    for (it = parent_row_ranges.constBegin(); it != parent_row_ranges.constEnd(); ++it)
-    {
-        QModelIndex parent = it.key();
-        int first_row = it.value().first;
-        int last_row = it.value().second;
-
-        QModelIndex top_left = index(first_row, 0, parent);
-        QModelIndex bottom_right = index(last_row, columnCount(parent) - 1, parent);
-        emit dataChanged(top_left, bottom_right);
-    }
-}
-
-void VariableModel::ConnectVariableManager(Variable *variable)
-{
-    if (variable_manager_cache_[variable->manager()].isEmpty())
-    {
-        connect(variable->manager(), &VariableManager::VariableBeginInsert,
-                this, &VariableModel::OnVariableBeginInsert);
-        connect(variable->manager(), &VariableManager::VariableEndInsert,
-                this, &VariableModel::OnVariableEndInsert);
-        connect(variable->manager(), &VariableManager::VariableBeginRemove,
-                this, &VariableModel::OnVariableBeginRemove);
-        connect(variable->manager(), &VariableManager::VariableEndRemove,
-                this, &VariableModel::OnVariableEndRemove);
-        connect(variable->manager(), &VariableManager::VariableChanged,
-                this, &VariableModel::OnVariableChanged);
-        connect(variable->manager(), &VariableManager::VariablesChanged,
-                this, &VariableModel::OnVariablesChanged);
-    }
-    variable_manager_cache_[variable->manager()].append(variable);
-}
-
-void VariableModel::DisconnectVariableManager(Variable *variable)
-{
-    if (!variable_manager_cache_.contains(variable->manager()))
-        return;
-
-    variable_manager_cache_[variable->manager()].removeOne(variable);
-    if (variable_manager_cache_[variable->manager()].isEmpty())
-    {
-        disconnect(variable->manager(), &VariableManager::VariableBeginInsert,
-                   this, &VariableModel::OnVariableBeginInsert);
-        disconnect(variable->manager(), &VariableManager::VariableEndInsert,
-                   this, &VariableModel::OnVariableEndInsert);
-        disconnect(variable->manager(), &VariableManager::VariableBeginRemove,  
-                   this, &VariableModel::OnVariableBeginRemove);
-        disconnect(variable->manager(), &VariableManager::VariableEndRemove,
-                   this, &VariableModel::OnVariableEndRemove);
-        disconnect(variable->manager(), &VariableManager::VariableChanged,
-                   this, &VariableModel::OnVariableChanged);
-        disconnect(variable->manager(), &VariableManager::VariablesChanged,
-                   this, &VariableModel::OnVariablesChanged);
-        variable_manager_cache_.remove(variable->manager());
-    }
-}
-
-void VariableModel::OnVariableBeginInsert(Variable* parent, int index, int count)
-{
-    QModelIndex parent_index;
-    if (parent)
-        parent_index = GetIndexFromVariable(parent);
-
-    beginInsertRows(parent_index, index, index + count - 1);
-}
-
-void VariableModel::OnVariableEndInsert()
-{
-    endInsertRows();
-}
-
-void VariableModel::OnVariableBeginRemove(Variable* parent, int index, int count)
-{
-    QModelIndex parent_index;
-    if (parent)
-        parent_index = GetIndexFromVariable(parent);
-
-    beginRemoveRows(parent_index, index, index + count - 1);
-}
-
-void VariableModel::OnVariableEndRemove()
-{
-    endRemoveRows();
-}
-
 Variable *VariableModel::GetVariableFromIndex(const QModelIndex &index) const
 {
     return index.isValid() ? static_cast<Variable *>(index.internalPointer()) : nullptr;
@@ -326,20 +305,19 @@ QModelIndex VariableModel::GetIndexFromVariable(Variable *variable) const
     if (!variable)
         return QModelIndex();
 
-    int idx = IndexOfRootVariable(variable);
-    if (idx >= 0)
-        return createIndex(idx, 0, variable);
+    // 检查是否为根节点
+    int root_idx = IndexOfRootVariable(variable);
+    if (root_idx >= 0)
+        return createIndex(root_idx, 0, variable);
 
-    auto *parent_variable = variable->parent();
+    // 获取父节点
+    auto *parent_variable = const_cast<Variable*>(variable->parent());
     if (!parent_variable)
         return QModelIndex();
 
+    // 在父节点中查找当前变量的行号
     int row = parent_variable->IndexOfChild(variable);
     if (row < 0)
-        return QModelIndex();
-
-    QModelIndex parent_index = GetIndexFromVariable(parent_variable);
-    if (!parent_index.isValid())
         return QModelIndex();
 
     return createIndex(row, 0, variable);

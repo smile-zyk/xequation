@@ -10,6 +10,7 @@
 
 #include "equation_browser_widget.h"
 #include "variable_inspect_widget.h"
+#include "debugger/variable_test_widget.h"
 #include "mock_equation_group_list_widget.h"
 
 class QMenu;
@@ -60,11 +61,13 @@ private:
     QAction *show_equation_manager_action_;
     QAction *show_variable_inspector_action_;
     QAction *show_variable_monitor_action_;
+    QAction *show_variable_test_widget_action_;
 
     std::unordered_set<xequation::EquationGroupId> single_equation_set_;
     std::unordered_set<xequation::EquationGroupId> equation_group_set_;
     xequation::gui::EquationBrowserWidget* equation_browser_widget_;
     xequation::gui::VariableInspectWidget* variable_inspect_widget_;
+    xequation::gui::VariableTestWidget* variable_test_widget_;
     MockEquationGroupListWidget* mock_equation_list_widget_;
     std::unique_ptr<xequation::EquationManager> equation_manager_;
 };
