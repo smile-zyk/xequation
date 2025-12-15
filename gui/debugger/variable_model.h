@@ -3,16 +3,18 @@
 #include <QAbstractItemModel>
 #include <QObject>
 #include <QVector>
+#include <cstddef>
 #include <tsl/ordered_map.h>
 
 namespace xequation
 {
 namespace gui
 {
-
-class Variable
+class Variable : public QObject
 {
+    Q_OBJECT
 public:
+    using UniquePtr = std::unique_ptr<Variable>;
     static std::unique_ptr<Variable> Create(const QString &name, const QString &value, const QString &type);
     void set_name(const QString &name) { name_ = name; }
     void set_value(const QString &value) { value_ = value; }
@@ -20,29 +22,38 @@ public:
     const QString &name() const { return name_; }
     const QString &value() const { return value_; }
     const QString &type() const { return type_; }
-    const Variable* parent() const { return parent_; }
+    Variable* parent() const { return parent_; }
 
-    void AddChild(std::unique_ptr<Variable> child);
+    void AddChild(Variable::UniquePtr child);
     void RemoveChild(Variable *child);
     void ClearChildren();
-    int ChildCount() const;
+    size_t ChildCount() const;
 
     QList<Variable*> GetChildren() const;
     Variable *GetChildAt(int index) const;
     int IndexOfChild(Variable *child) const;
     bool HasChild(Variable *child) const;
+    ~Variable();
+
+signals:
+    void BeginInsertChild(Variable *parent, int first, int last);
+    void EndInsertChild(Variable *parent);
+    void BeginRemoveChild(Variable *parent, int first, int last);
+    void EndRemoveChild(Variable *parent);
+    void ChildChanged(Variable *child);
+    void VariableInserted(Variable *variable);
+
 private:
     Variable(const QString &name, const QString &value, const QString &type);
     Variable(const Variable&) = delete;
     Variable& operator=(const Variable&) = delete;
     Variable(Variable&&) = delete;
     Variable& operator=(Variable&&) = delete;
-    ~Variable();
     QString name_;
     QString value_;
     QString type_;
-    const Variable* parent_ = nullptr;
-    tsl::ordered_map<Variable*, std::unique_ptr<Variable>> children_;
+    Variable* parent_ = nullptr;
+    tsl::ordered_map<Variable*, Variable::UniquePtr> children_;
 };
 
 class VariableModel : public QAbstractItemModel
@@ -59,7 +70,7 @@ class VariableModel : public QAbstractItemModel
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 
-    void AddRootVariable(Variable *variable);
+    void AddRootVariable(Variable::UniquePtr variable);
     void RemoveRootVariable(Variable *variable);
     void ClearRootVariables();
     QList<Variable*> GetRootVariables() const;
@@ -72,7 +83,7 @@ class VariableModel : public QAbstractItemModel
     QModelIndex GetIndexFromVariable(Variable *variable) const;
 
   private:
-    tsl::ordered_map<Variable*, std::unique_ptr<Variable>> root_variable_map_;
+    tsl::ordered_map<Variable*, Variable::UniquePtr> root_variable_map_;
 };
 
 } // namespace gui

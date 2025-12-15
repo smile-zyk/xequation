@@ -1,5 +1,4 @@
 #include "variable_view.h"
-#include "variable_manager.h"
 
 #include <QHeaderView>
 #include <QEvent>

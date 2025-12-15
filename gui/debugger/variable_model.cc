@@ -1,4 +1,5 @@
 #include "variable_model.h"
+#include <cstddef>
 
 namespace xequation
 {
@@ -32,7 +33,6 @@ void Variable::AddChild(std::unique_ptr<Variable> child)
     Variable *child_ptr = child.get();
     if (children_.contains(child_ptr))
         return;
-
     child->parent_ = this;
     children_.emplace(child_ptr, std::move(child));
 }
@@ -54,7 +54,7 @@ void Variable::ClearChildren()
     children_.clear();
 }
 
-int Variable::ChildCount() const
+size_t Variable::ChildCount() const
 {
     return children_.size();
 }
@@ -110,14 +110,14 @@ VariableModel::~VariableModel()
     ClearRootVariables();
 }
 
-void VariableModel::AddRootVariable(Variable *variable)
+void VariableModel::AddRootVariable(Variable::UniquePtr variable)
 {
-    if (!variable || root_variable_map_.contains(variable))
+    if (!variable || root_variable_map_.contains(variable.get()))
         return;
 
     int row = root_variable_map_.size();
     beginInsertRows(QModelIndex(), row, row);
-    root_variable_map_.emplace(variable, std::unique_ptr<Variable>());
+    root_variable_map_.emplace(variable.get(), std::move(variable));
     endInsertRows();
 }
 
@@ -228,18 +228,16 @@ QModelIndex VariableModel::parent(const QModelIndex &child) const
     if (!child_variable)
         return QModelIndex();
 
-    auto *parent_variable = const_cast<Variable*>(child_variable->parent());
+    auto *parent_variable = child_variable->parent();
     if (!parent_variable)
         return QModelIndex();
 
-    // 检查是否为根节点
     int root_index = IndexOfRootVariable(parent_variable);
     if (root_index >= 0)
     {
         return createIndex(root_index, 0, parent_variable);
     }
 
-    // 获取祖父节点来确定父节点的行号
     auto *grand_parent = parent_variable->parent();
     if (!grand_parent)
         return QModelIndex();
@@ -305,17 +303,14 @@ QModelIndex VariableModel::GetIndexFromVariable(Variable *variable) const
     if (!variable)
         return QModelIndex();
 
-    // 检查是否为根节点
     int root_idx = IndexOfRootVariable(variable);
     if (root_idx >= 0)
         return createIndex(root_idx, 0, variable);
 
-    // 获取父节点
-    auto *parent_variable = const_cast<Variable*>(variable->parent());
+    auto *parent_variable = variable->parent();
     if (!parent_variable)
         return QModelIndex();
 
-    // 在父节点中查找当前变量的行号
     int row = parent_variable->IndexOfChild(variable);
     if (row < 0)
         return QModelIndex();
