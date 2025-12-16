@@ -7,12 +7,12 @@ namespace xequation
 {
 namespace gui 
 {
-class ValueModel : public QAbstractItemModel
+class ValueTreeModel : public QAbstractItemModel
 {
     Q_OBJECT
   public:
-    explicit ValueModel(QObject *parent = nullptr);
-    ~ValueModel() override;
+    explicit ValueTreeModel(QObject *parent = nullptr);
+    ~ValueTreeModel() override;
 
     QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
     QModelIndex parent(const QModelIndex &child) const override;
@@ -20,7 +20,16 @@ class ValueModel : public QAbstractItemModel
     int columnCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
+    bool hasChildren(const QModelIndex& parent = QModelIndex()) const override;
+    bool canFetchMore(const QModelIndex& parent) const override;
+    void fetchMore(const QModelIndex& parent) override;
 
+    void AddRootItem(ValueItem* item);
+    void RemoveRootItem(ValueItem* item);
+    void SetRootItems(const QVector<ValueItem*>& items);
+    void Clear();
+
+  protected:
     ValueItem* GetValueItemFromIndex(const QModelIndex &index) const;
     QModelIndex GetIndexFromValueItem(ValueItem *item) const;
 

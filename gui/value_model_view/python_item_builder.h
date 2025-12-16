@@ -17,10 +17,9 @@ class PythonDefaultItemBuilder : public ValueItemBuilder
     virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const Value &value, ValueItem *parent = nullptr) override;
 
     virtual void LoadChildren(ValueItem *item) override {}
-
   protected:
     static QString GetTypeName(pybind11::handle obj, bool qualified = false);
-    static QString GetObjectStr(pybind11::handle obj);
+    static QString GetObjectRepr(pybind11::handle obj);
 };
 
 class PythonListItemBuilder : public PythonDefaultItemBuilder

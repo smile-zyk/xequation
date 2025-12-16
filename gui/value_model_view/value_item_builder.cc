@@ -10,43 +10,6 @@ bool ValueItemBuilder::CanBuild(const Value &value)
     return false;
 }
 
-ValueItem::UniquePtr ValueItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
-{
-    return ValueItem::Create(name, value, parent);
-}
-
-void ValueItemBuilder::SetTypeString(ValueItem *item, const QString &type_string)
-{
-    if (item)
-    {
-        item->type_string_ = type_string;
-    }
-}
-
-void ValueItemBuilder::SetDisplayValueString(ValueItem *item, const QString &display_value_string)
-{
-    if (item)
-    {
-        item->display_value_string_ = display_value_string;
-    }
-}
-
-void ValueItemBuilder::SetHasChildren(ValueItem *item, bool has_children)
-{
-    if (item)
-    {
-        item->has_children_ = has_children;
-    }
-}
-
-void ValueItemBuilder::SetIsLoaded(ValueItem *item, bool is_loaded)
-{
-    if (item)
-    {
-        item->is_loaded_ = is_loaded;
-    }
-}
-
 // ValueItemBuilderRegistry implementation
 ValueItemBuilderRegistry &ValueItemBuilderRegistry::GetInstance()
 {

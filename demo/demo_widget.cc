@@ -385,7 +385,7 @@ void DemoWidget::OnShowEquationInspector()
 {
     if (variable_tree_ == nullptr)
     {
-        variable_tree_ = new xequation::gui::VariableView(this);
+        variable_tree_ = new xequation::gui::ValueTreeView(this);
         variable_tree_->setWindowFlags(
             Qt::Window | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint
         );
@@ -396,23 +396,17 @@ void DemoWidget::OnShowEquationInspector()
     variable_tree_->raise();
     variable_tree_->activateWindow();
 
-    xequation::gui::VariableModel *model = variable_tree_->variable_model();
+    xequation::gui::ValueTreeModel *model = variable_tree_->value_model();
 
-    xequation::gui::Variable::UniquePtr var1 = xequation::gui::Variable::Create("var1", "10", "int");
-    auto var_ptr1 = var1.get();
-    model->AddRootVariable(std::move(var1));
+    xequation::Value value1(10);
+    xequation::gui::ValueItem::UniquePtr item1 = xequation::gui::ValueItem::Create("var1", value1);
+    model->AddRootItem(item1.get());
 
-    // test child variables
-    xequation::gui::Variable::UniquePtr var3 = xequation::gui::Variable::Create("var3", "30", "int");
-    var_ptr1->AddChild(std::move(var3));
+    xequation::Value value3(30);
+    xequation::gui::ValueItem::UniquePtr item3 = xequation::gui::ValueItem::Create("var3", value3);
+    item1->AddChild(std::move(item3));
 
-    var_ptr1->set_value("test change value");
+    item1->set_display_value("test change value");
 
-    for (int i = 0; i < 5; ++i)
-    {
-        QString name = QString("child_%1").arg(i);
-        xequation::gui::Variable::UniquePtr var = xequation::gui::Variable::Create(name, "value", "type");
-        var_ptr1->AddChild(std::move(var));
-    }
     statusBar()->showMessage("Opening variable inspector", 2000);
 }
