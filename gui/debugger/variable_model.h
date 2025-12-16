@@ -10,9 +10,8 @@ namespace xequation
 {
 namespace gui
 {
-class Variable : public QObject
+class Variable
 {
-    Q_OBJECT
 public:
     using UniquePtr = std::unique_ptr<Variable>;
     static std::unique_ptr<Variable> Create(const QString &name, const QString &value, const QString &type);
@@ -34,14 +33,6 @@ public:
     int IndexOfChild(Variable *child) const;
     bool HasChild(Variable *child) const;
     ~Variable();
-
-signals:
-    void BeginInsertChild(Variable *parent, int first, int last);
-    void EndInsertChild(Variable *parent);
-    void BeginRemoveChild(Variable *parent, int first, int last);
-    void EndRemoveChild(Variable *parent);
-    void ChildChanged(Variable *child);
-    void VariableInserted(Variable *variable);
 
 private:
     Variable(const QString &name, const QString &value, const QString &type);

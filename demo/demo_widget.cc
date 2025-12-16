@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <utility>
 
-
 #include "python/python_qt_wrapper.h"
 #include "text_editor_dialog.h"
 
@@ -411,11 +410,9 @@ void DemoWidget::OnShowEquationInspector()
 
     for (int i = 0; i < 5; ++i)
     {
-        QTimer::singleShot(2000 * (i + 1), [var_ptr1, model, i]() {
-            QString name = QString("child_%1").arg(i);
-            xequation::gui::Variable::UniquePtr var = xequation::gui::Variable::Create(name, "value", "type");
-            var_ptr1->AddChild(std::move(var));
-        });
+        QString name = QString("child_%1").arg(i);
+        xequation::gui::Variable::UniquePtr var = xequation::gui::Variable::Create(name, "value", "type");
+        var_ptr1->AddChild(std::move(var));
     }
     statusBar()->showMessage("Opening variable inspector", 2000);
 }

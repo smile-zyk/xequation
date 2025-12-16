@@ -142,16 +142,7 @@ struct type_caster<xequation::Value>
         }
         try
         {
-            pybind11::object obj;
-
-            if (pybind11::isinstance<pybind11::object>(src))
-            {
-                obj = pybind11::cast<pybind11::object>(src);
-            }
-            else
-            {
-                obj = pybind11::reinterpret_borrow<pybind11::object>(src);
-            }
+            pybind11::object obj = pybind11::reinterpret_borrow<pybind11::object>(src);
 
             value = obj;
             return true;
