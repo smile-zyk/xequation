@@ -5,16 +5,20 @@ set(CMAKE_AUTORCC ON)
 set(xequation_gui_SRC
 equation_browser_widget.h
 equation_browser_widget.cc
+variable_inspect_widget.h
+variable_inspect_widget.cc
 equation_editor.h
 equation_editor.cc
-variable_property_browser.h
-variable_property_browser.cc
-variable_property_manager.h
-variable_property_manager.cc
-debugger/variable_view.h
-debugger/variable_view.cc
-debugger/variable_model.h
-debugger/variable_model.cc
+value_model_view/value_item_builder.h
+value_model_view/value_item_builder.cc
+value_model_view/value_tree_model.h
+value_model_view/value_tree_model.cc
+value_model_view/value_tree_view.h
+value_model_view/value_tree_view.cc
+value_model_view/value_item.h
+value_model_view/value_item.cc
+value_model_view/python_item_builder.h
+value_model_view/python_item_builder.cc
 )
 
 add_library(xequation_gui STATIC ${xequation_gui_SRC})

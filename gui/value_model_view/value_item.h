@@ -1,8 +1,9 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
+#include <vector>
 #include <QString>
-#include <QVector>
 #include <tsl/ordered_map.h>
 #include <core/value.h>
 
@@ -14,6 +15,7 @@ class ValueItem
 {
 public:
     using UniquePtr = std::unique_ptr<ValueItem>;
+    ~ValueItem() = default;
     static UniquePtr Create(const QString &name, const Value &value, ValueItem* parent = nullptr);
     static UniquePtr Create(const QString &name, const QString& display_value, const QString& type, ValueItem* parent = nullptr);
     bool HasChildren() const;
@@ -36,18 +38,18 @@ public:
     ValueItem* parent() const { return parent_; }
     bool is_loaded() const { return is_loaded_; }
     bool has_children() const { return about_to_load_child_count_ > 0; }
+    size_t about_to_load_child_count() const { return about_to_load_child_count_; }
 
 protected:
     ValueItem(const QString &name, const Value &value, ValueItem* parent = nullptr);
     ValueItem(const QString &name, const QString& display_value, const QString& type, ValueItem* parent = nullptr);
-    ~ValueItem();
 private:
     QString name_;
     Value value_;
     QString type_;
     QString display_value_;
     ValueItem* parent_ = nullptr;
-    QVector<std::unique_ptr<ValueItem>> children_;
+    std::vector<std::unique_ptr<ValueItem>> children_;
     bool is_loaded_ = false;
     size_t about_to_load_child_count_ = 0;
 };

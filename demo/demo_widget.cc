@@ -1,5 +1,4 @@
 #include "demo_widget.h"
-#include "debugger/variable_model.h"
 #include "equation_editor.h"
 
 #include <QAction>
@@ -15,7 +14,6 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <algorithm>
-#include <utility>
 
 #include "python/python_qt_wrapper.h"
 #include "text_editor_dialog.h"
@@ -23,11 +21,12 @@
 using namespace xequation;
 
 DemoWidget::DemoWidget(QWidget *parent)
-    : QMainWindow(parent), equation_browser_widget_(nullptr), variable_tree_(nullptr)
+    : QMainWindow(parent), equation_browser_widget_(nullptr), variable_inspect_widget_(nullptr)
 {
     equation_manager_ = xequation::python::PythonEquationEngine::GetInstance().CreateEquationManager();
     mock_equation_list_widget_ = new MockEquationGroupListWidget(equation_manager_.get(), this);
     equation_browser_widget_ = new xequation::gui::EquationBrowserWidget(equation_manager_.get(), this);
+    variable_inspect_widget_ = new xequation::gui::VariableInspectWidget(this);
 
     SetupUI();
     SetupConnections();
@@ -81,11 +80,13 @@ void DemoWidget::SetupConnections()
 
     equation_manager_->signals_manager().Connect<EquationEvent::kEquationUpdated>(
         [this](const Equation *equation, bitmask::bitmask<EquationUpdateFlag> change_type) {
-
+            variable_inspect_widget_->OnEquationUpdated(equation, change_type);
         }
     );
 
-    equation_manager_->signals_manager().Connect<EquationEvent::kEquationRemoving>([this](const Equation *equation) {});
+    equation_manager_->signals_manager().Connect<EquationEvent::kEquationRemoving>([this](const Equation *equation) {
+        variable_inspect_widget_->OnEquationRemoving(equation);
+    });
 }
 
 void DemoWidget::CreateActions()
@@ -288,10 +289,8 @@ bool DemoWidget::RemoveEquationGroup(const xequation::EquationGroupId &id)
 
 void DemoWidget::OnEquationGroupSelected(const xequation::EquationGroupId &id)
 {
-    if (equation_browser_widget_)
-    {
-        equation_browser_widget_->blockSignals(true);
-    }
+    equation_browser_widget_->blockSignals(true);
+    variable_inspect_widget_->blockSignals(true);
 
     if (equation_manager_->IsEquationGroupExist(id))
     {
@@ -300,40 +299,29 @@ void DemoWidget::OnEquationGroupSelected(const xequation::EquationGroupId &id)
         if (equation_names.size() >= 1)
         {
             const auto &equation = group->GetEquation(equation_names[0]);
-
-            if (equation_browser_widget_)
-            {
-                equation_browser_widget_->SetCurrentEquation(equation, false);
-            }
+            variable_inspect_widget_->SetCurrentEquation(equation);
+            equation_browser_widget_->SetCurrentEquation(equation, false);
         }
     }
 
-    if (equation_browser_widget_)
-    {
-        equation_browser_widget_->blockSignals(false);
-    }
+    equation_browser_widget_->blockSignals(false);
+    variable_inspect_widget_->blockSignals(false);
 }
 
 void DemoWidget::OnEquationSelected(const xequation::Equation *equation)
 {
-    if (mock_equation_list_widget_)
-    {
-        mock_equation_list_widget_->blockSignals(true);
-    }
+    mock_equation_list_widget_->blockSignals(true);
+    variable_inspect_widget_->blockSignals(true);
 
     if (equation_manager_->IsEquationExist(equation->name()))
     {
-        if (mock_equation_list_widget_)
-        {
-            const auto &group_id = equation->group_id();
-            mock_equation_list_widget_->SetCurrentEquationGroup(group_id);
-        }
+        variable_inspect_widget_->SetCurrentEquation(equation);
+        const auto &group_id = equation->group_id();
+        mock_equation_list_widget_->SetCurrentEquationGroup(group_id);
     }
 
-    if (mock_equation_list_widget_)
-    {
-        mock_equation_list_widget_->blockSignals(false);
-    }
+    mock_equation_list_widget_->blockSignals(false);
+    variable_inspect_widget_->blockSignals(false);
 }
 
 void DemoWidget::OnInsertEquationGroupRequest()
@@ -380,33 +368,17 @@ void DemoWidget::OnShowEquationManager()
 
     statusBar()->showMessage("Opening equation manager", 2000);
 }
-
 void DemoWidget::OnShowEquationInspector()
 {
-    if (variable_tree_ == nullptr)
+    if (variable_inspect_widget_ == nullptr)
     {
-        variable_tree_ = new xequation::gui::ValueTreeView(this);
-        variable_tree_->setWindowFlags(
-            Qt::Window | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint
-        );
-        variable_tree_->setWindowTitle("Variable Inspector");
+        variable_inspect_widget_ = new gui::VariableInspectWidget(this);
+        variable_inspect_widget_->show();
     }
-
-    variable_tree_->show();
-    variable_tree_->raise();
-    variable_tree_->activateWindow();
-
-    xequation::gui::ValueTreeModel *model = variable_tree_->value_model();
-
-    xequation::Value value1(10);
-    xequation::gui::ValueItem::UniquePtr item1 = xequation::gui::ValueItem::Create("var1", value1);
-    model->AddRootItem(item1.get());
-
-    xequation::Value value3(30);
-    xequation::gui::ValueItem::UniquePtr item3 = xequation::gui::ValueItem::Create("var3", value3);
-    item1->AddChild(std::move(item3));
-
-    item1->set_display_value("test change value");
-
-    statusBar()->showMessage("Opening variable inspector", 2000);
+    else
+    {
+        variable_inspect_widget_->show();
+        variable_inspect_widget_->raise();
+        variable_inspect_widget_->activateWindow();
+    }
 }

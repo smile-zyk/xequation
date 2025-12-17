@@ -9,9 +9,11 @@ namespace xequation
 namespace gui
 {
 
-ValueTreeView::ValueTreeView(QWidget *parent) 
-    : QTreeView(parent), value_model_(new ValueTreeModel(this))
+ValueTreeView::ValueTreeView(ValueTreeModel* model, QWidget *parent) 
+    : QTreeView(parent), value_model_(model)
 {
+    setModel(value_model_);
+
     SetupUI();
     SetupConnections();
 
@@ -22,8 +24,6 @@ ValueTreeView::~ValueTreeView() {}
 
 void ValueTreeView::SetupUI()
 {
-    setModel(value_model_.get());
-
     header()->setStretchLastSection(false);
     header()->setSectionResizeMode(QHeaderView::Interactive);
 }
@@ -35,7 +35,7 @@ void ValueTreeView::SetupConnections()
 
 ValueTreeModel *ValueTreeView::value_model() const
 {
-    return value_model_.get();
+    return value_model_;
 }
 
 void ValueTreeView::SetHeaderSectionResizeRatio(int idx, double ratio)

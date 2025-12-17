@@ -2,7 +2,6 @@
 #include "value_item.h"
 
 namespace py = pybind11;
-
 namespace xequation
 {
 namespace gui
@@ -14,37 +13,36 @@ PythonDefaultItemBuilder::~PythonDefaultItemBuilder() = default;
 
 bool PythonDefaultItemBuilder::CanBuild(const Value &value)
 {
-
-    if (value.Type() != typeid(py::object))
+    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
-        return false;
+        return true;
     }
-    return true;
+    return false;
 }
 
 ValueItem::UniquePtr
 PythonDefaultItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
 {
-    auto obj = value.Cast<py::object>();
+    auto obj = py::cast(value);
     auto item = ValueItem::Create(name, value, parent);
     item->set_type(GetTypeName(obj));
     item->set_display_value(GetObjectRepr(obj));
     return item;
 }
 
-QString PythonDefaultItemBuilder::GetTypeName(pybind11::handle obj, bool qualified)
+QString PythonDefaultItemBuilder::GetTypeName(py::handle obj, bool qualified)
 {
-    pybind11::gil_scoped_acquire acquire;
+    py::gil_scoped_acquire acquire;
 
     try
     {
-        pybind11::handle type_obj = pybind11::type::of(obj);
-        pybind11::handle type_name_attr = type_obj.attr("__name__");
+        py::handle type_obj = py::type::of(obj);
+        py::handle type_name_attr = type_obj.attr("__name__");
         std::string type_name_str = type_name_attr.cast<std::string>();
 
-        if (qualified && pybind11::hasattr(type_obj, "__module__"))
+        if (qualified && py::hasattr(type_obj, "__module__"))
         {
-            pybind11::handle module_attr = type_obj.attr("__module__");
+            py::handle module_attr = type_obj.attr("__module__");
             std::string module_str = module_attr.cast<std::string>();
 
             if (!module_str.empty() && module_str != "builtins" && module_str != "__main__" && module_str != "builtin")
@@ -67,13 +65,13 @@ QString PythonDefaultItemBuilder::GetTypeName(pybind11::handle obj, bool qualifi
     }
 }
 
-QString PythonDefaultItemBuilder::GetObjectRepr(pybind11::handle obj)
+QString PythonDefaultItemBuilder::GetObjectRepr(py::handle obj)
 {
-    pybind11::gil_scoped_acquire acquire;
+    py::gil_scoped_acquire acquire;
 
     try
     {
-        pybind11::handle repr_obj = pybind11::repr(obj);
+        py::handle repr_obj = py::repr(obj);
         std::string repr_result = repr_obj.cast<std::string>();
         return QString::fromStdString(repr_result);
     }
@@ -81,7 +79,7 @@ QString PythonDefaultItemBuilder::GetObjectRepr(pybind11::handle obj)
     {
         try
         {
-            pybind11::handle str_obj = pybind11::str(obj);
+            py::handle str_obj = py::str(obj);
             std::string str_result = str_obj.cast<std::string>();
             return QString::fromStdString(str_result);
         }
@@ -99,20 +97,24 @@ QString PythonDefaultItemBuilder::GetObjectRepr(pybind11::handle obj)
 // PythonListItemBuilder implementation
 bool PythonListItemBuilder::CanBuild(const Value &value)
 {
-    if (PythonDefaultItemBuilder::CanBuild(value) == false)
+    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
-        return false;
+        auto obj = py::cast(value);
+        return py::isinstance<py::list>(obj);
     }
-    auto obj = value.Cast<py::object>();
-    return py::isinstance<py::list>(obj);
+    if(value.Type() == typeid(py::list))
+    {
+        return true;
+    }
+    return false;
 }
 
 ValueItem::UniquePtr PythonListItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
 {
-    auto obj = value.Cast<py::object>();
+    auto obj = py::cast(value);
     auto list = py::cast<py::list>(obj);
-    auto item = ValueItemBuilder::CreateValueItem(name, value, parent);
-    pybind11::size_t length = list.size();
+    auto item = ValueItem::Create(name, value, parent);
+    py::size_t length = list.size();
     QString value_str = QString("{size = %1}").arg(length);
     item->set_display_value(value_str);
     item->set_type(GetTypeName(obj));
@@ -127,7 +129,7 @@ void PythonListItemBuilder::LoadChildren(ValueItem *item)
         return;
     }
 
-    auto obj = item->value().Cast<py::object>();
+    auto obj = py::cast(item->value());
     auto list = py::cast<py::list>(obj);
 
     for (size_t i = 0; i < list.size(); ++i)
@@ -145,20 +147,24 @@ void PythonListItemBuilder::LoadChildren(ValueItem *item)
 // PythonTupleItemBuilder implementation
 bool PythonTupleItemBuilder::CanBuild(const Value &value)
 {
-    if (PythonDefaultItemBuilder::CanBuild(value) == false)
+    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
-        return false;
+        auto obj = py::cast(value);
+        return py::isinstance<py::tuple>(obj);
     }
-    auto obj = value.Cast<py::object>();
-    return py::isinstance<py::tuple>(obj);
+    if(value.Type() == typeid(py::tuple))
+    {
+        return true;
+    }
+    return false;
 }
 
 ValueItem::UniquePtr PythonTupleItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
 {
-    auto obj = value.Cast<py::object>();
+    auto obj = py::cast(value);
     auto tuple = py::cast<py::tuple>(obj);
-    auto item = ValueItemBuilder::CreateValueItem(name, value, parent);
-    pybind11::size_t length = tuple.size();
+    auto item = ValueItem::Create(name, value, parent);
+    py::size_t length = tuple.size();
     QString value_str = QString("{size = %1}").arg(length);
     item->set_display_value(value_str);
     item->set_type(GetTypeName(obj));
@@ -173,7 +179,7 @@ void PythonTupleItemBuilder::LoadChildren(ValueItem *item)
         return;
     }
 
-    auto obj = item->value().Cast<py::object>();
+    auto obj = py::cast(item->value());
     auto tuple = py::cast<py::tuple>(obj);
     for (size_t i = 0; i < tuple.size(); ++i)
     {
@@ -190,20 +196,24 @@ void PythonTupleItemBuilder::LoadChildren(ValueItem *item)
 // PythonSetItemBuilder implementation
 bool PythonSetItemBuilder::CanBuild(const Value &value)
 {
-    if (PythonDefaultItemBuilder::CanBuild(value) == false)
+    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
-        return false;
+        auto obj = py::cast(value);
+        return py::isinstance<py::set>(obj);
     }
-    auto obj = value.Cast<py::object>();
-    return py::isinstance<py::set>(obj);
+    if(value.Type() == typeid(py::set))
+    {
+        return true;
+    }
+    return false;
 }
 
 ValueItem::UniquePtr PythonSetItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
 {
-    auto obj = value.Cast<py::object>();
+    auto obj = py::cast(value);
     auto set = py::cast<py::set>(obj);
-    auto item = ValueItemBuilder::CreateValueItem(name, value, parent);
-    pybind11::size_t length = set.size();
+    auto item = ValueItem::Create(name, value, parent);
+    py::size_t length = set.size();
     QString value_str = QString("{size = %1}").arg(length);
     item->set_display_value(value_str);
     item->set_type(GetTypeName(obj));
@@ -218,9 +228,9 @@ void PythonSetItemBuilder::LoadChildren(ValueItem *item)
         return;
     }
 
-    auto obj = item->value().Cast<py::object>();
+    auto obj = py::cast(item->value());
     auto set = py::cast<py::set>(obj);
-    pybind11::size_t index = 0;
+    py::size_t index = 0;
     for (auto set_item : set)
     {
         QString item_name = QString("[%1]").arg(index++);
@@ -232,20 +242,24 @@ void PythonSetItemBuilder::LoadChildren(ValueItem *item)
 // PythonDictItemBuilder implementation
 bool PythonDictItemBuilder::CanBuild(const Value &value)
 {
-    if (PythonDefaultItemBuilder::CanBuild(value) == false)
+    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
-        return false;
+        auto obj = py::cast(value);
+        return py::isinstance<py::dict>(obj);
     }
-    auto obj = value.Cast<py::object>();
-    return py::isinstance<py::dict>(obj);
+    if(value.Type() == typeid(py::dict))
+    {
+        return true;
+    }
+    return false;
 }
 
 ValueItem::UniquePtr PythonDictItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
 {
-    auto obj = value.Cast<py::object>();
+    auto obj = py::cast(value);
     auto dict = py::cast<py::dict>(obj);
-    auto item = ValueItemBuilder::CreateValueItem(name, value, parent);
-    pybind11::size_t length = dict.size();
+    auto item = ValueItem::Create(name, value, parent);
+    py::size_t length = dict.size();
     QString value_str = QString("{size = %1}").arg(length);
     item->set_display_value(value_str);
     item->set_type(GetTypeName(obj));
@@ -260,9 +274,9 @@ void PythonDictItemBuilder::LoadChildren(ValueItem *item)
         return;
     }
 
-    auto obj = item->value().Cast<py::object>();
+    auto obj = py::cast(item->value());
     auto dict = py::cast<py::dict>(obj);
-    pybind11::size_t index = 0;
+    py::size_t index = 0;
     for (auto dict_item : dict)
     {
         py::handle key = dict_item.first;
@@ -270,26 +284,10 @@ void PythonDictItemBuilder::LoadChildren(ValueItem *item)
 
         QString key_str = PythonDefaultItemBuilder::GetObjectRepr(key);
         QString value_str = PythonDefaultItemBuilder::GetObjectRepr(value);
-        ValueItem::UniquePtr child_item = ValueItem::Create(key_str, value_str, "", item);
-        ValueItem::UniquePtr key_item = BuilderUtils::CreateValueItem("key", key, child_item.get());
-        ValueItem::UniquePtr value_item = BuilderUtils::CreateValueItem("value", value, child_item.get());
-        if (key_item)
-        {
-            child_item->AddChild(std::move(key_item));
-        }
-        if (value_item)
-        {
-            child_item->AddChild(std::move(value_item));
-        }
+        ValueItem::UniquePtr child_item = BuilderUtils::CreateValueItem(key_str, value, item);
         item->AddChild(std::move(child_item));
     }
 }
-
-REGISTER_VALUE_ITEM_BUILDER(PythonListItemBuilder)
-REGISTER_VALUE_ITEM_BUILDER(PythonTupleItemBuilder)
-REGISTER_VALUE_ITEM_BUILDER(PythonSetItemBuilder)
-REGISTER_VALUE_ITEM_BUILDER(PythonDictItemBuilder)
-REGISTER_VALUE_ITEM_BUILDER_WITH_PRIORITY(PythonDefaultItemBuilder, 100);
 
 } // namespace gui
 } // namespace xequation

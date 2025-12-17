@@ -9,8 +9,8 @@
 #include <unordered_set>
 
 #include "equation_browser_widget.h"
+#include "variable_inspect_widget.h"
 #include "mock_equation_group_list_widget.h"
-#include "value_model_view/value_tree_view.h"
 
 class QMenu;
 class QAction;
@@ -64,7 +64,7 @@ private:
     std::unordered_set<xequation::EquationGroupId> single_equation_set_;
     std::unordered_set<xequation::EquationGroupId> equation_group_set_;
     xequation::gui::EquationBrowserWidget* equation_browser_widget_;
-    xequation::gui::ValueTreeView* variable_tree_;
     MockEquationGroupListWidget* mock_equation_list_widget_;
+    xequation::gui::VariableInspectWidget* variable_inspect_widget_;
     std::unique_ptr<xequation::EquationManager> equation_manager_;
 };

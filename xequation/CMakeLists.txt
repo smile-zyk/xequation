@@ -21,7 +21,6 @@ set(xequation_SRC
     python/python_parser.h
     python/python_parser.cc
     python/value_pybind_converter.h
-    python/value_pybind_converter.cc
     python/python_equation_context.h
     python/python_equation_context.cc
     python/python_equation_engine.h

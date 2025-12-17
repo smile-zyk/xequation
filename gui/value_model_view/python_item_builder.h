@@ -1,6 +1,6 @@
+#pragma once
 #include "python/python_qt_wrapper.h"
 #include "value_item_builder.h"
-
 
 namespace xequation
 {

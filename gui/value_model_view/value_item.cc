@@ -16,8 +16,6 @@ ValueItem::ValueItem(const QString &name, const QString &display_value, const QS
 {
 }
 
-ValueItem::~ValueItem() = default;
-
 ValueItem::UniquePtr ValueItem::Create(const QString &name, const Value &value, ValueItem *parent)
 {
     return std::unique_ptr<ValueItem>(new ValueItem(name, value, parent));
@@ -30,7 +28,7 @@ ValueItem::UniquePtr ValueItem::Create(const QString &name, const QString &displ
 
 bool ValueItem::HasChildren() const
 {
-    return about_to_load_child_count_ > 0 || !children_.isEmpty();
+    return about_to_load_child_count_ > 0 || !children_.empty();
 }
 
 void ValueItem::LoadChildren()
@@ -70,7 +68,7 @@ void ValueItem::RemoveChild(ValueItem *child)
     {
         if (children_[i].get() == child)
         {
-            children_.removeAt(i);
+            children_.erase(children_.begin() + i);
             break;
         }
     }

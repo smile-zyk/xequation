@@ -5,11 +5,6 @@ namespace xequation
 {
 namespace gui
 {
-bool ValueItemBuilder::CanBuild(const Value &value)
-{
-    return false;
-}
-
 // ValueItemBuilderRegistry implementation
 ValueItemBuilderRegistry &ValueItemBuilderRegistry::GetInstance()
 {
@@ -29,7 +24,7 @@ void ValueItemBuilderRegistry::RegisterBuilder(std::unique_ptr<ValueItemBuilder>
     // Insert in sorted order by priority (highest priority first)
     auto it = std::lower_bound(builders_.begin(), builders_.end(), entry,
                               [](const BuilderEntry &a, const BuilderEntry &b) {
-                                  return a.priority > b.priority; // Descending order
+                                  return a.priority < b.priority; // Descending order
                               });
     builders_.insert(it, std::move(entry));
 }

@@ -60,12 +60,80 @@ class PyObjectConverter
         ~ObjectConverter() {}
         bool CanConvert(const Value &value) const override
         {
-            return value.Type() == typeid(pybind11::object);
+            const std::type_info &type = value.Type();
+
+            if (type == typeid(pybind11::object))
+                return true;
+
+            if (type == typeid(pybind11::handle))
+                return true;
+
+            if (type == typeid(pybind11::int_) || type == typeid(pybind11::float_) || type == typeid(pybind11::str) ||
+                type == typeid(pybind11::list) || type == typeid(pybind11::dict) || type == typeid(pybind11::tuple) ||
+                type == typeid(pybind11::bool_))
+                return true;
+
+            return false;
         }
 
         pybind11::object Convert(const Value &value) const override
         {
-            return value.Cast<pybind11::object>();
+            const std::type_info &type = value.Type();
+
+            if (type == typeid(pybind11::object))
+            {
+                return value.Cast<pybind11::object>();
+            }
+
+            if (type == typeid(pybind11::handle))
+            {
+                pybind11::handle h = value.Cast<pybind11::handle>();
+                return pybind11::reinterpret_borrow<pybind11::object>(h);
+            }
+
+            if (type == typeid(pybind11::int_))
+            {
+                pybind11::int_ i = value.Cast<pybind11::int_>();
+                return pybind11::object(i);
+            }
+
+            if (type == typeid(pybind11::float_))
+            {
+                pybind11::float_ f = value.Cast<pybind11::float_>();
+                return pybind11::object(f);
+            }
+
+            if (type == typeid(pybind11::str))
+            {
+                pybind11::str s = value.Cast<pybind11::str>();
+                return pybind11::object(s);
+            }
+
+            if (type == typeid(pybind11::list))
+            {
+                pybind11::list l = value.Cast<pybind11::list>();
+                return pybind11::object(l);
+            }
+
+            if (type == typeid(pybind11::dict))
+            {
+                pybind11::dict d = value.Cast<pybind11::dict>();
+                return pybind11::object(d);
+            }
+
+            if (type == typeid(pybind11::tuple))
+            {
+                pybind11::tuple t = value.Cast<pybind11::tuple>();
+                return pybind11::object(t);
+            }
+
+            if (type == typeid(pybind11::bool_))
+            {
+                pybind11::bool_ b = value.Cast<pybind11::bool_>();
+                return pybind11::object(b);
+            }
+
+            return pybind11::none();
         }
     };
 
@@ -98,7 +166,7 @@ class PyObjectConverter
     {
         converters.push_back(std::unique_ptr<TypeConverter>(new NoneConverter()));
         converters.push_back(std::unique_ptr<TypeConverter>(new ObjectConverter()));
-        
+
         RegisterNativeConverter<int>(converters);
         RegisterNativeConverter<double>(converters);
         RegisterNativeConverter<float>(converters);
@@ -120,8 +188,6 @@ class PyObjectConverter
 };
 } // namespace value_convert
 } // namespace xequation
-
-std::ostream &operator<<(std::ostream &os, const pybind11::object &obj);
 
 namespace PYBIND11_NAMESPACE
 {

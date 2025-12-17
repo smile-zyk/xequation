@@ -1,3 +1,4 @@
+#pragma once
 #include "value_item.h"
 
 namespace xequation
@@ -87,12 +88,12 @@ class ValueItemBuilderAutoRegister
   public:
     ValueItemBuilderAutoRegister(int priority = 0)
     {
-        RegisterValueItemBuilder(std::unique_ptr<T>(new T()), priority);
+        BuilderUtils::RegisterValueItemBuilder(std::unique_ptr<T>(new T()), priority);
     }
 };
 
 #define REGISTER_VALUE_ITEM_BUILDER_WITH_PRIORITY(BuilderClass, priority)                                              \
-    static xequation::gui::ValueItemBuilderAutoRegister<BuilderClass> s_autoRegister_##BuilderClass(priority)
+    static xequation::gui::ValueItemBuilderAutoRegister<BuilderClass> s_autoRegister_##BuilderClass(priority);
 
 #define REGISTER_VALUE_ITEM_BUILDER(BuilderClass)                                                                      \
     static xequation::gui::ValueItemBuilderAutoRegister<BuilderClass> s_autoRegister_##BuilderClass;

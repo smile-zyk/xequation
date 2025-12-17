@@ -12,7 +12,7 @@ class ValueTreeView : public QTreeView
 {
     Q_OBJECT
   public:
-    explicit ValueTreeView(QWidget *parent = nullptr);
+    explicit ValueTreeView(ValueTreeModel* model, QWidget *parent = nullptr);
     ~ValueTreeView() override;
     ValueTreeModel *value_model() const;
     void SetHeaderSectionResizeRatio(int idx, double ratio);
@@ -31,7 +31,7 @@ class ValueTreeView : public QTreeView
     void SetupConnections();
     void ResizeHeaderSections();
   private:
-    std::unique_ptr<ValueTreeModel> value_model_;
+    ValueTreeModel* value_model_;
     QMap<int, double> header_section_resize_ratios_;
     bool header_interactive_dragging_ = false;
 };

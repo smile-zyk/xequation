@@ -1,11 +1,18 @@
 #include "value_tree_model.h"
 #include "value_item_builder.h"
+#include "python_item_builder.h"
 #include <QVariant>
 
 namespace xequation
 {
 namespace gui
 {
+
+REGISTER_VALUE_ITEM_BUILDER(PythonListItemBuilder)
+REGISTER_VALUE_ITEM_BUILDER(PythonTupleItemBuilder)
+REGISTER_VALUE_ITEM_BUILDER(PythonSetItemBuilder)
+REGISTER_VALUE_ITEM_BUILDER(PythonDictItemBuilder)
+REGISTER_VALUE_ITEM_BUILDER_WITH_PRIORITY(PythonDefaultItemBuilder, 100)
 
 ValueTreeModel::ValueTreeModel(QObject *parent)
     : QAbstractItemModel(parent)
@@ -157,7 +164,7 @@ void ValueTreeModel::fetchMore(const QModelIndex& parent)
     if (!item || item->is_loaded())
         return;
 
-    size_t expected_count = item->has_children();
+    size_t expected_count = item->about_to_load_child_count();
     if (expected_count == 0)
         return;
 

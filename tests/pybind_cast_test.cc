@@ -187,11 +187,15 @@ TEST_F(PyObjectConverterTest, PyObjectValue)
     pybind11::list m_list;
     m_list.append("1");
     m_list.append(2);
-    pybind11::object obj = m_list;
     
-    Value package_obj_value = pybind11::cast<Value>(obj);
+    Value package_obj_value = m_list;
     pybind11::object unpackage_obj = pybind11::cast(package_obj_value);
-    EXPECT_EQ(obj.ptr(), unpackage_obj.ptr());
+    EXPECT_EQ(m_list.ptr(), unpackage_obj.ptr());
 
     EXPECT_EQ(package_obj_value.ToString(), "['1', 2]");
+}
+
+int main(int argc, char **argv) {
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }
