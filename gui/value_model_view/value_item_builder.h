@@ -92,11 +92,8 @@ class ValueItemBuilderAutoRegister
     }
 };
 
-#define REGISTER_VALUE_ITEM_BUILDER_WITH_PRIORITY(BuilderClass, priority)                                              \
+#define REGISTER_VALUE_ITEM_BUILDER(BuilderClass, priority)                                                                      \
     static xequation::gui::ValueItemBuilderAutoRegister<BuilderClass> s_autoRegister_##BuilderClass(priority);
-
-#define REGISTER_VALUE_ITEM_BUILDER(BuilderClass)                                                                      \
-    static xequation::gui::ValueItemBuilderAutoRegister<BuilderClass> s_autoRegister_##BuilderClass;
 
 } // namespace gui
 } // namespace xequation

@@ -32,8 +32,8 @@ private:
     void SetupConnections();
 
 private:
-    ValueTreeView *variable_tree_view_;
-    ValueTreeModel *variable_tree_model_;
+    ValueTreeView *view_;
+    ValueTreeModel *model_;
     std::map<std::string, std::unique_ptr<ValueItem>> variable_items_cache_;
     const Equation* current_equation_{nullptr};
 };

@@ -12,9 +12,10 @@ class ValueTreeView : public QTreeView
 {
     Q_OBJECT
   public:
-    explicit ValueTreeView(ValueTreeModel* model, QWidget *parent = nullptr);
+    explicit ValueTreeView(QWidget *parent = nullptr);
     ~ValueTreeView() override;
-    ValueTreeModel *value_model() const;
+    void SetValueModel(ValueTreeModel* model);
+    ValueTreeModel *value_model() const { return value_model_; }
     void SetHeaderSectionResizeRatio(int idx, double ratio);
   protected:
     virtual void resizeEvent(QResizeEvent* event) override;

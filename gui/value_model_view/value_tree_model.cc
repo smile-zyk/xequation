@@ -10,18 +10,17 @@ namespace xequation
 namespace gui
 {
 
-REGISTER_VALUE_ITEM_BUILDER(PythonListItemBuilder)
-REGISTER_VALUE_ITEM_BUILDER(PythonTupleItemBuilder)
-REGISTER_VALUE_ITEM_BUILDER(PythonSetItemBuilder)
-REGISTER_VALUE_ITEM_BUILDER(PythonDictItemBuilder)
-REGISTER_VALUE_ITEM_BUILDER_WITH_PRIORITY(PythonDefaultItemBuilder, 100)
+REGISTER_VALUE_ITEM_BUILDER(PythonListItemBuilder, 0)
+REGISTER_VALUE_ITEM_BUILDER(PythonTupleItemBuilder, 0)
+REGISTER_VALUE_ITEM_BUILDER(PythonSetItemBuilder, 0)
+REGISTER_VALUE_ITEM_BUILDER(PythonDictItemBuilder, 0)
+REGISTER_VALUE_ITEM_BUILDER(PythonClassItemBuilder, 1)
+REGISTER_VALUE_ITEM_BUILDER(PythonDefaultItemBuilder, 2)
 
 ValueTreeModel::ValueTreeModel(QObject *parent)
     : QAbstractItemModel(parent)
 {
 }
-
-ValueTreeModel::~ValueTreeModel() = default;
 
 QModelIndex ValueTreeModel::index(int row, int column, const QModelIndex &parent) const
 {
@@ -101,7 +100,7 @@ int ValueTreeModel::columnCount(const QModelIndex & /*parent*/) const
 
 QVariant ValueTreeModel::data(const QModelIndex &index, int role) const
 {
-    if (!index.isValid() || role != Qt::DisplayRole)
+    if (!index.isValid() || (role != Qt::DisplayRole && role != Qt::EditRole))
         return QVariant();
 
     ValueItem* item = GetValueItemFromIndex(index);

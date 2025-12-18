@@ -8,12 +8,9 @@ namespace xequation
 {
 namespace gui
 {
-
-ValueTreeView::ValueTreeView(ValueTreeModel* model, QWidget *parent) 
-    : QTreeView(parent), value_model_(model)
+ValueTreeView::ValueTreeView(QWidget *parent) 
+    : QTreeView(parent), value_model_(nullptr)
 {
-    setModel(value_model_);
-
     SetupUI();
     SetupConnections();
 
@@ -22,8 +19,15 @@ ValueTreeView::ValueTreeView(ValueTreeModel* model, QWidget *parent)
 
 ValueTreeView::~ValueTreeView() {}
 
+void ValueTreeView::SetValueModel(ValueTreeModel *model)
+{
+    value_model_ = model;
+    QTreeView::setModel(model);
+}
+
 void ValueTreeView::SetupUI()
 {
+    setAlternatingRowColors(true);
     header()->setStretchLastSection(false);
     header()->setSectionResizeMode(QHeaderView::Interactive);
 }
@@ -31,11 +35,6 @@ void ValueTreeView::SetupUI()
 void ValueTreeView::SetupConnections()
 {
     connect(header(), &QHeaderView::sectionResized, this, &ValueTreeView::OnHeaderResized);
-}
-
-ValueTreeModel *ValueTreeView::value_model() const
-{
-    return value_model_;
 }
 
 void ValueTreeView::SetHeaderSectionResizeRatio(int idx, double ratio)

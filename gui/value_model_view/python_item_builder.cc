@@ -13,7 +13,7 @@ PythonDefaultItemBuilder::~PythonDefaultItemBuilder() = default;
 
 bool PythonDefaultItemBuilder::CanBuild(const Value &value)
 {
-    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
         return true;
     }
@@ -97,12 +97,12 @@ QString PythonDefaultItemBuilder::GetObjectRepr(py::handle obj)
 // PythonListItemBuilder implementation
 bool PythonListItemBuilder::CanBuild(const Value &value)
 {
-    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
         auto obj = py::cast(value);
         return py::isinstance<py::list>(obj);
     }
-    if(value.Type() == typeid(py::list))
+    if (value.Type() == typeid(py::list))
     {
         return true;
     }
@@ -147,12 +147,12 @@ void PythonListItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
 // PythonTupleItemBuilder implementation
 bool PythonTupleItemBuilder::CanBuild(const Value &value)
 {
-    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
         auto obj = py::cast(value);
         return py::isinstance<py::tuple>(obj);
     }
-    if(value.Type() == typeid(py::tuple))
+    if (value.Type() == typeid(py::tuple))
     {
         return true;
     }
@@ -196,12 +196,12 @@ void PythonTupleItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
 // PythonSetItemBuilder implementation
 bool PythonSetItemBuilder::CanBuild(const Value &value)
 {
-    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
         auto obj = py::cast(value);
         return py::isinstance<py::set>(obj);
     }
-    if(value.Type() == typeid(py::set))
+    if (value.Type() == typeid(py::set))
     {
         return true;
     }
@@ -230,7 +230,7 @@ void PythonSetItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
 
     auto obj = py::cast(item->value());
     auto set = py::cast<py::set>(obj);
-    for(int i = begin; i <= end; i++)
+    for (int i = begin; i <= end; i++)
     {
         auto it = set.begin();
         std::advance(it, i);
@@ -244,12 +244,12 @@ void PythonSetItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
 // PythonDictItemBuilder implementation
 bool PythonDictItemBuilder::CanBuild(const Value &value)
 {
-    if(value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
     {
         auto obj = py::cast(value);
         return py::isinstance<py::dict>(obj);
     }
-    if(value.Type() == typeid(py::dict))
+    if (value.Type() == typeid(py::dict))
     {
         return true;
     }
@@ -278,12 +278,54 @@ void PythonDictItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
 
     auto obj = py::cast(item->value());
     auto dict = py::cast<py::dict>(obj);
-    for(int i = begin; i <= end; i++)
+    for (int i = begin; i <= end; i++)
     {
         auto it = dict.begin();
         std::advance(it, i);
         py::handle key = it->first;
         py::handle value = it->first;
+        QString key_str = PythonDefaultItemBuilder::GetObjectRepr(key);
+        ValueItem::UniquePtr child_item = BuilderUtils::CreateValueItem(key_str, value, item);
+        item->AddChild(std::move(child_item));
+    }
+}
+
+bool PythonClassItemBuilder::CanBuild(const Value &value)
+{
+    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    {
+        auto obj = py::cast(value);
+        return py::hasattr(obj, "__class__") && py::hasattr(obj, "__dict__");
+    }
+    return false;
+}
+
+ValueItem::UniquePtr PythonClassItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
+{
+    auto obj = py::cast(value);
+    auto dict = py::cast<py::dict>(obj.attr("__dict__"));
+    auto item = ValueItem::Create(name, value, parent);
+    item->set_type(GetTypeName(obj, true));
+    item->set_display_value(GetObjectRepr(obj));
+    item->set_expected_count(dict.size());
+    return item;
+}
+
+void PythonClassItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
+{
+    if (!item || item->IsLoaded())
+    {
+        return;
+    }
+
+    auto obj = py::cast(item->value());
+    auto dict = py::cast<py::dict>(obj.attr("__dict__"));
+    for (int i = begin; i <= end; i++)
+    {
+        auto it = dict.begin();
+        std::advance(it, i);
+        py::handle key = it->first;
+        py::handle value = it->second;
         QString key_str = PythonDefaultItemBuilder::GetObjectRepr(key);
         ValueItem::UniquePtr child_item = BuilderUtils::CreateValueItem(key_str, value, item);
         item->AddChild(std::move(child_item));

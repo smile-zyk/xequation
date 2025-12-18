@@ -10,6 +10,7 @@
 
 #include "equation_browser_widget.h"
 #include "variable_inspect_widget.h"
+#include "expression_watch_widget.h"
 #include "mock_equation_group_list_widget.h"
 
 class QMenu;
@@ -36,6 +37,7 @@ private:
     void OnShowDependencyGraph();
     void OnShowEquationManager();
     void OnShowEquationInspector();
+    void OnShowExpressionWatch();
 
     bool AddEquationGroup(const std::string& statement, xequation::EquationGroupId& id);
     bool EditEquationGroup(const xequation::EquationGroupId& id, const std::string& statement);
@@ -59,12 +61,13 @@ private:
     QAction *show_dependency_graph_action_;
     QAction *show_equation_manager_action_;
     QAction *show_variable_inspector_action_;
-    QAction *show_variable_monitor_action_;
+    QAction *show_expression_watch_action_;
 
     std::unordered_set<xequation::EquationGroupId> single_equation_set_;
     std::unordered_set<xequation::EquationGroupId> equation_group_set_;
     xequation::gui::EquationBrowserWidget* equation_browser_widget_;
     MockEquationGroupListWidget* mock_equation_list_widget_;
     xequation::gui::VariableInspectWidget* variable_inspect_widget_;
+    xequation::gui::ExpressionWatchWidget* expression_watch_widget_;
     std::unique_ptr<xequation::EquationManager> equation_manager_;
 };

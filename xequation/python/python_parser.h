@@ -23,6 +23,7 @@ class PythonParser
     std::vector<std::string> SplitStatements(const std::string &code);
     ParseResult ParseSingleStatement(const std::string &code);
     ParseResult ParseMultipleStatements(const std::string &code);
+    ParseExprResult ParseExpression(const std::string &code);
     void ClearCache();
     void SetMaxCacheSize(size_t max_size);
     size_t GetCacheSize();

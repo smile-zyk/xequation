@@ -7,6 +7,8 @@ equation_browser_widget.h
 equation_browser_widget.cc
 variable_inspect_widget.h
 variable_inspect_widget.cc
+expression_watch_widget.h
+expression_watch_widget.cc
 equation_editor.h
 equation_editor.cc
 value_model_view/value_item_builder.h

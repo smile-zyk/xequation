@@ -53,5 +53,14 @@ class PythonDictItemBuilder : public PythonDefaultItemBuilder
     virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const Value &value, ValueItem *parent = nullptr) override;
     virtual void LoadChildren(ValueItem *item, int begin, int end) override;
 };
+
+class PythonClassItemBuilder : public PythonDefaultItemBuilder
+{
+  public:
+    virtual bool CanBuild(const Value &value) override;
+    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const Value &value, ValueItem *parent = nullptr) override;
+    virtual void LoadChildren(ValueItem *item, int begin, int end) override;
+};
+
 } // namespace gui
 } // namespace xequation

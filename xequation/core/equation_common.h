@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "core/equation_common.h"
 #include "value.h"
 #include "equation.h"
 
@@ -45,6 +46,7 @@ struct ParseResultItem
 };
 
 using ParseResult = std::vector<ParseResultItem>;
+using ParseExprResult = std::vector<std::string>;
 
 class ParseException : public std::exception
 {
@@ -67,7 +69,9 @@ class ParseException : public std::exception
 
 using ExecHandler = std::function<ExecResult(const std::string &, EquationContext *)>;
 using EvalHandler = std::function<EvalResult(const std::string &, EquationContext *)>;
+using SimpleEvalHandler = std::function<EvalResult(const std::string &)>;
 using ParseHandler = std::function<ParseResult(const std::string &)>;
+using ParseExprHandler = std::function<ParseExprResult(const std::string&)>;
 } // namespace xequation
 
 namespace std

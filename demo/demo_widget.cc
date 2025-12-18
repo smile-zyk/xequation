@@ -21,12 +21,16 @@
 using namespace xequation;
 
 DemoWidget::DemoWidget(QWidget *parent)
-    : QMainWindow(parent), equation_browser_widget_(nullptr), variable_inspect_widget_(nullptr)
+    : QMainWindow(parent),
+      equation_browser_widget_(nullptr),
+      variable_inspect_widget_(nullptr),
+      expression_watch_widget_(nullptr)
 {
     equation_manager_ = xequation::python::PythonEquationEngine::GetInstance().CreateEquationManager();
     mock_equation_list_widget_ = new MockEquationGroupListWidget(equation_manager_.get(), this);
     equation_browser_widget_ = new xequation::gui::EquationBrowserWidget(equation_manager_.get(), this);
     variable_inspect_widget_ = new xequation::gui::VariableInspectWidget(this);
+    expression_watch_widget_ = new xequation::gui::ExpressionWatchWidget(this);
 
     SetupUI();
     SetupConnections();
@@ -52,6 +56,7 @@ void DemoWidget::SetupConnections()
     connect(show_dependency_graph_action_, &QAction::triggered, this, &DemoWidget::OnShowDependencyGraph);
     connect(show_equation_manager_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationManager);
     connect(show_variable_inspector_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationInspector);
+    connect(show_expression_watch_action_, &QAction::triggered, this, &DemoWidget::OnShowExpressionWatch);
 
     connect(
         mock_equation_list_widget_, &MockEquationGroupListWidget::EditEquationGroupRequested, this,
@@ -117,8 +122,8 @@ void DemoWidget::CreateActions()
     show_variable_inspector_action_ = new QAction("Variable &Inspector", this);
     show_variable_inspector_action_->setStatusTip("Inspect variable");
 
-    show_variable_monitor_action_ = new QAction("Variable Monitor", this);
-    show_variable_monitor_action_->setStatusTip("Monitor variable");
+    show_expression_watch_action_ = new QAction("Variable Monitor", this);
+    show_expression_watch_action_->setStatusTip("Monitor variable");
 }
 
 void DemoWidget::OnOpen() {}
@@ -140,7 +145,7 @@ void DemoWidget::CreateMenus()
     view_menu_->addAction(show_dependency_graph_action_);
     view_menu_->addAction(show_equation_manager_action_);
     view_menu_->addAction(show_variable_inspector_action_);
-    view_menu_->addAction(show_variable_monitor_action_);
+    view_menu_->addAction(show_expression_watch_action_);
 }
 
 void DemoWidget::OnInsertEquationRequest()
@@ -385,5 +390,20 @@ void DemoWidget::OnShowEquationInspector()
         variable_inspect_widget_->show();
         variable_inspect_widget_->raise();
         variable_inspect_widget_->activateWindow();
+    }
+}
+
+void DemoWidget::OnShowExpressionWatch()
+{
+    if (expression_watch_widget_ == nullptr)
+    {
+        expression_watch_widget_ = new gui::ExpressionWatchWidget(this);
+        expression_watch_widget_->show();
+    }
+    else
+    {
+        expression_watch_widget_->show();
+        expression_watch_widget_->raise();
+        expression_watch_widget_->activateWindow();
     }
 }

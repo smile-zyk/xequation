@@ -12,7 +12,7 @@ class ValueTreeModel : public QAbstractItemModel
     Q_OBJECT
   public:
     explicit ValueTreeModel(QObject *parent = nullptr);
-    ~ValueTreeModel() override;
+    ~ValueTreeModel() override = default;
 
     QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
     QModelIndex parent(const QModelIndex &child) const override;
@@ -27,13 +27,12 @@ class ValueTreeModel : public QAbstractItemModel
     void AddRootItem(ValueItem* item);
     void RemoveRootItem(ValueItem* item);
     void SetRootItems(const QVector<ValueItem*>& items);
+    size_t GetRootItemCount() const { return root_items_.size(); }
     void Clear();
 
   protected:
     ValueItem* GetValueItemFromIndex(const QModelIndex &index) const;
     QModelIndex GetIndexFromValueItem(ValueItem *item) const;
-
-  private:
     QVector<ValueItem*> root_items_;
 };
 }
