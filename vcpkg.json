@@ -4,6 +4,8 @@
     "boost-multi-index",
     "boost-uuid",
     "boost-signals2",
+    "boost-compute",
+    "boost-bimap",
     "tsl-ordered-map"
   ]
 }

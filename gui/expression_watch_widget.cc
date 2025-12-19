@@ -1,4 +1,5 @@
 #include "expression_watch_widget.h"
+#include "core/equation_common.h"
 #include "value_model_view/value_item.h"
 #include <QVBoxLayout>
 
@@ -196,8 +197,51 @@ void ExpressionWatchWidget::SetupConnections()
     );
 }
 
-void ExpressionWatchWidget::OnRequestAddWatchExpression(const QString &variable_name)
+void ExpressionWatchWidget::OnRequestAddWatchExpression(const QString &expression)
 {
+    ValueItem::UniquePtr item;
+    if (eval_handler_ == nullptr || parse_handler_ == nullptr)
+    {
+        return;
+    }
+
+    // first parse the expression to check for errors
+    ParseResult parse_result = parse_handler_(expression.toStdString());
+    if (parse_result.items.size() != 1)
+    {
+        return;
+    }
+    const ParseResultItem &parse_item = parse_result.items[0];
+    if (parse_item.status != ResultStatus::kSuccess)
+    {
+        item = ValueItem::Create(
+            expression, QString::fromStdString(parse_item.message),
+            QString::fromStdString(ResultStatusConverter::ToString(parse_item.status))
+        );
+    }
+    else 
+    {
+        const auto& dependencies = parse_item.dependencies;
+        for(const auto& dep : dependencies)
+        {
+            equation_to_watch_expressions_map_[QString::fromStdString(dep)].insert(expression);
+        }
+        // then evaluate the expression
+        InterpretResult interpret_result = eval_handler_(expression.toStdString());
+        if (interpret_result.status != ResultStatus::kSuccess)
+        {
+            item = ValueItem::Create(
+                expression, QString::fromStdString(interpret_result.message),
+                QString::fromStdString(ResultStatusConverter::ToString(interpret_result.status))
+            );
+        }
+        else
+        {
+            Value value = interpret_result.value;
+
+        }
+    }
+
     ValueItem::UniquePtr item = ValueItem::Create(variable_name, "test", "type");
     model_->OnExpressionValueItemAdded(item.get());
     watch_items_map_[variable_name] = std::move(item);

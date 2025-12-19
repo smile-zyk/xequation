@@ -201,10 +201,10 @@ TEST_F(PythonParserTest, CacheBasicFunctionality)
     std::string code = "t = x + y";
 
     auto result1 = parser_->ParseSingleStatement(code);
-    EXPECT_EQ(parser_->GetCacheSize(), 1u);
+    EXPECT_EQ(parser_->GetParseResultCacheSize(), 1u);
 
     auto result2 = parser_->ParseSingleStatement(code);
-    EXPECT_EQ(parser_->GetCacheSize(), 1u);
+    EXPECT_EQ(parser_->GetParseResultCacheSize(), 1u);
 
     EXPECT_EQ(result1.items.size(), result2.items.size());
     EXPECT_EQ(result1.items[0].name, result2.items[0].name);
@@ -214,77 +214,16 @@ TEST_F(PythonParserTest, CacheBasicFunctionality)
 TEST_F(PythonParserTest, CacheDifferentExpressions)
 {
     parser_->ParseSingleStatement("t0 = x + y");
-    EXPECT_EQ(parser_->GetCacheSize(), 1u);
+    EXPECT_EQ(parser_->GetParseResultCacheSize(), 1u);
 
     parser_->ParseSingleStatement("t1 = a * b");
-    EXPECT_EQ(parser_->GetCacheSize(), 2u);
+    EXPECT_EQ(parser_->GetParseResultCacheSize(), 2u);
 
     parser_->ParseSingleStatement("t2 = func(param)");
-    EXPECT_EQ(parser_->GetCacheSize(), 3u);
+    EXPECT_EQ(parser_->GetParseResultCacheSize(), 3u);
 
     parser_->ParseSingleStatement("t0 = x + y");
-    EXPECT_EQ(parser_->GetCacheSize(), 3u);
-}
-
-TEST_F(PythonParserTest, ClearCache)
-{
-    parser_->ParseSingleStatement("t = test_variable");
-    EXPECT_GT(parser_->GetCacheSize(), 0u);
-    
-    parser_->ClearCache();
-    EXPECT_EQ(parser_->GetCacheSize(), 0u);
-
-    parser_->ParseSingleStatement("t = test_variable");
-    EXPECT_EQ(parser_->GetCacheSize(), 1u);
-}
-
-TEST_F(PythonParserTest, CacheSizeLimit)
-{
-    parser_->SetMaxCacheSize(3);
-
-    parser_->ParseSingleStatement("t = a");
-    parser_->ParseSingleStatement("t = b");
-    parser_->ParseSingleStatement("t = c");
-    parser_->ParseSingleStatement("t = d");
-
-    EXPECT_LE(parser_->GetCacheSize(), 3u);
-}
-
-TEST_F(PythonParserTest, CacheLRUBehavior)
-{
-    parser_->SetMaxCacheSize(2);
-
-    parser_->ParseSingleStatement("t = expr1");
-    parser_->ParseSingleStatement("t = expr2");
-    parser_->ParseSingleStatement("t = expr1");
-    parser_->ParseSingleStatement("t = expr3");
-
-    EXPECT_EQ(parser_->GetCacheSize(), 2u);
-    
-    parser_->ParseSingleStatement("t = expr2");
-    EXPECT_EQ(parser_->GetCacheSize(), 2u);
-}
-
-TEST_F(PythonParserTest, SetMaxCacheSizeDynamic)
-{
-    EXPECT_EQ(parser_->GetCacheSize(), 0u);
-
-    parser_->SetMaxCacheSize(2);
-    parser_->ParseSingleStatement("t = a");
-    parser_->ParseSingleStatement("t = b");
-    parser_->ParseSingleStatement("t = c");
-    EXPECT_LE(parser_->GetCacheSize(), 2u);
-
-    parser_->ClearCache();
-    parser_->SetMaxCacheSize(10);
-    for (int i = 0; i < 8; ++i) {
-        parser_->ParseSingleStatement("t = expr" + std::to_string(i));
-    }
-    EXPECT_EQ(parser_->GetCacheSize(), 8u);
-
-    parser_->ParseSingleStatement("t = expr8");
-    parser_->ParseSingleStatement("t = expr9");
-    EXPECT_EQ(parser_->GetCacheSize(), 10u);
+    EXPECT_EQ(parser_->GetParseResultCacheSize(), 3u);
 }
 
 TEST_F(PythonParserTest, CacheWithDifferentContent)
@@ -293,27 +232,12 @@ TEST_F(PythonParserTest, CacheWithDifferentContent)
     std::string code2 = "t = x + y ";
 
     parser_->ParseSingleStatement(code1);
-    size_t size1 = parser_->GetCacheSize();
+    size_t size1 = parser_->GetParseResultCacheSize();
 
     parser_->ParseSingleStatement(code2);
-    size_t size2 = parser_->GetCacheSize();
+    size_t size2 = parser_->GetParseResultCacheSize();
 
     EXPECT_EQ(size2, size1);
-}
-
-TEST_F(PythonParserTest, MultipleClearCache)
-{
-    parser_->ParseSingleStatement("t = x");
-    EXPECT_GT(parser_->GetCacheSize(), 0u);
-
-    parser_->ClearCache();
-    EXPECT_EQ(parser_->GetCacheSize(), 0u);
-
-    parser_->ClearCache();
-    EXPECT_EQ(parser_->GetCacheSize(), 0u);
-
-    parser_->ParseSingleStatement("t = y");
-    EXPECT_EQ(parser_->GetCacheSize(), 1u);
 }
 
 TEST_F(PythonParserTest, ParseMultipleStatements)

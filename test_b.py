@@ -363,7 +363,7 @@ def test():
     print("测试表达式依赖提取")
     print(f"{'=' * 60}")
     expr_tests = [
-        "a + b * c",
+        "e = a + b * c",
         "math.sqrt(x) + os.path.join(dir, file)",
         "data['key'] + obj.attribute.method()",
         "func1(func2(arg1), arg2.attr)",

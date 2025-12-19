@@ -3,6 +3,7 @@
 #include "python_parser.h"
 #include "core/equation.h"
 #include "core/equation_common.h"
+#include "python/python_common.h"
 #include <pybind11/gil.h>
 #include <string>
 #include <vector>
@@ -313,7 +314,6 @@ ParseResult PythonParser::ParseStatements(const std::string &code)
         std::vector<std::string> statements = SplitStatements(code);
         ParseResult result;
         result.mode = ParseMode::kStatement;
-        result.status = ResultStatus::kSuccess;
         for (const auto& stmt_code : statements)
         {
             ParseResult stmt_results = ParseSingleStatement(stmt_code);
@@ -336,10 +336,10 @@ ParseResult PythonParser::ParseSingleStatement(const std::string &code)
 
     std::string code_hash = parser_.attr("get_ast_signature")(code).cast<std::string>();
 
-    auto it = cache_map_.find(code_hash);
-    if (it != cache_map_.end())
+    auto cached_result = parse_result_cache_.get(code_hash);
+    if (cached_result)
     {
-        return it->second->value;
+        return *cached_result;
     }
     try
     {
@@ -347,7 +347,6 @@ ParseResult PythonParser::ParseSingleStatement(const std::string &code)
 
         ParseResult result;
         result.mode = ParseMode::kStatement;
-        result.status = ResultStatus::kSuccess;
         for (const auto& item : py_parse_result)
         {
             pybind11::dict item_dict = item.cast<pybind11::dict>();
@@ -361,13 +360,12 @@ ParseResult PythonParser::ParseSingleStatement(const std::string &code)
             parse_item.dependencies = dependencies;
             parse_item.type = type;
             parse_item.content = content;
+            parse_item.status = ResultStatus::kSuccess;
             result.items.push_back(parse_item);
         }
 
-        cache_list_.emplace_front(code_hash, result);
-        cache_map_[code_hash] = cache_list_.begin();
+        parse_result_cache_.insert(code_hash, result);
 
-        EvictLRU();
         return result;
     }
     catch (const pybind11::error_already_set &e)
@@ -388,11 +386,11 @@ ParseResult PythonParser::ParseExpression(const std::string &code)
 
         ParseResult parse_result;
         parse_result.mode = ParseMode::kExpression;
-        parse_result.status = ResultStatus::kSuccess;
         ParseResultItem parse_item;
         parse_item.name = "__expression__";
         parse_item.content = code;
         parse_item.type = ItemType::kExpression;
+        parse_item.status = ResultStatus::kSuccess;
         for (const auto& item : py_parse_result)
         {
             parse_item.dependencies.push_back(item.cast<std::string>());
@@ -405,39 +403,17 @@ ParseResult PythonParser::ParseExpression(const std::string &code)
         pybind11::object pv = e.value();
         pybind11::object str_func = pybind11::module_::import("builtins").attr("str");
         std::string error_msg = str_func(pv).cast<std::string>();
-        throw ParseException(error_msg);
+        ParseResult parse_result;
+        parse_result.mode = ParseMode::kExpression;
+        ParseResultItem parse_item;
+        parse_item.name = "__expression__";
+        parse_item.content = code;
+        parse_item.type = ItemType::kError;
+        parse_item.status = MapPythonExceptionToStatus(e);
+        parse_item.message = error_msg;
+        parse_result.items.push_back(parse_item);
+        return parse_result;
     }
 }
-
-void PythonParser::ClearCache() 
-{
-    cache_list_.clear();
-    cache_map_.clear();
-}
-
-void PythonParser::SetMaxCacheSize(size_t max_size) 
-{
-    max_cache_size_ = max_size;
-    while (cache_list_.size() > max_cache_size_)
-    {
-        EvictLRU();
-    }
-}
-
-size_t PythonParser::GetCacheSize() 
-{
-    return cache_list_.size();
-}
-
-void PythonParser::EvictLRU() 
-{
-    if (cache_list_.size() > max_cache_size_)
-    {
-        auto last = cache_list_.back();
-        cache_map_.erase(last.key);
-        cache_list_.pop_back();
-    }
-}
-
 } // namespace python
 } // namespace xequation

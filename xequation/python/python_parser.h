@@ -1,10 +1,10 @@
 #pragma once
 
 #include <string>
+#include <boost/compute/detail/lru_cache.hpp>
 
 #include "python_common.h"
 #include "core/equation_common.h"
-
 
 namespace xequation
 {
@@ -24,25 +24,15 @@ class PythonParser
     ParseResult ParseExpression(const std::string &code);
     std::vector<std::string> SplitStatements(const std::string &code);
     ParseResult ParseSingleStatement(const std::string &code);
-    void ClearCache();
-    void SetMaxCacheSize(size_t max_size);
-    size_t GetCacheSize();
+    size_t GetParseResultCacheSize() const { return parse_result_cache_.size(); }
 
   private:
     void EvictLRU();
 
   private:
     pybind11::object parser_;
-    struct CacheEntry
-    {
-        std::string key;
-        ParseResult value;
-        CacheEntry(const std::string& k, const ParseResult& v) : key(k), value(v) {}
-    };
-
-    std::list<CacheEntry> cache_list_;
-    std::unordered_map<std::string, typename std::list<CacheEntry>::iterator> cache_map_;
-    size_t max_cache_size_ = 1000;
+    static constexpr size_t max_cache_size_ = 50;
+    boost::compute::detail::lru_cache<std::string, ParseResult> parse_result_cache_{max_cache_size_};
 };
 } // namespace python
 } // namespace xequation

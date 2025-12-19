@@ -1,4 +1,4 @@
-find_package(Boost REQUIRED COMPONENTS multi_index uuid)
+find_package(Boost REQUIRED COMPONENTS multi_index uuid compute)
 find_path(TSL_ORDERED_MAP_INCLUDE_DIRS "tsl/ordered_hash.h")
 set(xequation_SRC
     core/value.h
@@ -34,7 +34,8 @@ set_target_properties(xequation PROPERTIES CXX_VISIBILITY_PRESET hidden)
 target_link_libraries(xequation PUBLIC pybind11::headers)
 target_link_libraries(xequation PUBLIC Python::Python)
 target_link_libraries(xequation PUBLIC Boost::multi_index)
+target_link_libraries(xequation PUBLIC Boost::uuid)
+target_link_libraries(xequation PUBLIC Boost::compute)
 
 target_include_directories(xequation PUBLIC ./)
 target_include_directories(xequation PUBLIC ${TSL_ORDERED_MAP_INCLUDE_DIRS})
-target_link_libraries(xequation PUBLIC Boost::uuid)

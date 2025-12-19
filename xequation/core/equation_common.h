@@ -61,7 +61,8 @@ struct ParseResultItem
     std::string content;
     ItemType type;
     std::vector<std::string> dependencies;
-
+    std::string message;
+    ResultStatus status;
     bool operator==(const ParseResultItem &other) const
     {
         return name == other.name && content == other.content && type == other.type && dependencies == other.dependencies;
@@ -83,8 +84,6 @@ struct ParseResult
 {
     ParseMode mode;
     std::vector<ParseResultItem> items;
-    std::string message;
-    ResultStatus status;
 };
 
 class ParseException : public std::exception
@@ -248,10 +247,13 @@ struct hash<xequation::ParseResultItem>
         size_t h = 0;
         std::hash<std::string> string_hasher;
         std::hash<xequation::ItemType> type_hasher;
+        std::hash<xequation::ResultStatus> status_hasher;
 
         h ^= string_hasher(item.name) + 0x9e3779b9 + (h << 6) + (h >> 2);
         h ^= string_hasher(item.content) + 0x9e3779b9 + (h << 6) + (h >> 2);
         h ^= type_hasher(item.type) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= string_hasher(item.message) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= status_hasher(item.status) + 0x9e3779b9 + (h << 6) + (h >> 2);
 
         for (const auto &dep : item.dependencies)
         {
