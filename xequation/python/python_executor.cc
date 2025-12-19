@@ -1,6 +1,7 @@
 // Copyright 2024 Your Company. All rights reserved.
 
 #include "python_executor.h"
+#include "core/equation_common.h"
 #include "core/value.h"
 
 namespace xequation
@@ -35,78 +36,20 @@ PythonExecutor::~PythonExecutor()
 {
 }
 
-Equation::Status PythonExecutor::MapPythonExceptionToStatus(const pybind11::error_already_set &e)
+InterpretResult PythonExecutor::Exec(const std::string &code_string, const pybind11::dict &local_dict)
 {
     pybind11::gil_scoped_acquire acquire;
 
-    // Extract Python exception type
-    pybind11::object type = e.type();
-    pybind11::object type_name = type.attr("__name__");
-    std::string type_name_str = type_name.cast<std::string>();
-
-    if (type_name_str == "SyntaxError")
-    {
-        return Equation::Status::kSyntaxError;
-    }
-    else if (type_name_str == "NameError")
-    {
-        return Equation::Status::kNameError;
-    }
-    else if (type_name_str == "TypeError")
-    {
-        return Equation::Status::kTypeError;
-    }
-    else if (type_name_str == "ZeroDivisionError")
-    {
-        return Equation::Status::kZeroDivisionError;
-    }
-    else if (type_name_str == "ValueError")
-    {
-        return Equation::Status::kValueError;
-    }
-    else if (type_name_str == "MemoryError")
-    {
-        return Equation::Status::kMemoryError;
-    }
-    else if (type_name_str == "OverflowError")
-    {
-        return Equation::Status::kOverflowError;
-    }
-    else if (type_name_str == "RecursionError")
-    {
-        return Equation::Status::kRecursionError;
-    }
-    else if (type_name_str == "IndexError")
-    {
-        return Equation::Status::kIndexError;
-    }
-    else if (type_name_str == "KeyError")
-    {
-        return Equation::Status::kKeyError;
-    }
-    else if (type_name_str == "AttributeError")
-    {
-        return Equation::Status::kAttributeError;
-    }
-
-    // Default to ValueError for unknown exception types
-    return Equation::Status::kValueError;
-}
-
-ExecResult PythonExecutor::Exec(const std::string &code_string, const pybind11::dict &local_dict)
-{
-    pybind11::gil_scoped_acquire acquire;
-
-    ExecResult res;
+    InterpretResult res;
+    res.mode = InterpretMode::kExec;
     try
     {
         executor_.attr("exec")(code_string, local_dict);
-        res.status = Equation::Status::kSuccess;
-        res.message = "";
+        res.status = ResultStatus::kSuccess;
     }
     catch (const pybind11::error_already_set &e)
     {
-        Equation::Status status = MapPythonExceptionToStatus(e);
+        ResultStatus status = MapPythonExceptionToStatus(e);
         res.status = status;
         pybind11::object pv = e.value();
         pybind11::object str_func = pybind11::module_::import("builtins").attr("str");
@@ -116,21 +59,21 @@ ExecResult PythonExecutor::Exec(const std::string &code_string, const pybind11::
     return res;
 }
 
-EvalResult PythonExecutor::Eval(const std::string &expression, const pybind11::dict &local_dict)
+InterpretResult PythonExecutor::Eval(const std::string &expression, const pybind11::dict &local_dict)
 {
     pybind11::gil_scoped_acquire acquire;
 
-    EvalResult res;
+    InterpretResult res;
+    res.mode = InterpretMode::kEval;
     try
     {
         pybind11::object result = executor_.attr("eval")(expression, local_dict);
         res.value = result;
-        res.status = Equation::Status::kSuccess;
-        res.message = "";
+        res.status = ResultStatus::kSuccess;
     }
     catch (const pybind11::error_already_set &e)
     {
-        Equation::Status status = MapPythonExceptionToStatus(e);
+        ResultStatus status = MapPythonExceptionToStatus(e);
         res.value = Value::Null();
         res.status = status;
         pybind11::object pv = e.value();

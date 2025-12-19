@@ -1,6 +1,8 @@
 #include "dependency_graph.h"
 #include <iostream>
 #include <queue>
+#include <string>
+#include <tsl/ordered_set.h>
 #include <unordered_set>
 
 using namespace xequation;
@@ -532,7 +534,7 @@ void DependencyGraph::DeactiveEdge(const DependencyGraph::Edge &edge)
 bool DependencyGraph::CheckCycle(std::vector<std::string> &cycle_path) const
 {
     std::unordered_map<std::string, int> visited; // 0: unvisited, 1: visiting, 2: visited
-    std::stack<std::pair<std::string, NodeNameSet::iterator>>
+    std::stack<std::pair<std::string, tsl::ordered_set<std::string>::iterator>>
         stack;
     std::unordered_map<std::string, std::string> path_predecessor;
 

@@ -8,6 +8,8 @@
 #include <QWidget>
 #include <QtTreePropertyBrowser>
 #include <QtVariantPropertyManager>
+#include <string>
+#include <tsl/ordered_set.h>
 
 namespace xequation
 {
@@ -79,7 +81,7 @@ class EquationBrowserWidget : public QWidget
     void UpdateDependents(EquationPropertyItem &item, const Equation *equation);
     void UpdateEquationList(
         QtVariantProperty *group_property, QList<QtVariantProperty *> &properties_list,
-        const DependencyGraph::NodeNameSet &equation_names, const EquationManager *manager
+        const tsl::ordered_set<std::string> &equation_names, const EquationManager *manager
     );
     QtVariantProperty *CreateBasicProperty(const QString &name, const std::string &value);
     void AddSubProperties(EquationPropertyItem &item);

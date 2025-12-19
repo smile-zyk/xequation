@@ -30,21 +30,28 @@ void PythonEquationEngine::SetPyEnvConfig(const PyEnvConfig &config)
     config_ = config;
 }
 
-ExecResult PythonEquationEngine::Exec(const std::string &code, const EquationContext *context)
+InterpretResult PythonEquationEngine::Interpret(const std::string &code, const EquationContext *context, InterpretMode mode)
 {
     const PythonEquationContext* py_context = dynamic_cast<const PythonEquationContext*>(context);
-    return code_executor->Exec(code, py_context->dict());
+    if (mode == InterpretMode::kEval)
+    {
+        return code_executor->Eval(code, py_context ? py_context->dict() : pybind11::dict());
+    }
+    else
+    {
+        return code_executor->Exec(code, py_context ? py_context->dict() : pybind11::dict());
+    }
 }
 
-ParseResult PythonEquationEngine::Parse(const std::string &code)
+ParseResult PythonEquationEngine::Parse(const std::string &code, ParseMode mode)
 {
-    return code_parser->ParseMultipleStatements(code);
-}
-
-EvalResult PythonEquationEngine::Eval(const std::string &code, const EquationContext *context)
-{
-    const PythonEquationContext* py_context = dynamic_cast<const PythonEquationContext*>(context);
-    return code_executor->Eval(code, py_context->dict());
+    if (mode == ParseMode::kExpression)
+    {
+        return code_parser->ParseExpression(code);
+    }
+    else {
+        return code_parser->ParseStatements(code);
+    }
 }
 
 std::unique_ptr<EquationContext> PythonEquationEngine::CreateContext()

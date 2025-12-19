@@ -25,7 +25,6 @@ class EquationException : public std::exception
         kEquationGroupAlreadyExists,
         kEquationNotFound,
         kEquationAlreayExists,
-        kStatementIsEmpty,
     };
 
     const char *what() const noexcept override
@@ -50,11 +49,6 @@ class EquationException : public std::exception
     ErrorCode error_code() const
     {
         return error_code_;
-    }
-
-    static EquationException StatementIsEmpty()
-    {
-        return EquationException(ErrorCode::kStatementIsEmpty, "");
     }
 
     static EquationException EquationGroupNotFound(EquationGroupId group_id)
@@ -98,10 +92,6 @@ class EquationException : public std::exception
 
         case ErrorCode::kEquationAlreayExists:
             oss << "Equation already exists. Name: '" << equation_name_ << "'";
-            break;
-
-        case ErrorCode::kStatementIsEmpty:
-            oss << "Statement is empty.";
             break;
 
         default:

@@ -10,7 +10,7 @@ namespace xequation
 
 Equation::Equation(const ParseResultItem &item, const boost::uuids::uuid &group_id, EquationManager *manager)
     : name_(item.name),
-      content_(item.code),
+      content_(item.content),
       type_(item.type),
       status_(ResultStatus::kPending),
       group_id_(group_id),
@@ -19,7 +19,7 @@ Equation::Equation(const ParseResultItem &item, const boost::uuids::uuid &group_
 }
 
 Equation::Equation(const std::string &name, const boost::uuids::uuid &group_id, EquationManager *manager)
-    : name_(name), type_(ParseResultItem::Type::kUnknown), status_(ResultStatus::kPending), group_id_(group_id), manager_(manager)
+    : name_(name), type_(ItemType::kUnknown), status_(ResultStatus::kPending), group_id_(group_id), manager_(manager)
 {
 }
 

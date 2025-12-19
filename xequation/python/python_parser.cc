@@ -119,7 +119,7 @@ class PythonParser:
         return {
             "name": node.name,
             "dependencies": [],
-            "type": "func",
+            "type": "Function",
             "content": code.strip(),
         }
 
@@ -129,7 +129,7 @@ class PythonParser:
         return {
             "name": node.name,
             "dependencies": [],
-            "type": "class",
+            "type": "Class",
             "content": code.strip(),
         }
 
@@ -149,7 +149,7 @@ class PythonParser:
                 {
                     "name": name,
                     "dependencies": [],
-                    "type": "import",
+                    "type": "Import",
                     "content": single_import_code,
                 }
             )
@@ -172,7 +172,7 @@ class PythonParser:
                         {
                             "name": symbol_name,
                             "dependencies": [],
-                            "type": "import_from",
+                            "type": "ImportFrom",
                             "content": f"from {node.module} import {symbol_name}",
                         }
                     )
@@ -192,7 +192,7 @@ class PythonParser:
                     {
                         "name": name,
                         "dependencies": [],
-                        "type": "import_from",
+                        "type": "ImportFrom",
                         "content": single_import_code,
                     }
                 )
@@ -215,7 +215,7 @@ class PythonParser:
         return {
             "name": target.id,
             "dependencies": dependencies,
-            "type": "var",
+            "type": "Variable",
             "content": value_code.strip() if value_code else code.strip(),
         }
 
@@ -281,24 +281,6 @@ PythonParser::~PythonParser()
     parser_.release();
 }
 
-Equation::Type StringToType(const std::string &type_str)
-{
-    static const std::unordered_map<std::string, Equation::Type> type_map = {
-        {"func", Equation::Type::kFunction},
-        {"class", Equation::Type::kClass},
-        {"var", Equation::Type::kVariable},
-        {"import", Equation::Type::kImport},
-        {"import_from", Equation::Type::kImportFrom}
-    };
-
-    auto it = type_map.find(type_str);
-    if (it != type_map.end())
-    {
-        return it->second;
-    }
-    return Equation::Type::kUnknown;
-}
-
 std::vector<std::string> PythonParser::SplitStatements(const std::string &code)
 {
     pybind11::gil_scoped_acquire acquire;
@@ -329,13 +311,15 @@ ParseResult PythonParser::ParseStatements(const std::string &code)
     try
     {
         std::vector<std::string> statements = SplitStatements(code);
-        ParseResult results;
+        ParseResult result;
+        result.mode = ParseMode::kStatement;
+        result.status = ResultStatus::kSuccess;
         for (const auto& stmt_code : statements)
         {
             ParseResult stmt_results = ParseSingleStatement(stmt_code);
-            results.items.insert(results.items.end(), stmt_results.items.begin(), stmt_results.items.end());
+            result.items.insert(result.items.end(), stmt_results.items.begin(), stmt_results.items.end());
         }
-        return results;
+        return result;
     }
     catch (const pybind11::error_already_set &e)
     {
@@ -359,15 +343,17 @@ ParseResult PythonParser::ParseSingleStatement(const std::string &code)
     }
     try
     {
-        pybind11::list result = parser_.attr("parse_single_statement")(code);
+        pybind11::list py_parse_result = parser_.attr("parse_single_statement")(code);
 
-        ParseResult res;
-        for (const auto& item : result)
+        ParseResult result;
+        result.mode = ParseMode::kStatement;
+        result.status = ResultStatus::kSuccess;
+        for (const auto& item : py_parse_result)
         {
             pybind11::dict item_dict = item.cast<pybind11::dict>();
             std::string name = item_dict["name"].cast<std::string>();
             std::vector<std::string> dependencies = item_dict["dependencies"].cast<std::vector<std::string>>();
-            Equation::Type type = StringToType(item_dict["type"].cast<std::string>());
+            ItemType type = ItemTypeConverter::FromString(item_dict["type"].cast<std::string>());
             std::string content = item_dict["content"].cast<std::string>();
             
             ParseResultItem parse_item;
@@ -375,14 +361,14 @@ ParseResult PythonParser::ParseSingleStatement(const std::string &code)
             parse_item.dependencies = dependencies;
             parse_item.type = type;
             parse_item.content = content;
-            res.items.push_back(parse_item);
+            result.items.push_back(parse_item);
         }
 
-        cache_list_.emplace_front(code_hash, res);
+        cache_list_.emplace_front(code_hash, result);
         cache_map_[code_hash] = cache_list_.begin();
 
         EvictLRU();
-        return res;
+        return result;
     }
     catch (const pybind11::error_already_set &e)
     {
@@ -401,10 +387,12 @@ ParseResult PythonParser::ParseExpression(const std::string &code)
         pybind11::list py_parse_result = parser_.attr("parse_expression_dependencies")(code);
 
         ParseResult parse_result;
+        parse_result.mode = ParseMode::kExpression;
+        parse_result.status = ResultStatus::kSuccess;
         ParseResultItem parse_item;
         parse_item.name = "__expression__";
-        parse_item.code = code;
-        parse_item.type = ParseResultItem::Type::kExpression;
+        parse_item.content = code;
+        parse_item.type = ItemType::kExpression;
         for (const auto& item : py_parse_result)
         {
             parse_item.dependencies.push_back(item.cast<std::string>());

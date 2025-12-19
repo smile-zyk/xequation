@@ -36,7 +36,7 @@ void ParseDependencies(const std::string &expr, ParseResultItem &item)
     item.dependencies = res;
 }
 
-ParseResultItem ParseExpression(const std::string &expr)
+ParseResultItem ParseSingleStatement(const std::string &expr)
 {
     ParseResultItem item;
 
@@ -52,7 +52,7 @@ ParseResultItem ParseExpression(const std::string &expr)
 
         ParseDependencies(expression, item);
         item.content = expression;
-        item.type = Equation::Type::kVariable;
+        item.type = ItemType::kVariable;
     }
     else
     {
@@ -62,10 +62,24 @@ ParseResultItem ParseExpression(const std::string &expr)
     return item;
 }
 
-ParseResult ParseMultipleExpressions(const std::string &input)
+ParseResult ParseExpression(const std::string &code)
 {
     ParseResult result;
+    result.mode = ParseMode::kExpression;
+    ParseResultItem item;
+    item.name = "__expression__";
+    item.content = code;
+    item.type = ItemType::kExpression;
 
+    ParseDependencies(code, item);
+    result.items.push_back(item);
+    return result;
+}
+
+ParseResult ParseMultipleStatements(const std::string &input)
+{
+    ParseResult result;
+    result.mode = ParseMode::kStatement;
     size_t start = 0;
     size_t end = 0;
 
@@ -79,8 +93,8 @@ ParseResult ParseMultipleExpressions(const std::string &input)
 
         if (!expr.empty())
         {
-            ParseResultItem item = ParseExpression(expr);
-            result.push_back(item);
+            ParseResultItem item = ParseSingleStatement(expr);
+            result.items.push_back(item);
         }
 
         if (end != std::string::npos)
@@ -92,10 +106,10 @@ ParseResult ParseMultipleExpressions(const std::string &input)
     return result;
 }
 
-EvalResult EvalExpr(const std::string &expr, EquationContext *context)
+InterpretResult EvalExpr(const std::string &expr, EquationContext *context)
 {
-    EvalResult result;
-
+    InterpretResult result;
+    result.mode = InterpretMode::kEval;
     std::regex expr_regex(R"(^\s*(([A-Za-z_][A-Za-z0-9_]*|\d+)(\s*([\+\-\*\/])\s*([A-Za-z_][A-Za-z0-9_]*|\d+))?)\s*$)");
     std::smatch expr_match;
 
@@ -117,21 +131,21 @@ EvalResult EvalExpr(const std::string &expr, EquationContext *context)
             }
             else
             {
-                result.status = Equation::Status::kTypeError;
+                result.status = ResultStatus::kTypeError;
                 result.message = "Variable " + var1 + " is not an integer";
                 return result;
             }
         }
         else
         {
-            result.status = Equation::Status::kNameError;
+            result.status = ResultStatus::kNameError;
             result.message = "Variable " + var1 + " not found";
             return result;
         }
 
         if (!expr_match[4].matched)
         {
-            result.status = Equation::Status::kSuccess;
+            result.status = ResultStatus::kSuccess;
             result.value = val1;
             return result;
         }
@@ -153,65 +167,65 @@ EvalResult EvalExpr(const std::string &expr, EquationContext *context)
             }
             else
             {
-                result.status = Equation::Status::kTypeError;
+                result.status = ResultStatus::kTypeError;
                 result.message = "Variable " + var2 + " is not an integer";
                 return result;
             }
         }
         else
         {
-            result.status = Equation::Status::kNameError;
+            result.status = ResultStatus::kNameError;
             result.message = "Variable " + var2 + " not found";
             return result;
         }
 
         if (op == "+")
         {
-            result.status = Equation::Status::kSuccess;
+            result.status = ResultStatus::kSuccess;
             result.value = val1 + val2;
         }
         else if (op == "-")
         {
-            result.status = Equation::Status::kSuccess;
+            result.status = ResultStatus::kSuccess;
             result.value = val1 - val2;
         }
         else if (op == "*")
         {
-            result.status = Equation::Status::kSuccess;
+            result.status = ResultStatus::kSuccess;
             result.value = val1 * val2;
         }
         else if (op == "/")
         {
             if (val2 == 0)
             {
-                result.status = Equation::Status::kZeroDivisionError;
+                result.status = ResultStatus::kZeroDivisionError;
                 result.message = "Division by zero";
             }
             else
             {
-                result.status = Equation::Status::kSuccess;
+                result.status = ResultStatus::kSuccess;
                 result.value = val1 / val2;
             }
         }
         else
         {
-            result.status = Equation::Status::kAttributeError;
+            result.status = ResultStatus::kAttributeError;
             result.message = "Invalid operator: " + op;
         }
     }
     else
     {
-        result.status = Equation::Status::kSyntaxError;
+        result.status = ResultStatus::kSyntaxError;
         result.message = "Invalid expression syntax";
     }
 
     return result;
 }
 
-ExecResult ExecExpr(const std::string &code, EquationContext *context)
+InterpretResult ExecExpr(const std::string &code, EquationContext *context)
 {
-    ExecResult result;
-
+    InterpretResult result;
+    result.mode = InterpretMode::kExec;
     std::regex assign_regex(R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)\s*$)");
     std::smatch assign_match;
 
@@ -220,19 +234,43 @@ ExecResult ExecExpr(const std::string &code, EquationContext *context)
         std::string name = assign_match[1];
         std::string expr = assign_match[2];
 
-        EvalResult eval_res = EvalExpr(expr, context);
+        InterpretResult eval_result = EvalExpr(expr, context);
 
-        context->Set(name, eval_res.value);
-        result.status = eval_res.status;
-        result.message = eval_res.message;
+        context->Set(name, eval_result.value);
+        result.status = eval_result.status;
+        result.message = eval_result.message;
     }
     else
     {
-        result.status = Equation::Status::kSyntaxError;
+        result.status = ResultStatus::kSyntaxError;
         result.message = "Invalid assignment syntax. Expected: variable = expression";
     }
 
     return result;
+}
+
+InterpretResult Interpret(const std::string &code, EquationContext *context, InterpretMode mode)
+{
+    if (mode == InterpretMode::kEval)
+    {
+        return EvalExpr(code, context);
+    }
+    else
+    {
+        return ExecExpr(code, context);
+    }
+}
+
+ParseResult Parse(const std::string &code, ParseMode mode)
+{
+    if (mode == ParseMode::kExpression)
+    {
+        return ParseExpression(code);
+    }
+    else
+    {
+        return ParseMultipleStatements(code);
+    }
 }
 
 class MockExprContext : public EquationContext
@@ -291,7 +329,7 @@ class EquationManagerTest : public testing::Test
   protected:
     EquationManagerTest()
         : manager_(
-              std::unique_ptr<MockExprContext>(new MockExprContext()), ExecExpr, ParseMultipleExpressions, EvalExpr
+              std::unique_ptr<MockExprContext>(new MockExprContext()), Interpret, Parse
           )
     {
     }
@@ -327,8 +365,8 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_EQ(equation_a->group_id(), id_0);
     EXPECT_EQ(equation_a->manager(), &manager_);
     EXPECT_EQ(equation_a->message(), "");
-    EXPECT_EQ(equation_a->type(), Equation::Type::kVariable);
-    EXPECT_EQ(equation_a->status(), Equation::Status::kPending);
+    EXPECT_EQ(equation_a->type(), ItemType::kVariable);
+    EXPECT_EQ(equation_a->status(), ResultStatus::kPending);
 
     manager_.EditEquationGroup(id_0, "A=2;B=A");
     EXPECT_TRUE(manager_.IsEquationExist("A"));
@@ -342,8 +380,8 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_EQ(equation_a->group_id(), id_0);
     EXPECT_EQ(equation_a->manager(), &manager_);
     EXPECT_EQ(equation_a->message(), "");
-    EXPECT_EQ(equation_a->type(), Equation::Type::kVariable);
-    EXPECT_EQ(equation_a->status(), Equation::Status::kPending);
+    EXPECT_EQ(equation_a->type(), ItemType::kVariable);
+    EXPECT_EQ(equation_a->status(), ResultStatus::kPending);
 
     const Equation *equation_b = manager_.GetEquation("B");
     EXPECT_TRUE(equation_b);
@@ -354,8 +392,8 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_EQ(equation_b->group_id(), id_0);
     EXPECT_EQ(equation_b->manager(), &manager_);
     EXPECT_EQ(equation_b->message(), "");
-    EXPECT_EQ(equation_b->type(), Equation::Type::kVariable);
-    EXPECT_EQ(equation_b->status(), Equation::Status::kPending);
+    EXPECT_EQ(equation_b->type(), ItemType::kVariable);
+    EXPECT_EQ(equation_b->status(), ResultStatus::kPending);
 
     manager_.EditEquationGroup(id_0, "B=3;C=B+1");
     EXPECT_FALSE(manager_.IsEquationExist("A"));
@@ -370,8 +408,8 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_EQ(equation_b->group_id(), id_0);
     EXPECT_EQ(equation_b->manager(), &manager_);
     EXPECT_EQ(equation_b->message(), "");
-    EXPECT_EQ(equation_b->type(), Equation::Type::kVariable);
-    EXPECT_EQ(equation_b->status(), Equation::Status::kPending);
+    EXPECT_EQ(equation_b->type(), ItemType::kVariable);
+    EXPECT_EQ(equation_b->status(), ResultStatus::kPending);
 
     const Equation *equation_c = manager_.GetEquation("C");
     EXPECT_TRUE(equation_c);
@@ -382,8 +420,8 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_EQ(equation_c->group_id(), id_0);
     EXPECT_EQ(equation_c->manager(), &manager_);
     EXPECT_EQ(equation_c->message(), "");
-    EXPECT_EQ(equation_c->type(), Equation::Type::kVariable);
-    EXPECT_EQ(equation_c->status(), Equation::Status::kPending);
+    EXPECT_EQ(equation_c->type(), ItemType::kVariable);
+    EXPECT_EQ(equation_c->status(), ResultStatus::kPending);
 
     EquationGroupId id_1 = manager_.AddEquationGroup("D=B+2;E=D+B");
     EXPECT_TRUE(manager_.IsEquationGroupExist(id_1));
@@ -406,8 +444,8 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_EQ(equation_d->group_id(), id_1);
     EXPECT_EQ(equation_d->manager(), &manager_);
     EXPECT_EQ(equation_d->message(), "");
-    EXPECT_EQ(equation_d->type(), Equation::Type::kVariable);
-    EXPECT_EQ(equation_d->status(), Equation::Status::kPending);
+    EXPECT_EQ(equation_d->type(), ItemType::kVariable);
+    EXPECT_EQ(equation_d->status(), ResultStatus::kPending);
 
     EXPECT_TRUE(equation_e);
     EXPECT_TRUE(group_1->IsEquationExist("E"));
@@ -417,8 +455,8 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_EQ(equation_e->group_id(), id_1);
     EXPECT_EQ(equation_e->manager(), &manager_);
     EXPECT_EQ(equation_e->message(), "");
-    EXPECT_EQ(equation_e->type(), Equation::Type::kVariable);
-    EXPECT_EQ(equation_e->status(), Equation::Status::kPending);
+    EXPECT_EQ(equation_e->type(), ItemType::kVariable);
+    EXPECT_EQ(equation_e->status(), ResultStatus::kPending);
 
     manager_.RemoveEquationGroup(id_1);
     EXPECT_FALSE(manager_.IsEquationGroupExist(id_1));
@@ -560,14 +598,15 @@ TEST_F(EquationManagerTest, Eval)
 {
     EquationGroupId id_0 = manager_.AddEquationGroup("A=B+C;B=D+E;C=F;D=1;E=5;F=10");
     manager_.UpdateEquationGroup(id_0);
-    EvalResult res = manager_.Eval("A+B");
+    InterpretResult res = manager_.Eval("A+B");
 
+    EXPECT_EQ(res.mode, InterpretMode::kEval);
     EXPECT_EQ(res.value.Cast<int>(), 22);
-    EXPECT_EQ(res.status, Equation::Status::kSuccess);
+    EXPECT_EQ(res.status, ResultStatus::kSuccess);
 
     res = manager_.Eval("G+1");
     EXPECT_TRUE(res.value.IsNull());
-    EXPECT_EQ(res.status, Equation::Status::kNameError);
+    EXPECT_EQ(res.status, ResultStatus::kNameError);
 }
 
 int main(int argc, char **argv)

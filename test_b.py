@@ -375,6 +375,20 @@ def test():
             print(f"提取的依赖: {deps}")
         except Exception as e:
             print(f"错误: {e}")
+    
+    # test split_statements with syntax errors
+    print(f"\n{'=' * 60}")
+    print("测试代码分割的语法错误处理")
+    print(f"{'=' * 60}")
+    syntax_error_code = "def func():\nprint('missing indent')"
+    print(f"测试代码:\n{syntax_error_code}")
+
+    try:
+        statements = parser.split_statements(syntax_error_code)
+        for i, stmt in enumerate(statements):
+            print(f"   语句 {i}: {stmt}")
+    except Exception as e:
+        print(f"   分割错误: {e}")
 
 
 if __name__ == "__main__":

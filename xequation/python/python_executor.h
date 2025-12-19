@@ -4,7 +4,6 @@
 
 #include "python_common.h"
 #include "core/equation_common.h"
-#include "core/equation.h"
 
 namespace xequation
 {
@@ -26,9 +25,6 @@ class PythonExecutor {
   InterpretResult Eval(const std::string& expression, const pybind11::dict& local_dict = pybind11::dict());
  private:
   pybind11::object executor_;
-  
-  // Maps Python exception types to ExecStatus.
-  Equation::Status MapPythonExceptionToStatus(const pybind11::error_already_set& e);
 };
 } // namespace python
 } // namespace xequation

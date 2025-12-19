@@ -2,8 +2,8 @@
 
 #include <string>
 
-#include "core/equation_common.h"
 #include "python_common.h"
+#include "core/equation_common.h"
 
 
 namespace xequation
@@ -22,13 +22,13 @@ class PythonParser
 
     ParseResult ParseStatements(const std::string &code);
     ParseResult ParseExpression(const std::string &code);
+    std::vector<std::string> SplitStatements(const std::string &code);
+    ParseResult ParseSingleStatement(const std::string &code);
     void ClearCache();
     void SetMaxCacheSize(size_t max_size);
     size_t GetCacheSize();
 
   private:
-    std::vector<std::string> SplitStatements(const std::string &code);
-    ParseResult ParseSingleStatement(const std::string &code);
     void EvictLRU();
 
   private:

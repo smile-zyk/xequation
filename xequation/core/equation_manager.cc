@@ -1,4 +1,5 @@
 #include "equation_manager.h"
+#include "equation_common.h"
 #include "core/equation_signals_manager.h"
 
 namespace xequation
@@ -205,7 +206,7 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
         {
             to_remove_equation_names.push_back(old_eqn_name);
         }
-        else if (group->GetEquation(old_eqn_name)->content() != new_item_it->second.code)
+        else if (group->GetEquation(old_eqn_name)->content() != new_item_it->second.content)
         {
             to_update_items.push_back(new_item_it->second);
         }
@@ -260,7 +261,7 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
     {
         graph_->InvalidateNode(update_item.name);
         Equation *update_eqn = group->GetEquation(update_item.name);
-        update_eqn->set_content(update_item.code);
+        update_eqn->set_content(update_item.content);
         update_eqn->set_type(update_item.type);
         context_->Remove(update_item.name);
         signals_manager_->Emit<EquationEvent::kEquationUpdated>(
@@ -390,7 +391,7 @@ void EquationManager::UpdateEquationInternal(const std::string &equation_name)
         return;
     }
 
-    const std::string &equation_statement = equation->type() == ParseResultItem::Type::kVariable
+    const std::string &equation_statement = equation->type() == ItemType::kVariable
                                                 ? equation->name() + " = " + equation->content()
                                                 : equation->content();
     InterpretResult result = interpret_handler_(equation_statement, context_.get(), InterpretMode::kExec);

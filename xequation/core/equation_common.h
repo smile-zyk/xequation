@@ -26,6 +26,7 @@ enum class ResultStatus
     kIndexError,
     kKeyError,
     kAttributeError,
+    kUnknownError
 };
 
 enum class InterpretMode
@@ -42,27 +43,28 @@ struct InterpretResult
     Value value;
 };
 
+enum class ItemType
+{
+    kUnknown,
+    kExpression,
+    kVariable,
+    kFunction,
+    kClass,
+    kImport,
+    kImportFrom,
+    kError,
+};
+
 struct ParseResultItem
 {
-    enum class Type
-    {
-        kUnknown,
-        kExpression,
-        kVariable,
-        kFunction,
-        kClass,
-        kImport,
-        kImportFrom,
-    };
     std::string name;
-    std::string code;
-    Type type;
+    std::string content;
+    ItemType type;
     std::vector<std::string> dependencies;
 
     bool operator==(const ParseResultItem &other) const
     {
-        return name == other.name && code == other.code && type == other.type &&
-               dependencies == other.dependencies;
+        return name == other.name && content == other.content && type == other.type && dependencies == other.dependencies;
     }
 
     bool operator!=(const ParseResultItem &other) const
@@ -104,63 +106,132 @@ class ParseException : public std::exception
     }
 };
 
-inline std::ostream &operator<<(std::ostream &os, ParseResultItem::Type type)
+class ItemTypeConverter
 {
-    std::string res;
-    switch (type)
+  public:
+    static ItemType FromString(const std::string &type_str)
     {
-    case ParseResultItem::Type::kVariable:
-        res = "Variable";
-    case ParseResultItem::Type::kFunction:
-        res = "Function";
-    case ParseResultItem::Type::kClass:
-        res = "Class";
-    case ParseResultItem::Type::kImport:
-        res = "Import";
-    case ParseResultItem::Type::kImportFrom:
-        res = "ImportFrom";
-    default:
-        res = "Unknown";
+        if (type_str == "Expression")
+            return ItemType::kExpression;
+        else if (type_str == "Variable")
+            return ItemType::kVariable;
+        else if (type_str == "Function")
+            return ItemType::kFunction;
+        else if (type_str == "Class")
+            return ItemType::kClass;
+        else if (type_str == "Import")
+            return ItemType::kImport;
+        else if (type_str == "ImportFrom")
+            return ItemType::kImportFrom;
+        else if (type_str == "Error")
+            return ItemType::kError;
+        else
+            return ItemType::kUnknown;
     }
 
-    return os << res;
+    static std::string ToString(ItemType type)
+    {
+        switch (type)
+        {
+        case ItemType::kExpression:
+            return "Expression";
+        case ItemType::kVariable:
+            return "Variable";
+        case ItemType::kFunction:
+            return "Function";
+        case ItemType::kClass:
+            return "Class";
+        case ItemType::kImport:
+            return "Import";
+        case ItemType::kImportFrom:
+            return "ImportFrom";
+        case ItemType::kError:
+            return "Error";
+        default:
+            return "Unknown";
+        }
+    }
+}; 
+
+inline std::ostream &operator<<(std::ostream &os, ItemType type)
+{
+    return os << ItemTypeConverter::ToString(type);
 }
+
+class ResultStatusConverter
+{
+  public:
+    static ResultStatus FromString(const std::string &status_str)
+    {
+        if (status_str == "Pending")
+            return ResultStatus::kPending;
+        else if (status_str == "Success")
+            return ResultStatus::kSuccess;
+        else if (status_str == "SyntaxError")
+            return ResultStatus::kSyntaxError;
+        else if (status_str == "NameError")
+            return ResultStatus::kNameError;
+        else if (status_str == "TypeError")
+            return ResultStatus::kTypeError;
+        else if (status_str == "ZeroDivisionError")
+            return ResultStatus::kZeroDivisionError;
+        else if (status_str == "ValueError")
+            return ResultStatus::kValueError;
+        else if (status_str == "MemoryError")
+            return ResultStatus::kMemoryError;
+        else if (status_str == "OverflowError")
+            return ResultStatus::kOverflowError;
+        else if (status_str == "RecursionError")
+            return ResultStatus::kRecursionError;
+        else if (status_str == "IndexError")
+            return ResultStatus::kIndexError;
+        else if (status_str == "KeyError")
+            return ResultStatus::kKeyError;
+        else if (status_str == "AttributeError")
+            return ResultStatus::kAttributeError;
+        else
+            return ResultStatus::kPending;
+    }
+
+    static std::string ToString(ResultStatus status)
+    {
+        switch (status)
+        {
+        case ResultStatus::kPending:
+            return "Pending";
+        case ResultStatus::kSuccess:
+            return "Success";
+        case ResultStatus::kSyntaxError:
+            return "SyntaxError";
+        case ResultStatus::kNameError:
+            return "NameError";
+        case ResultStatus::kTypeError:
+            return "TypeError";
+        case ResultStatus::kZeroDivisionError:
+            return "ZeroDivisionError";
+        case ResultStatus::kValueError:
+            return "ValueError";
+        case ResultStatus::kMemoryError:
+            return "MemoryError";
+        case ResultStatus::kOverflowError:
+            return "OverflowError";
+        case ResultStatus::kRecursionError:
+            return "RecursionError";
+        case ResultStatus::kIndexError:
+            return "IndexError";
+        case ResultStatus::kKeyError:
+            return "KeyError";
+        case ResultStatus::kAttributeError:
+            return "AttributeError";
+        default:
+            return "Unknown";
+        }
+    }
+};
 
 inline std::ostream &operator<<(std::ostream &os, ResultStatus status)
 {
-    std::string res;
-    switch (status)
-    {
-    case ResultStatus::kPending:
-        res = "Pending";
-    case ResultStatus::kSuccess:
-        res = "Success";
-    case ResultStatus::kSyntaxError:
-        res = "SyntaxError";
-    case ResultStatus::kNameError:
-        res = "NameError";
-    case ResultStatus::kTypeError:
-        res = "TypeError";
-    case ResultStatus::kZeroDivisionError:
-        res = "ZeroDivisionError";
-    case ResultStatus::kValueError:
-        res = "ValueError";
-    case ResultStatus::kMemoryError:
-        res = "MemoryError";
-    case ResultStatus::kOverflowError:
-        res = "OverflowError";
-    case ResultStatus::kRecursionError:
-        res = "RecursionError";
-    case ResultStatus::kIndexError:
-        res = "IndexError";
-    case ResultStatus::kKeyError:
-        res = "KeyError";
-    case ResultStatus::kAttributeError:
-        res = "AttributeError";
-    default:
-        res = "Unknown";
-    }
-    return os << res;
+    return os << ResultStatusConverter::ToString(status);
 }
 
 using InterpretHandler = std::function<InterpretResult(const std::string &, EquationContext *, InterpretMode)>;
@@ -176,10 +247,10 @@ struct hash<xequation::ParseResultItem>
     {
         size_t h = 0;
         std::hash<std::string> string_hasher;
-        std::hash<xequation::ParseResultItem::Type> type_hasher;
+        std::hash<xequation::ItemType> type_hasher;
 
         h ^= string_hasher(item.name) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= string_hasher(item.code) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= string_hasher(item.content) + 0x9e3779b9 + (h << 6) + (h >> 2);
         h ^= type_hasher(item.type) + 0x9e3779b9 + (h << 6) + (h >> 2);
 
         for (const auto &dep : item.dependencies)

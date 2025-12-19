@@ -33,7 +33,7 @@ class Equation
         content_ = content;
     }
 
-    void set_type(ParseResultItem::Type type)
+    void set_type(ItemType type)
     {
         type_ = type;
     }
@@ -58,7 +58,7 @@ class Equation
         return content_;
     }
 
-    ParseResultItem::Type type() const
+    ItemType type() const
     {
         return type_;
     }
@@ -93,7 +93,7 @@ class Equation
   private:
     std::string name_;
     std::string content_;
-    ParseResultItem::Type type_;
+    ItemType type_;
     ResultStatus status_;
     std::string message_;
     EquationGroupId group_id_;

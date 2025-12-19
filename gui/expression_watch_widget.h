@@ -44,8 +44,6 @@ protected:
 private:
     ExpressionWatchModel* model_;
     ValueTreeView* view_;
-    SimpleEvalHandler eval_handler_;
-    ParseExprHandler parse_handler_;
     std::map<QString, ValueItem::UniquePtr> watch_items_map_;
 };
 } // namespace gui

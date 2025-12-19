@@ -1,9 +1,12 @@
 #include "equation_browser_widget.h"
 #include "core/equation.h"
+#include "core/equation_common.h"
 #include "core/equation_signals_manager.h"
 #include <QDebug>
 #include <QLayout>
 #include <QVariant>
+#include <string>
+#include <tsl/ordered_set.h>
 
 namespace xequation
 {
@@ -89,11 +92,11 @@ void EquationBrowserWidget::OnEquationUpdated(
     }
     if (change_type & EquationUpdateFlag::kType)
     {
-        item.type_property->setValue(QString::fromStdString(Equation::TypeToString(equation->type())));
+        item.type_property->setValue(QString::fromStdString(ItemTypeConverter::ToString(equation->type())));
     }
     if (change_type & EquationUpdateFlag::kStatus)
     {
-        item.status_property->setValue(QString::fromStdString(Equation::StatusToString(equation->status())));
+        item.status_property->setValue(QString::fromStdString(ResultStatusConverter::ToString(equation->status())));
     }
     if (change_type & EquationUpdateFlag::kMessage)
     {
@@ -167,7 +170,7 @@ void EquationBrowserWidget::UpdateDependents(EquationPropertyItem &item, const E
 
 void EquationBrowserWidget::UpdateEquationList(
     QtVariantProperty *group_property, QList<QtVariantProperty *> &properties_list,
-    const DependencyGraph::NodeNameSet &equation_names, const EquationManager *manager
+    const tsl::ordered_set<std::string> &equation_names, const EquationManager *manager
 )
 {
     if (!group_property)
@@ -214,8 +217,8 @@ EquationBrowserWidget::EquationPropertyItem EquationBrowserWidget::CreatePropert
     QString displayText = truncateText(QString::fromStdString(content));
 
     item.content_property = CreateBasicProperty("Content", displayText.toStdString());
-    item.type_property = CreateBasicProperty("Type", Equation::TypeToString(equation->type()));
-    item.status_property = CreateBasicProperty("Status", Equation::StatusToString(equation->status()));
+    item.type_property = CreateBasicProperty("Type", ItemTypeConverter::ToString(equation->type()));
+    item.status_property = CreateBasicProperty("Status", ResultStatusConverter::ToString(equation->status()));
     item.message_property = CreateBasicProperty("Message", equation->message());
 
     item.dependencies_group_property =

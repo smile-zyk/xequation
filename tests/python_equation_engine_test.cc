@@ -19,8 +19,8 @@ TEST(PythonEquationEngine, TestParse)
 {
     auto result = PythonEquationEngine::GetInstance().Parse("e = a + b + c");
     
-    EXPECT_EQ(result.size(), 1);
-    auto item = result[0];
+    EXPECT_EQ(result.items.size(), 1);
+    auto item = result.items[0];
     EXPECT_EQ(item.name, "e");
     EXPECT_THAT(item.dependencies, testing::UnorderedElementsAre("a", "b", "c"));
     EXPECT_EQ(item.content, "a + b + c");
