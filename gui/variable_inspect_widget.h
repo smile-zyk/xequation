@@ -1,7 +1,5 @@
 #pragma once
 #include <QWidget>
-#include <memory>
-#include <qchar.h>
 #include <string>
 
 #include "core/equation.h"
@@ -24,6 +22,9 @@ public:
     const Equation* current_equation() const { return current_equation_; }
     void OnCurrentEquationChanged(const Equation* equation);
 
+signals:
+    void AddExpressionToWatch(const QString &expression);
+
 private:
     void SetupUI();
     void SetupConnections();
@@ -34,7 +35,8 @@ protected:
     void OnContextMenuRequested(const QPoint& pos);
     void OnCopyVariableValue();
     void OnAddVariableToWatch();
-    
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
 private:
     ValueTreeView *view_;
     ValueTreeModel *model_;
@@ -42,8 +44,7 @@ private:
     std::map<std::string, std::unique_ptr<ValueItem>> variable_items_cache_;
     const Equation* current_equation_{};
     
-    // Menu for context actions
-    QMenu* context_menu_{};
+    // actions
     QAction* copy_action_{};
     QAction* add_watch_action_{};
 };

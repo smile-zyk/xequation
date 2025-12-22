@@ -27,6 +27,7 @@ PythonDefaultItemBuilder::CreateValueItem(const QString &name, const Value &valu
     auto item = ValueItem::Create(name, value, parent);
     item->set_type(GetTypeName(obj));
     item->set_display_value(GetObjectRepr(obj));
+    item->set_value_item_type("python-default");
     return item;
 }
 
@@ -119,6 +120,7 @@ ValueItem::UniquePtr PythonListItemBuilder::CreateValueItem(const QString &name,
     item->set_display_value(value_str);
     item->set_type(GetTypeName(obj));
     item->set_expected_count(length);
+    item->set_value_item_type("python-list");
     return item;
 }
 
@@ -169,6 +171,7 @@ ValueItem::UniquePtr PythonTupleItemBuilder::CreateValueItem(const QString &name
     item->set_display_value(value_str);
     item->set_type(GetTypeName(obj));
     item->set_expected_count(length);
+    item->set_value_item_type("python-tuple");
     return item;
 }
 
@@ -218,6 +221,7 @@ ValueItem::UniquePtr PythonSetItemBuilder::CreateValueItem(const QString &name, 
     item->set_display_value(value_str);
     item->set_type(GetTypeName(obj));
     item->set_expected_count(length);
+    item->set_value_item_type("python-set");
     return item;
 }
 
@@ -266,6 +270,7 @@ ValueItem::UniquePtr PythonDictItemBuilder::CreateValueItem(const QString &name,
     item->set_display_value(value_str);
     item->set_type(GetTypeName(obj));
     item->set_expected_count(length);
+    item->set_value_item_type("python-dict");
     return item;
 }
 
@@ -308,6 +313,7 @@ ValueItem::UniquePtr PythonClassItemBuilder::CreateValueItem(const QString &name
     item->set_type(GetTypeName(obj, true));
     item->set_display_value(GetObjectRepr(obj));
     item->set_expected_count(dict.size());
+    item->set_value_item_type("python-class");
     return item;
 }
 

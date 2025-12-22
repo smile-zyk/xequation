@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QMenu>
+#include <QKeyEvent>
 #include <QVBoxLayout>
 
 namespace xequation
@@ -231,6 +232,15 @@ void ExpressionWatchWidget::OnEquationUpdated(
     }
 }
 
+void ExpressionWatchWidget::OnAddExpressionToWatch(const QString &expression)
+{
+    ValueItem *item = CreateWatchItem(expression);
+    if (item)
+    {
+        model_->AddWatchItem(item);
+    }
+}
+
 void ExpressionWatchWidget::SetupUI()
 {
     setWindowTitle("Expression Watch");
@@ -238,6 +248,7 @@ void ExpressionWatchWidget::SetupUI()
         Qt::Window | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint
     );
     setContextMenuPolicy(Qt::CustomContextMenu);
+    setMinimumSize(800, 600);
 
     view_ = new ValueTreeView(this);
     model_ = new ExpressionWatchModel(view_);
@@ -252,7 +263,30 @@ void ExpressionWatchWidget::SetupUI()
     main_layout->addWidget(view_);
     setLayout(main_layout);
 
-    setMinimumSize(800, 600);
+    // setup actions
+    copy_action_ = new QAction("Copy", this);
+    paste_action_ = new QAction("Paste", this);
+    edit_expression_action_ = new QAction("Edit", this);
+    delete_watch_action_ = new QAction("Delete", this);
+    select_all_action_ = new QAction("Select All", this);
+    clear_all_action_ = new QAction("Clear All", this);
+
+    copy_action_->setShortcut(QKeySequence::Copy);
+    paste_action_->setShortcut(QKeySequence::Paste);
+    select_all_action_->setShortcut(QKeySequence::SelectAll);
+    delete_watch_action_->setShortcut(QKeySequence::Delete);
+
+    const auto shortcut_context = Qt::WidgetWithChildrenShortcut;
+    copy_action_->setShortcutContext(shortcut_context);
+    paste_action_->setShortcutContext(shortcut_context);
+    edit_expression_action_->setShortcutContext(shortcut_context);
+    delete_watch_action_->setShortcutContext(shortcut_context);
+    select_all_action_->setShortcutContext(shortcut_context);
+    clear_all_action_->setShortcutContext(shortcut_context);
+
+    view_->addActions({copy_action_, paste_action_, edit_expression_action_, delete_watch_action_, select_all_action_,
+                      clear_all_action_});
+    view_->installEventFilter(this);
 }
 
 void ExpressionWatchWidget::SetupConnections()
@@ -271,6 +305,18 @@ void ExpressionWatchWidget::SetupConnections()
         this, &ExpressionWatchWidget::customContextMenuRequested, this,
         &ExpressionWatchWidget::OnCustomContextMenuRequested
     );
+
+    connect(
+        view_->selectionModel(), &QItemSelectionModel::selectionChanged, this,
+        &ExpressionWatchWidget::OnSelectionChanged
+    );
+
+    connect(copy_action_, &QAction::triggered, this, &ExpressionWatchWidget::OnCopyExpressionValue);
+    connect(paste_action_, &QAction::triggered, this, &ExpressionWatchWidget::OnPasteExpression);
+    connect(edit_expression_action_, &QAction::triggered, this, &ExpressionWatchWidget::OnEditExpression);
+    connect(delete_watch_action_, &QAction::triggered, this, &ExpressionWatchWidget::OnDeleteExpression);
+    connect(select_all_action_, &QAction::triggered, this, &ExpressionWatchWidget::OnSelectAllExpressions);
+    connect(clear_all_action_, &QAction::triggered, this, &ExpressionWatchWidget::OnClearAllExpressions);
 
     manager_->signals_manager().Connect<EquationEvent::kEquationUpdated>(
         std::bind(&ExpressionWatchWidget::OnEquationUpdated, this, std::placeholders::_1, std::placeholders::_2)
@@ -370,94 +416,117 @@ void ExpressionWatchWidget::OnRequestReplaceWatchItem(ValueItem *old_item, const
     DeleteWatchItem(old_item);
 }
 
-enum SelectionFlags {
-    NoSelection         = 0x00,
-    HasSelection        = 0x01,
-    SingleSelection     = 0x02,
-    HasPlaceholder      = 0x04,
-    IsTopLevel          = 0x08
+enum SelectionFlags
+{
+    NoSelection = 0x00,
+    HasSelection = 0x01,
+    SingleSelection = 0x02,
+    HasPlaceholder = 0x04,
+    IsTopLevel = 0x08
 };
 
-int GetSelectionFlags(const QModelIndexList& indexes, 
-                      ExpressionWatchModel* model) {
+void ExpressionWatchWidget::OnSelectionChanged(const QItemSelection &, const QItemSelection &)
+{
+    QModelIndexList select_indexs = view_->selectionModel()->selectedRows();
+    int flags = GetSelectionFlags(select_indexs, model_);
+
+    bool is_copy_enable = (flags & HasSelection) && !((flags & SingleSelection) && (flags & HasPlaceholder));
+    bool is_paste_enable = true;
+    bool is_edit_enable = (flags & SingleSelection) && (flags & IsTopLevel) && !(flags & HasPlaceholder);
+    bool is_delete_enable = is_copy_enable;
+    bool is_select_all_enable = true;
+    bool is_clear_all_enable = true;
+
+    copy_action_->setEnabled(is_copy_enable);
+    paste_action_->setEnabled(is_paste_enable);
+    edit_expression_action_->setEnabled(is_edit_enable);
+    delete_watch_action_->setEnabled(is_delete_enable);
+    select_all_action_->setEnabled(is_select_all_enable);
+    clear_all_action_->setEnabled(is_clear_all_enable);
+}
+
+int ExpressionWatchWidget::GetSelectionFlags(const QModelIndexList &indexes, ExpressionWatchModel *model)
+{
     int flags = NoSelection;
-    
-    if (indexes.isEmpty()) {
+
+    if (indexes.isEmpty())
+    {
         return flags;
     }
-    
+
     flags |= HasSelection;
-    
-    if (indexes.size() == 1) {
+
+    if (indexes.size() == 1)
+    {
         flags |= SingleSelection;
-        
-        if (model->IsPlaceHolderIndex(indexes[0])) {
+
+        if (model->IsPlaceHolderIndex(indexes[0]))
+        {
             flags |= HasPlaceholder;
         }
-        
-        if (!indexes[0].parent().isValid()) {
+
+        if (!indexes[0].parent().isValid())
+        {
             flags |= IsTopLevel;
         }
     }
-    
+
     return flags;
+}
+
+bool ExpressionWatchWidget::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == view_ && (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress))
+    {
+        auto *key_event = static_cast<QKeyEvent *>(event);
+
+        auto handle_action_shortcut = [&](QAction *action) {
+            if (!action || action->shortcut().isEmpty())
+            {
+                return false;
+            }
+
+            QKeySequence key_sequence(key_event->modifiers() | key_event->key());
+            if (key_sequence != action->shortcut())
+            {
+                return false;
+            }
+
+            if (event->type() == QEvent::KeyPress && action->isEnabled())
+            {
+                action->trigger();
+            }
+
+            event->accept();
+            return true;
+        };
+
+        if (handle_action_shortcut(copy_action_) || handle_action_shortcut(paste_action_) ||
+            handle_action_shortcut(edit_expression_action_) || handle_action_shortcut(delete_watch_action_) ||
+            handle_action_shortcut(select_all_action_) || handle_action_shortcut(clear_all_action_))
+        {
+            return true;
+        }
+    }
+
+    return QWidget::eventFilter(obj, event);
 }
 
 void ExpressionWatchWidget::OnCustomContextMenuRequested(const QPoint &pos)
 {
     static QMenu *menu = nullptr;
-    static QAction *copy_action = nullptr;
-    static QAction *paste_action = nullptr;
-    static QAction *edit_expression_action = nullptr;
-    static QAction *delete_watch_action = nullptr;
-    static QAction *select_all_action = nullptr;
-    static QAction *clear_all_action = nullptr;
 
     if (!menu)
     {
         menu = new QMenu(this);
-        copy_action = menu->addAction("Copy");
-        paste_action = menu->addAction("Paste");
-        edit_expression_action = menu->addAction("Edit");
-        delete_watch_action = menu->addAction("Delete");
-        select_all_action = menu->addAction("Select All");
-        clear_all_action = menu->addAction("Clear All");
 
-        menu->addAction(copy_action);
-        menu->addAction(paste_action);
-        menu->addAction(edit_expression_action);
-        menu->addAction(delete_watch_action);
-        menu->addAction(select_all_action);
-        menu->addAction(clear_all_action);
-
-        connect(copy_action, &QAction::triggered, this, &ExpressionWatchWidget::OnCopyExpressionValue);
-        connect(paste_action, &QAction::triggered, this, &ExpressionWatchWidget::OnPasteExpression);
-        connect(edit_expression_action, &QAction::triggered, this, &ExpressionWatchWidget::OnEditExpression);
-        connect(delete_watch_action, &QAction::triggered, this, &ExpressionWatchWidget::OnDeleteExpression);
-        connect(select_all_action, &QAction::triggered, this, &ExpressionWatchWidget::OnSelectAllExpressions);
-        connect(clear_all_action, &QAction::triggered, this, &ExpressionWatchWidget::OnClearAllExpressions);
+        menu->addAction(copy_action_);
+        menu->addAction(paste_action_);
+        menu->addAction(edit_expression_action_);
+        menu->addAction(delete_watch_action_);
+        menu->addAction(select_all_action_);
+        menu->addAction(clear_all_action_);
     }
-
-    // disable/enable actions based on current selection
-    QModelIndexList select_indexs = view_->selectionModel()->selectedRows();
-    int flags = GetSelectionFlags(select_indexs, model_);
-
-    bool is_copy_enable = (flags & HasSelection) && 
-                        !((flags & SingleSelection) && (flags & HasPlaceholder));
-    bool is_paste_enable = true;
-    bool is_edit_enable = (flags & SingleSelection) && 
-                        (flags & IsTopLevel) && 
-                        !(flags & HasPlaceholder);
-    bool is_delete_enable = is_copy_enable;
-    bool is_select_all_enable = true;
-    bool is_clear_all_enable = true;
-
-    copy_action->setEnabled(is_copy_enable);
-    paste_action->setEnabled(is_paste_enable);
-    edit_expression_action->setEnabled(is_edit_enable);
-    delete_watch_action->setEnabled(is_delete_enable);
-    select_all_action->setEnabled(is_select_all_enable);
-    clear_all_action->setEnabled(is_clear_all_enable);
 
     menu->exec(mapToGlobal(pos));
 }

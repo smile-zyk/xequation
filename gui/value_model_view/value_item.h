@@ -30,7 +30,8 @@ public:
     void set_type(const QString &type) { type_ = type; }
     void set_display_value(const QString &display_value) { display_value_ = display_value; }
     void set_expected_count(size_t count) { expected_child_count_ = count; }
-    
+    void set_value_item_type(const QString &value_item_type) { value_item_type_ = value_item_type; }
+
     const QString& name() const { return name_; }
     const Value& value() const { return value_; }
     const QString& type() const { return type_; }
@@ -38,6 +39,7 @@ public:
     ValueItem* parent() const { return parent_; }
     size_t expected_child_count() const { return expected_child_count_; }
     size_t loaded_child_count() const { return children_.size(); }
+    const QString& value_item_type() const { return value_item_type_; }
 
 protected:
     ValueItem(const QString &name, const Value &value, ValueItem* parent = nullptr);
@@ -50,6 +52,7 @@ private:
     ValueItem* parent_ = nullptr;
     std::vector<std::unique_ptr<ValueItem>> children_;
     size_t expected_child_count_ = 0;
+    QString value_item_type_{"default"};
 };
 }
 }
