@@ -5,13 +5,14 @@
 namespace xequation
 {
 EquationManager::EquationManager(
-    std::unique_ptr<EquationContext> context, InterpretHandler interpret_handler, ParseHandler parse_handler
+    std::unique_ptr<EquationContext> context, InterpretHandler interpret_handler, ParseHandler parse_handler, const std::string &language
 ) noexcept
     : graph_(std::unique_ptr<DependencyGraph>(new DependencyGraph())),
       signals_manager_(std::unique_ptr<EquationSignalsManager>(new EquationSignalsManager())),
       context_(std::move(context)),
       interpret_handler_(interpret_handler),
-      parse_handler_(parse_handler)
+      parse_handler_(parse_handler),
+      language_(language)
 {
 }
 

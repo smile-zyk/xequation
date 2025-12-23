@@ -31,5 +31,6 @@ target_link_libraries(xequation_gui PUBLIC qt_config)
 target_link_libraries(xequation_gui PUBLIC Boost::bimap)
 target_link_libraries(xequation_gui PUBLIC xequation)
 target_link_libraries(xequation_gui PUBLIC qtpropertybrowser)
+target_link_libraries(xequation_gui PUBLIC QCodeEditor)
 
 target_include_directories(xequation_gui PUBLIC ./)

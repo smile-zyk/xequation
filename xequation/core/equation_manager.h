@@ -122,7 +122,7 @@ class EquationManager
 {
   public:
     EquationManager(
-        std::unique_ptr<EquationContext> context, InterpretHandler interpret_handler, ParseHandler parse_handler) noexcept;
+        std::unique_ptr<EquationContext> context, InterpretHandler interpret_handler, ParseHandler parse_handler, const std::string &language = "Unknown") noexcept;
 
     virtual ~EquationManager() noexcept = default;
 
@@ -215,5 +215,6 @@ class EquationManager
 
     InterpretHandler interpret_handler_ = nullptr;
     ParseHandler parse_handler_ = nullptr;
+    std::string language_{};
 };
 } // namespace xequation

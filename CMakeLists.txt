@@ -38,5 +38,6 @@ add_subdirectory(xequation)
 add_subdirectory(tests)
 
 add_subdirectory(3rd/qtpropertybrowser)
+add_subdirectory(3rd/qcodeeditor)
 add_subdirectory(gui)
 add_subdirectory(demo)

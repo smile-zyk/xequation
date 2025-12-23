@@ -20,7 +20,7 @@ class EquationEngine
 
     virtual InterpretResult Interpret(const std::string& code, const EquationContext *context = nullptr, InterpretMode mode = InterpretMode::kExec) = 0;
     virtual ParseResult Parse(const std::string & code, ParseMode mode = ParseMode::kExpression) = 0;
-
+    virtual std::string GetLanguage() const = 0;
     virtual std::unique_ptr<EquationManager> CreateEquationManager()
     {
 
@@ -32,7 +32,7 @@ class EquationEngine
             return Parse(code, mode);
         };
         
-        return std::unique_ptr<EquationManager>(new EquationManager(CreateContext(), interpret_handler, parse_callback));
+        return std::unique_ptr<EquationManager>(new EquationManager(CreateContext(), interpret_handler, parse_callback, GetLanguage()));
     }
 
     virtual std::unique_ptr<EquationContext> CreateContext() = 0;
