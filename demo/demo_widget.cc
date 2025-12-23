@@ -57,6 +57,8 @@ void DemoWidget::SetupConnections()
     connect(show_equation_manager_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationManager);
     connect(show_variable_inspector_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationInspector);
     connect(show_expression_watch_action_, &QAction::triggered, this, &DemoWidget::OnShowExpressionWatch);
+    connect(variable_inspect_widget_, &xequation::gui::VariableInspectWidget::AddExpressionToWatch, expression_watch_widget_,
+            &xequation::gui::ExpressionWatchWidget::OnAddExpressionToWatch);
 
     connect(
         mock_equation_list_widget_, &MockEquationGroupListWidget::EditEquationGroupRequested, this,

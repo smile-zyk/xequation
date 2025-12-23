@@ -62,8 +62,12 @@ void VariableInspectWidget::SetupUI()
 void VariableInspectWidget::SetupConnections()
 {
     connect(
-        view_, &ValueTreeView::customContextMenuRequested, this, &VariableInspectWidget::OnContextMenuRequested
+        this, &VariableInspectWidget::customContextMenuRequested, this,
+        &VariableInspectWidget::OnCustomContextMenuRequested
     );
+
+    connect(copy_action_, &QAction::triggered, this, &VariableInspectWidget::OnCopyVariableValue);
+    connect(add_watch_action_, &QAction::triggered, this, &VariableInspectWidget::OnAddVariableToWatch);
 
     manager_->signals_manager().Connect<EquationEvent::kEquationRemoving>(
         std::bind(&VariableInspectWidget::OnEquationRemoving, this, std::placeholders::_1)
@@ -180,7 +184,7 @@ bool VariableInspectWidget::eventFilter(QObject *obj, QEvent *event)
     return QWidget::eventFilter(obj, event);
 }
 
-void VariableInspectWidget::OnContextMenuRequested(const QPoint& pos)
+void VariableInspectWidget::OnCustomContextMenuRequested(const QPoint& pos)
 {
     static QMenu *menu = nullptr;
 
@@ -237,12 +241,38 @@ void VariableInspectWidget::OnAddVariableToWatch()
             continue;
         }
 
-        if(item->parent() != nullptr)
+        QVector<ValueItem *> hierarchy_items;
+        ValueItem *current = item;
+        while(current->parent() != nullptr)
         {
-            continue;
+            hierarchy_items.push_back(current);
+            current = current->parent();
+        }
+        hierarchy_items.push_back(current);
+        std::reverse(hierarchy_items.begin(), hierarchy_items.end());
+
+        QString expression;
+        for(int i = 0; i < hierarchy_items.size(); ++i)
+        {
+            if (i == 0)
+            {
+                expression += hierarchy_items[i]->name();
+            }
+            else if(hierarchy_items[i - 1]->value_item_type() == "python-dict")
+            {
+                expression += QString("[") + hierarchy_items[i]->name() + QString("]");
+            }
+            else if(hierarchy_items[i - 1]->value_item_type() == "python-class")
+            {
+                expression += QString(".") + hierarchy_items[i]->name();
+            }
+            else 
+            {
+                expression += hierarchy_items[i]->name();
+            }
         }
 
-        emit AddExpressionToWatch(item->name());
+        emit AddExpressionToWatch(expression);
     }
 }
 

@@ -1,5 +1,6 @@
 #include "python_item_builder.h"
 #include "value_item.h"
+#include <string>
 
 namespace py = pybind11;
 namespace xequation
@@ -332,7 +333,15 @@ void PythonClassItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
         std::advance(it, i);
         py::handle key = it->first;
         py::handle value = it->second;
+        // check key is py::str
         QString key_str = PythonDefaultItemBuilder::GetObjectRepr(key);
+        std::string type_str = GetTypeName(value).toStdString();
+        if(py::isinstance<py::str>(key))
+        {
+            // remove the quotes added by repr
+            key_str.remove(0,1);
+            key_str.chop(1);
+        }
         ValueItem::UniquePtr child_item = BuilderUtils::CreateValueItem(key_str, value, item);
         item->AddChild(std::move(child_item));
     }

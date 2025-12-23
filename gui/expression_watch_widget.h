@@ -55,6 +55,7 @@ class ExpressionWatchWidget : public QWidget
     void SetupConnections();
     ValueItem *CreateWatchItem(const QString &expression);
     void DeleteWatchItem(ValueItem *item);
+    void SetCurrentItemToPlaceholder();
     void OnRequestAddWatchItem(const QString &expression);
     void OnRequestRemoveWatchItem(ValueItem *item);
     void OnRequestReplaceWatchItem(ValueItem *old_item, const QString &new_expression);

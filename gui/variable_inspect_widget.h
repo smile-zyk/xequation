@@ -32,7 +32,7 @@ private:
 protected:
     void OnEquationRemoving(const Equation* equation);
     void OnEquationUpdated(const Equation* equation, bitmask::bitmask<EquationUpdateFlag> change_type);
-    void OnContextMenuRequested(const QPoint& pos);
+    void OnCustomContextMenuRequested(const QPoint& pos);
     void OnCopyVariableValue();
     void OnAddVariableToWatch();
     bool eventFilter(QObject *obj, QEvent *event) override;

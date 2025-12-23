@@ -238,6 +238,7 @@ void ExpressionWatchWidget::OnAddExpressionToWatch(const QString &expression)
     if (item)
     {
         model_->AddWatchItem(item);
+        SetCurrentItemToPlaceholder();
     }
 }
 
@@ -391,6 +392,11 @@ void ExpressionWatchWidget::DeleteWatchItem(ValueItem *item)
             break;
         }
     }
+}
+
+void ExpressionWatchWidget::SetCurrentItemToPlaceholder()
+{
+    view_->setCurrentIndex(model_->index(model_->rowCount() - 1, 0, QModelIndex()));
 }
 
 void ExpressionWatchWidget::OnRequestAddWatchItem(const QString &expression)
@@ -569,7 +575,7 @@ void ExpressionWatchWidget::OnPasteExpression()
     if (!item)
         return;
     model_->AddWatchItem(item);
-    view_->setCurrentIndex(model_->index(model_->rowCount() - 1, 0, QModelIndex()));
+    SetCurrentItemToPlaceholder();
 }
 
 void ExpressionWatchWidget::OnEditExpression()
