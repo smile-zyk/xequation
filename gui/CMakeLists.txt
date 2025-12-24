@@ -23,6 +23,17 @@ value_model_view/value_item.h
 value_model_view/value_item.cc
 value_model_view/python_item_builder.h
 value_model_view/python_item_builder.cc
+code_editor/equation_language_model.h
+code_editor/equation_language_model.cc
+code_editor/equation_completer.h
+code_editor/equation_completer.cc
+code_editor/equation_group_editor.h
+code_editor/equation_group_editor.cc
+code_editor/equation_highlighter.h
+code_editor/equation_highlighter.cc
+code_editor/python_equation_highlighter.h
+code_editor/python_equation_highlighter.cc
+code_editor/resources/code_editor_resource.qrc
 )
 
 add_library(xequation_gui STATIC ${xequation_gui_SRC})

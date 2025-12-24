@@ -7,6 +7,8 @@
 #include <QHBoxLayout>
 #include <QLabel>
 
+#include "code_editor/equation_group_editor.h"
+
 class TextEditorDialog : public QDialog
 {
     Q_OBJECT
@@ -31,7 +33,7 @@ private:
     void setupUI();
     void setupConnections();
 
-    QTextEdit *textEdit;
+    xequation::gui::EquationGroupEditor *editor_;
     QPushButton *okButton;
     QPushButton *cancelButton;
 };

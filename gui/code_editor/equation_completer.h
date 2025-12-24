@@ -1,16 +1,19 @@
 #pragma once
 
 #include <QCompleter>
-#include <core/equation.h>
+
+#include "equation_language_model.h"
 
 namespace xequation {
 namespace gui {
-
-class EquationCompleter : QCompleter
+class EquationCompleter : public QCompleter
 {
 public:
-    EquationCompleter(QObject* parent = nullptr);
+    EquationCompleter(EquationLanguageModel* language_model, QObject* parent = nullptr);
     ~EquationCompleter();
+
+private:
+    EquationLanguageModel* language_model_;
 };
 }
 }

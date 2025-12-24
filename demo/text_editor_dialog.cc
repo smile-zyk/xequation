@@ -22,9 +22,8 @@ void TextEditorDialog::setupUI()
     
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     
-    textEdit = new QTextEdit(this);
-    textEdit->setAcceptRichText(false);
-    textEdit->setLineWrapMode(QTextEdit::WidgetWidth);
+    editor_ = new xequation::gui::EquationGroupEditor("Python", this);
+    editor_->SetStyleMode(xequation::gui::EquationGroupEditor::StyleMode::kDark);
     
     QHBoxLayout *buttonLayout = new QHBoxLayout();
     
@@ -35,7 +34,7 @@ void TextEditorDialog::setupUI()
     buttonLayout->addWidget(okButton);
     buttonLayout->addWidget(cancelButton);
     
-    mainLayout->addWidget(textEdit);
+    mainLayout->addWidget(editor_);
     mainLayout->addLayout(buttonLayout);
     
     okButton->setDefault(true);
@@ -49,22 +48,22 @@ void TextEditorDialog::setupConnections()
 
 QString TextEditorDialog::getText() const
 {
-    return textEdit->toPlainText();
+    return editor_->toPlainText();
 }
 
 void TextEditorDialog::setText(const QString &text)
 {
-    textEdit->setPlainText(text);
+    editor_->setPlainText(text);
 }
 
 void TextEditorDialog::setPlaceholderText(const QString &placeholder)
 {
-    textEdit->setPlaceholderText(placeholder);
+    editor_->setPlaceholderText(placeholder);
 }
 
 void TextEditorDialog::clearText()
 {
-    textEdit->clear();
+    editor_->clear();
 }
 
 void TextEditorDialog::onOkClicked()

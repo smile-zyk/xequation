@@ -18,6 +18,9 @@
         <name>or</name>
         <name>and</name>
         <name>enumerate</name>
+        <name>True</name>
+        <name>False</name>
+        <name>None</name>
     </section>
     <section name="PrimitiveType">
         <name>float</name>
@@ -30,10 +33,5 @@
         <name>byte</name>
         <name>set</name>
         <name>dict</name>
-    </section>
-    <section name="Static">
-        <name>True</name>
-        <name>False</name>
-        <name>None</name>
     </section>
 </root>
