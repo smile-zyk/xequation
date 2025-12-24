@@ -1,6 +1,7 @@
 #include "python_equation_highlighter.h"
 #include <QSyntaxStyle>
 #include <QDebug>
+#include <qglobal.h>
 
 namespace xequation
 {
@@ -14,13 +15,13 @@ PythonEquationHighlighter::PythonEquationHighlighter(EquationLanguageModel *mode
     pre_model_rules_.append({QRegularExpression(R"((\b[a-zA-Z_][a-zA-Z0-9_]*\b))"), "Variable"});
 
     // Functions
-    pre_model_rules_.append({QRegularExpression(R"(\b(?:[A-Za-z0-9_]+\.)*[A-Za-z0-9_]+(?=\())"), "Function"});
+    pre_model_rules_.append({QRegularExpression(R"((\b[a-zA-Z_][a-zA-Z0-9_]*\b)\()"), "Function"});
 
     // Class Define
     pre_model_rules_.append({QRegularExpression(R"(\bclass\b\s+([A-Za-z_][A-Za-z0-9_]*))"), "Class"});
 
     // Function Define
-    pre_model_rules_.append({QRegularExpression(R"(\bdef\b\s+([A-Za-z_][A-Za-z0-9_]*))"), "FunctionDefinition"});
+    pre_model_rules_.append({QRegularExpression(R"(\bdef\b\s+([A-Za-z_][A-Za-z0-9_]*))"), "Function"});
 
     // Initialize post-model rules
     // Numbers
@@ -34,8 +35,16 @@ PythonEquationHighlighter::PythonEquationHighlighter(EquationLanguageModel *mode
     post_model_rules_.append({QRegularExpression("(#[^\n]*)"), "Comment"});
 
     // Multiline string
-    block_rules_.append({QRegularExpression("(''')"), QRegularExpression("(''')"), "Comment"});
-    block_rules_.append({QRegularExpression("(\"\"\")"), QRegularExpression("(\"\"\")"), "Comment"});
+    block_rules_.append({
+         QRegularExpression("(''')"),
+         QRegularExpression("(''')"),
+         "Comment"
+     });
+    block_rules_.append({
+         QRegularExpression("(\"\"\")"),
+         QRegularExpression("(\"\"\")"),
+         "Comment"
+     });
 }
 void PythonEquationHighlighter::ApplyRules(const QString &text, const QVector<QHighlightRule> &rules)
 {
@@ -73,7 +82,7 @@ void PythonEquationHighlighter::highlightBlock(const QString &text)
     if (highlightRuleId < 1 || highlightRuleId > block_rules_.size()) {
         for(int i = 0; i < block_rules_.size(); ++i) {
             startIndex = text.indexOf(block_rules_.at(i).startPattern);
-
+            qDebug() << "Block rule" << i << "start pattern:" << block_rules_.at(i).startPattern.pattern() << "found at index:" << startIndex;
             if (startIndex >= 0) {
                 highlightRuleId = i + 1;
                 break;
@@ -98,7 +107,7 @@ void PythonEquationHighlighter::highlightBlock(const QString &text)
         {
             matchLength = endIndex - startIndex + match.capturedLength();
         }
-
+        qDebug() << "Applying block rule format:" << blockRules.formatName << "from index" << startIndex << "with length" << matchLength;
         setFormat(
             startIndex,
             matchLength,
@@ -106,7 +115,6 @@ void PythonEquationHighlighter::highlightBlock(const QString &text)
         );
         startIndex = text.indexOf(blockRules.startPattern, startIndex + matchLength);
     }
-
 }
 } // namespace gui
 } // namespace xequation

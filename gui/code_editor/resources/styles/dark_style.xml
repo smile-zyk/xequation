@@ -62,8 +62,8 @@
     <style name="Declaration" bold="true"/>
     <style name="FunctionDefinition"/>
     <style name="OutputArgument" italic="true"/>
-    <style name="Variable" foreground="#ffb86c"/>
-    <style name="Module" foreground="#ffb86c"/>
+    <style name="Variable" foreground="#ffffff"/>
+    <style name="Module" foreground="#ffffff"/>
     <style name="Function" foreground="#50fa7b"/>
     <style name="Class" foreground="#50fa7b"/>
 </style-scheme>
