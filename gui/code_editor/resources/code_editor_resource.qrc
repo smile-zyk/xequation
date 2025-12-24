@@ -1,10 +1,8 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
-  <qresource prefix="/languages">
-    <file>languages/python.xml</file>
-  </qresource>
-  <qresource prefix="/styles">
-    <file>styles/light_style.xml</file>
+  <qresource prefix="/">
     <file>styles/dark_style.xml</file>
+    <file>styles/light_style.xml</file>
+    <file>languages/python.xml</file>
   </qresource>
 </RCC>

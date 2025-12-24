@@ -22,8 +22,8 @@ void TextEditorDialog::setupUI()
     
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     
-    editor_ = new xequation::gui::EquationGroupEditor("Python", this);
-    editor_->SetStyleMode(xequation::gui::EquationGroupEditor::StyleMode::kDark);
+    editor_ = new xequation::gui::CodeEditor("Python", this);
+    editor_->SetStyleMode(xequation::gui::CodeEditor::StyleMode::kDark);
     
     QHBoxLayout *buttonLayout = new QHBoxLayout();
     

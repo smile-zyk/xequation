@@ -1,4 +1,4 @@
-#include "equation_language_model.h"
+#include "language_model.h"
 #include "core/equation_common.h"
 #include <QFile>
 #include <QLanguage>
@@ -8,14 +8,13 @@
 namespace xequation {
 namespace gui {
 
-QMap<QString, QString> EquationLanguageModel::language_define_file_map_ = {
+QMap<QString, QString> LanguageModel::language_define_file_map_ = {
     {"Python", ":/languages/python.xml"},
 };
 
-EquationLanguageModel::EquationLanguageModel(const QString& language_name, QObject* parent)
+LanguageModel::LanguageModel(const QString& language_name, QObject* parent)
     : QAbstractListModel(parent), language_name_(language_name)
 {
-    Q_INIT_RESOURCE(code_editor_resource);
     auto it = language_define_file_map_.find(language_name);
     if (it == language_define_file_map_.end())
     {
@@ -52,11 +51,11 @@ EquationLanguageModel::EquationLanguageModel(const QString& language_name, QObje
     }
 }
 
-EquationLanguageModel::~EquationLanguageModel()
+LanguageModel::~LanguageModel()
 {
 }
 
-int EquationLanguageModel::rowCount(const QModelIndex &parent) const
+int LanguageModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
     {
@@ -65,7 +64,7 @@ int EquationLanguageModel::rowCount(const QModelIndex &parent) const
     return language_items_.size();
 }
 
-QVariant EquationLanguageModel::data(const QModelIndex &index, int role) const
+QVariant LanguageModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= language_items_.size())
     {
@@ -94,7 +93,7 @@ QVariant EquationLanguageModel::data(const QModelIndex &index, int role) const
     return QVariant();
 }
 
-void EquationLanguageModel::OnEquationAdded(const Equation* equation)
+void LanguageModel::OnEquationAdded(const Equation* equation)
 {
     QString name = QString::fromStdString(equation->name());
     QString type = QString::fromStdString(ItemTypeConverter::ToString(equation->type()));
@@ -112,7 +111,7 @@ void EquationLanguageModel::OnEquationAdded(const Equation* equation)
     endInsertRows();
 }
 
-void EquationLanguageModel::OnEquationRemoving(const Equation* equation)
+void LanguageModel::OnEquationRemoving(const Equation* equation)
 {
     QString name = QString::fromStdString(equation->name());
     for (int i = 0; i < language_items_.size(); ++i)
@@ -126,6 +125,5 @@ void EquationLanguageModel::OnEquationRemoving(const Equation* equation)
         }
     }
 }
-
 }
 }

@@ -1,4 +1,4 @@
-#include "equation_highlighter.h"
+#include "code_highlighter.h"
 #include <QHighlightBlockRule>
 #include <QHighlightRule>
 
@@ -6,11 +6,11 @@ namespace xequation
 {
 namespace gui
 {
-class PythonEquationHighlighter : public EquationHighlighter
+class PythonHighlighter : public CodeHighlighter
 {
     Q_OBJECT
 public:
-    explicit PythonEquationHighlighter(EquationLanguageModel* model, QTextDocument* document = nullptr);
+    explicit PythonHighlighter(LanguageModel* model, QTextDocument* document = nullptr);
 protected:
     void highlightBlock(const QString& text) override;
     void ApplyRules(const QString& text, const QVector<QHighlightRule>& rules);

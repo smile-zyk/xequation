@@ -1,16 +1,16 @@
-#include "equation_completer.h"
+#include "code_completer.h"
 
 namespace xequation {
 namespace gui {
 
-EquationCompleter::EquationCompleter(EquationLanguageModel* language_model, QObject* parent)
+CodeCompleter::CodeCompleter(LanguageModel* language_model, QObject* parent)
     : QCompleter(parent), language_model_(language_model)
 {
     setModel(language_model_);
     setWrapAround(true);
 }
 
-EquationCompleter::~EquationCompleter()
+CodeCompleter::~CodeCompleter()
 {
 }
 }

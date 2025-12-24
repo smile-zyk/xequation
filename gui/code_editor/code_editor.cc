@@ -1,41 +1,45 @@
-#include "equation_group_editor.h"
-#include <QDebug>
+#include "code_editor.h"
+
+#include <QSyntaxStyle>
+
+#include "code_completer.h"
+#include "code_highlighter.h"
 
 namespace xequation
 {
 namespace gui
 {
-    QMap<EquationGroupEditor::StyleMode, QString> EquationGroupEditor::language_style_file_map_ = {
-        {EquationGroupEditor::StyleMode::kLight, "C:\\dev\\PyExprEngine\\gui\\code_editor\\resources\\styles\\light_style.xml"},
-        {EquationGroupEditor::StyleMode::kDark, "C:\\dev\\PyExprEngine\\gui\\code_editor\\resources\\styles\\dark_style.xml"}
+    QMap<CodeEditor::StyleMode, QString> CodeEditor::language_style_file_map_ = {
+        {CodeEditor::StyleMode::kLight, ":/styles/light_style.xml"},
+        {CodeEditor::StyleMode::kDark, ":/styles/dark_style.xml"}
     };
 
-    EquationGroupEditor::EquationGroupEditor(const QString& language, QWidget* parent)
+    CodeEditor::CodeEditor(const QString& language, QWidget* parent)
         : QCodeEditor(parent), style_mode_(StyleMode::kLight)
     {
-        language_model_ = new EquationLanguageModel(language, this);
+        Q_INIT_RESOURCE(code_editor_resource);
+        
+        language_model_ = new LanguageModel(language, this);
 
-        EquationCompleter* completer = new EquationCompleter(language_model_, this);
+        CodeCompleter* completer = new CodeCompleter(language_model_, this);
         setCompleter(completer);
 
-        EquationHighlighter* highlighter = EquationHighlighter::Create(language_model_, document());
+        CodeHighlighter* highlighter = CodeHighlighter::Create(language_model_, document());
         setHighlighter(highlighter);
 
         SetStyleMode(style_mode_);
     }
 
-    EquationGroupEditor::~EquationGroupEditor()
+    CodeEditor::~CodeEditor()
     {
     }
 
-    void EquationGroupEditor::SetStyleMode(StyleMode mode)
+    void CodeEditor::SetStyleMode(StyleMode mode)
     {
         if(style_map_.find(mode) == style_map_.end())
         {
             QSyntaxStyle* style = new QSyntaxStyle(this);
             QString style_file = language_style_file_map_[mode];
-            qDebug() << "Loading style file:" << style_file;
-            Q_INIT_RESOURCE(code_editor_resource);
             QFile fl(style_file);
             if (fl.open(QIODevice::ReadOnly))
             {
