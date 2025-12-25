@@ -20,8 +20,6 @@
 #include <QShortcut>
 #include <QMimeData>
 
-#include <QDebug>
-
 static QVector<QPair<QString, QString>> parentheses = {
     {"(", ")"},
     {"{", "}"},
@@ -452,8 +450,6 @@ void QCodeEditor::proceedCompleterEnd(QKeyEvent *e)
 
     auto isShortcut = ((e->modifiers() & Qt::ControlModifier) && e->key() == Qt::Key_Space);
     auto completionPrefix = wordUnderCursor();
-
-    qDebug() << "Completion prefix:" << completionPrefix;
 
     if (!isShortcut &&
         (e->text().isEmpty() ||

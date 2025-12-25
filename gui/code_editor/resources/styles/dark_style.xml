@@ -66,4 +66,5 @@
     <style name="Module" foreground="#ffffff"/>
     <style name="Function" foreground="#50fa7b"/>
     <style name="Class" foreground="#50fa7b"/>
+    <style name="Builtin" foreground="#ffb86c"/>
 </style-scheme>

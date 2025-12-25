@@ -50,6 +50,7 @@ private:
 
     void CreateMenus();
     void CreateActions();
+    void InitializeLanguageModel();
     
     QMenu *file_menu_;
     QMenu *edit_menu_;

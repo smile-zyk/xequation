@@ -1,37 +1,58 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <root>
     <section name="Keyword">
-        <name>break</name>
-        <name>continue</name>
-        <name>do</name>
-        <name>for</name>
-        <name>while</name>
-        <name>if</name>
-        <name>else</name>
-        <name>def</name>
-        <name>import</name>
-        <name>return</name>
-        <name>class</name>
-        <name>in</name>
-        <name>is</name>
-        <name>not</name>
-        <name>or</name>
-        <name>and</name>
-        <name>enumerate</name>
-        <name>True</name>
         <name>False</name>
         <name>None</name>
+        <name>True</name>
+        <name>and</name>
+        <name>as</name>
+        <name>assert</name>
+        <name>async</name>
+        <name>await</name>
+        <name>break</name>
+        <name>class</name>
+        <name>continue</name>
+        <name>def</name>
+        <name>del</name>
+        <name>elif</name>
+        <name>else</name>
+        <name>except</name>
+        <name>finally</name>
+        <name>for</name>
+        <name>from</name>
+        <name>global</name>
+        <name>if</name>
+        <name>import</name>
+        <name>in</name>
+        <name>is</name>
+        <name>lambda</name>
+        <name>nonlocal</name>
+        <name>not</name>
+        <name>or</name>
+        <name>pass</name>
+        <name>raise</name>
+        <name>return</name>
+        <name>try</name>
+        <name>while</name>
+        <name>with</name>
+        <name>yield</name>
     </section>
     <section name="Type">
-        <name>float</name>
-        <name>int</name>
         <name>bool</name>
-        <name>True</name>
-        <name>False</name>
+        <name>int</name>
+        <name>float</name>
+        <name>complex</name>
         <name>str</name>
-        <name>unicode</name>
-        <name>byte</name>
+        <name>bytes</name>
+        <name>bytearray</name>
+        <name>memoryview</name>
+        <name>list</name>
+        <name>tuple</name>
+        <name>range</name>
         <name>set</name>
+        <name>frozenset</name>
         <name>dict</name>
+        <name>type</name>
+        <name>object</name>
     </section>
 </root>

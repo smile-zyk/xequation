@@ -48,6 +48,7 @@ void DemoWidget::SetupUI()
 
     CreateActions();
     CreateMenus();
+    InitializeLanguageModel();
 }
 
 void DemoWidget::SetupConnections()
@@ -133,6 +134,25 @@ void DemoWidget::CreateActions()
 
     show_expression_watch_action_ = new QAction("Expression Watch", this);
     show_expression_watch_action_->setStatusTip("Watch expressions");
+}
+
+void DemoWidget::InitializeLanguageModel()
+{
+    if(!language_model_)
+    {
+        return;
+    }
+    if(language_model_->language_name() == "Python")
+    {
+        equation_manager_->context();
+        const python::PythonEquationContext* py_context = dynamic_cast<const python::PythonEquationContext*>(&equation_manager_->context());
+        auto all_builtin_names = py_context->GetAllBuiltinNames();
+        for (const auto& name : all_builtin_names)
+        {
+            QString word = QString::fromStdString(name);
+            language_model_->AddWordItem(word, "Builtin", word);
+        }
+    }
 }
 
 void DemoWidget::OnOpen() {}

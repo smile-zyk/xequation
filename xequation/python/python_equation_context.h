@@ -36,6 +36,8 @@ class PythonEquationContext : public EquationContext
     pybind11::dict& dict() { return dict_; }
     const pybind11::dict& dict() const { return dict_; }
 
+    std::vector<std::string> GetAllBuiltinNames() const;
+
   private:
     friend class PythonEquationEngine;
     PythonEquationContext();

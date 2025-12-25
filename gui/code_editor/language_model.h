@@ -26,7 +26,6 @@ class LanguageModel : public QAbstractListModel
         return language_name_;
     }
 
-  protected:
     void AddWordItem(const QString &word, const QString &category, const QString &complete_content);
     void RemoveWordItem(const QString &word);
 
