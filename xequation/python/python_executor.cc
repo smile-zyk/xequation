@@ -1,7 +1,6 @@
 #include "python_executor.h"
 #include "core/equation_common.h"
 #include "core/value.h"
-#include <pybind11/pybind11.h>
 
 namespace xequation
 {

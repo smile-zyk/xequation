@@ -1,6 +1,6 @@
 #include "equation_group_editor.h"
 #include "core/equation_group.h"
-#include "equation_language_model.h"
+#include "equation_completion_model.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -17,9 +17,11 @@ namespace xequation
 namespace gui
 {
 
-EquationGroupEditor::EquationGroupEditor(EquationLanguageModel* model, QWidget *parent, const QString &title)
-    : QDialog(parent), language_model_(model)
+EquationGroupEditor::EquationGroupEditor(EquationCompletionModel* model, QWidget *parent, const QString &title)
+    : QDialog(parent), language_name_(model->language_name())
 {
+    equation_completion_filter_model_ = new EquationCompletionFilterModel(model, this);
+
     setWindowTitle(title);
     setMinimumSize(800, 600);
 
@@ -37,7 +39,7 @@ void EquationGroupEditor::SetEquationGroup(const EquationGroup* group)
     {
         return;
     }
-    equation_group_filter_model_->SetEquationGroup(group);
+    equation_completion_filter_model_->SetEquationGroup(group);
     SetText(QString::fromStdString(group->statement()));
 }
 
@@ -81,15 +83,13 @@ void EquationGroupEditor::SetupUI()
     tool_bar_->addAction(switch_mode_action_);
 
     // Central editor
-    editor_ = new xequation::gui::CodeEditor(language_model_->language_name(), this);
-    equation_group_filter_model_ = new EquationGroupFilterModel(nullptr, this);
-    editor_highlighter_ = CodeHighlighter::Create(language_model_->language_name(), editor_->document());
+    editor_ = new xequation::gui::CodeEditor(language_name_, this);
+    editor_highlighter_ = CodeHighlighter::Create(language_name_, editor_->document());
     editor_completer_ = new CodeCompleter(this);
 
-    equation_group_filter_model_->setSourceModel(language_model_);
-    equation_group_filter_model_->sort(0);
-    editor_completer_->setModel(equation_group_filter_model_);
-    editor_highlighter_->SetModel(equation_group_filter_model_);
+    equation_completion_filter_model_->sort(0);
+    editor_completer_->setModel(equation_completion_filter_model_);
+    editor_highlighter_->SetModel(equation_completion_filter_model_);
     editor_->setCompleter(editor_completer_);
     editor_->setHighlighter(editor_highlighter_);
 

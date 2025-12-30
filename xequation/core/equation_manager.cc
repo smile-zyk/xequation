@@ -98,11 +98,6 @@ std::vector<std::string> EquationManager::GetEquationNames() const
     return result;
 }
 
-const tsl::ordered_set<std::string> &EquationManager::GetExternalVariableNames() const
-{
-    return external_variable_names_;
-}
-
 EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_statement)
 {
     auto res = Parse(equation_statement, ParseMode::kStatement);
@@ -321,6 +316,45 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
     }
 }
 
+void EquationManager::EditSingleEquation(const EquationGroupId &group_id, const std::string& equation_name, const std::string& equation_content)
+{
+    if (IsEquationGroupExist(group_id) == false)
+    {
+        throw EquationException::EquationGroupNotFound(group_id);
+    }
+
+    EquationGroup *group = GetEquationGroupInternal(group_id);
+
+    if (group->IsEquationExist(equation_name) == false)
+    {
+        throw EquationException::EquationNotFound(equation_name);
+    }
+
+    Equation *equation = group->GetEquation(equation_name);
+
+    if (equation->content() == equation_content)
+    {
+        return;
+    }
+
+    // use regex to validate equation name
+    static const std::regex name_regex("^[A-Za-z_][A-Za-z0-9_]*$");
+    if (!std::regex_match(equation_name, name_regex))
+    {
+        throw ParseException("Invalid equation name: " + equation_name);
+    }
+
+    std::string statement = equation_name + " = " + equation_content;
+
+    ParseResult new_result = Parse(statement, ParseMode::kStatement);
+    if (new_result.items.size() != 1)
+    {
+        throw ParseException("Failed to parse single equation: " + statement);
+    }
+
+    return EditEquationGroup(group_id, statement);
+}
+
 void EquationManager::RemoveEquationGroup(const EquationGroupId &group_id)
 {
     if (IsEquationGroupExist(group_id) == false)
@@ -365,18 +399,6 @@ void EquationManager::RemoveEquationGroup(const EquationGroupId &group_id)
     {
         NotifyEquationDependentsUpdated(equation_name);
     }
-}
-
-void EquationManager::SetExternalVariable(const std::string &var_name, const Value &value)
-{
-    context_->Set(var_name, value);
-    external_variable_names_.insert(var_name);
-}
-
-void EquationManager::RemoveExternalVariable(const std::string &var_name)
-{
-    context_->Remove(var_name);
-    external_variable_names_.erase(var_name);
 }
 
 ParseResult EquationManager::Parse(const std::string &expression, ParseMode mode) const

@@ -4,9 +4,9 @@
 #include <atomic>
 #include <map>
 #include <memory>
-#include <pybind11/pybind11.h>
 #include <string>
 #include <vector>
+#include <iostream>
 
 
 #include "core/value.h"
@@ -43,10 +43,8 @@ inline void release_gil()
 template <typename T>
 inline void RegisterCallbacksForType()
 {
-    Value::RegisterBeforeConstruct<T>([](const std::type_info &) { acquire_gil(); });
-    Value::RegisterAfterConstruct<T>([](const Value &) { release_gil(); });
-    Value::RegisterBeforeDestruct<T>([](const Value &) { acquire_gil(); });
-    Value::RegisterAfterDestruct<T>([](const std::type_info &) { release_gil(); });
+    Value::RegisterBeforeOperation<T>([](const std::type_info &) { acquire_gil(); });
+    Value::RegisterAfterOperation<T>([](const std::type_info &) { release_gil(); });
 }
 
 inline void RegisterPybindValueCallbacksOnce()

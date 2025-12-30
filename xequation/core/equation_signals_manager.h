@@ -3,35 +3,12 @@
 #include <boost/signals2.hpp>
 #include <memory>
 
-#include "bitmask.hpp"
-#include "core/equation_group.h"
 #include "equation.h"
 #include "equation_group.h"
+#include "equation_common.h"
 
 namespace xequation
 {
-
-enum class EquationUpdateFlag
-{
-    kContent = 1 << 0,
-    kType = 1 << 1,
-    kStatus = 1 << 2,
-    kMessage = 1 << 3,
-    kValue = 1 << 5,
-    kDependencies = 1 << 6,
-    kDependents = 1 << 7,
-};
-
-BITMASK_DEFINE_MAX_ELEMENT(EquationUpdateFlag, kDependents)
-
-enum class EquationGroupUpdateFlag
-{
-    kStatement = 1 << 0,
-    kEquationCount = 1 << 1,
-};
-
-BITMASK_DEFINE_MAX_ELEMENT(EquationGroupUpdateFlag, kEquationCount)
-
 enum class EquationEvent
 {
     kEquationAdded,

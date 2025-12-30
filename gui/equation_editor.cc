@@ -1,47 +1,20 @@
 #include "equation_editor.h"
 #include "core/equation.h"
+#include "equation_completion_model.h"
 
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
 #include <QVBoxLayout>
+#include <qdialog.h>
+#include <qlistview.h>
 
 namespace xequation
 {
 namespace gui
 {
-bool ContextFilterModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
-{
-    auto *src = sourceModel();
-    QModelIndex idx = src->index(source_row, 0, source_parent);
-    QString word = src->data(idx, LanguageModel::kWordRole).toString();
-    if (word.isEmpty())
-    {
-        return true;
-    }
-
-    if (!category_.isEmpty())
-    {
-        QString category = src->data(idx, LanguageModel::kCategoryRole).toString();
-        if (category != category_)
-        {
-            return false;
-        }
-    }
-
-    if (!filter_text_.isEmpty())
-    {
-        if (!word.contains(filter_text_, Qt::CaseInsensitive))
-        {
-            return false;
-        }
-    }
-
-    return EquationGroupFilterModel::filterAcceptsRow(source_row, source_parent);
-}
-    
-ContextSelectionWidget::ContextSelectionWidget(EquationLanguageModel* language_model, QWidget *parent)
-    : QWidget(parent), language_model_(language_model)
+ContextSelectionWidget::ContextSelectionWidget(EquationCompletionFilterModel* completion_filter_model, QWidget *parent)
+    : QWidget(parent), completion_filter_model_(completion_filter_model)
 {
     SetupUI();
     SetupConnections();
@@ -52,22 +25,23 @@ void ContextSelectionWidget::SetupUI()
     QVBoxLayout *main_layout = new QVBoxLayout(this);
 
     context_combo_box_ = new QComboBox(this);
-    auto keys = data_map_.keys();
-    for (const auto &key : keys)
+    auto categories = completion_filter_model_->GetAllCategories();
+    for( const auto &category : categories)
     {
-        context_combo_box_->addItem(key);
+        context_combo_box_->addItem(category.name);
     }
 
     context_filter_edit_ = new QLineEdit(this);
     context_filter_edit_->setPlaceholderText("Filter variables...");
-    context_list_widget_ = new QListWidget(this);
+
+    context_list_view_ = new QListView(this);
+    completion_filter_model_->SetDisplayOnlyWord(true);
+    context_list_view_->setModel(completion_filter_model_);
 
     main_layout->addWidget(context_combo_box_);
     main_layout->addWidget(context_filter_edit_);
-    main_layout->addWidget(context_list_widget_);
+    main_layout->addWidget(context_list_view_);
 
-    context_combo_box_->setCurrentText(data_map_.firstKey());
-    UpdateListWidget(data_map_.first());
     adjustSize();
     main_layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
 }
@@ -80,51 +54,28 @@ void ContextSelectionWidget::SetupConnections()
 
 QString ContextSelectionWidget::GetSelectedVariable() const
 {
-    QListWidgetItem *current_item = context_list_widget_->currentItem();
-    if (current_item)
+    QModelIndex current_index = context_list_view_->currentIndex();
+    if (current_index.isValid())
     {
-        return current_item->text();
+        return current_index.data().toString();
     }
     return QString();
 }
 
-void ContextSelectionWidget::UpdateListWidget(const QList<QString> &data_list)
-{
-    context_list_widget_->clear();
-    for (const auto &item : data_list)
-    {
-        context_list_widget_->addItem(item);
-    }
-}
-
 void ContextSelectionWidget::OnComboBoxChanged(const QString &text)
 {
-    if (data_map_.contains(text))
-    {
-        UpdateListWidget(data_map_.value(text));
-    }
+    completion_filter_model_->SetCategory(text);
 }
 
 void ContextSelectionWidget::OnFilterTextChanged(const QString &text)
 {
-    QString current_key = context_combo_box_->currentText();
-    if (data_map_.contains(current_key))
-    {
-        QList<QString> filtered_list;
-        for (const auto &item : data_map_.value(current_key))
-        {
-            if (item.contains(text, Qt::CaseInsensitive))
-            {
-                filtered_list.append(item);
-            }
-        }
-        UpdateListWidget(filtered_list);
-    }
+    completion_filter_model_->SetFilterText(text);
 }
 
-EquationEditor::EquationEditor(EquationLanguageModel* language_model, QWidget *parent)
-    : QDialog(parent), group_(nullptr), language_model_(language_model)
+EquationEditor::EquationEditor(EquationCompletionModel* language_model, QWidget *parent)
+    : QDialog(parent), group_(nullptr)
 {
+    completion_filter_model_ = new EquationCompletionFilterModel(language_model, this);
     SetupUI();
     SetupConnections();
 }
@@ -132,6 +83,7 @@ EquationEditor::EquationEditor(EquationLanguageModel* language_model, QWidget *p
 void EquationEditor::SetEquationGroup(const EquationGroup* group)
 {
     group_ = group;
+    completion_filter_model_->SetEquationGroup(group);
     if (group_ != nullptr)
     {
         const auto &equation_names = group_->GetEquationNames();
@@ -160,31 +112,8 @@ void EquationEditor::SetupUI()
     cancel_button_ = new QPushButton("Cancel", this);
 
     context_button_ = new QPushButton("Context>>", this);
-    QMap<QString, QList<QString>> data_map;
-    if (manager_)
-    {
-        context_button_->setVisible(true);
-        auto equation_names = manager_->GetEquationNames();
-        QList<QString> equation_list;
-        for (const auto &name : equation_names)
-        {
-            equation_list.append(QString::fromStdString(name));
-        }
-        data_map.insert("Equation", equation_list);
 
-        auto variable_names = manager_->GetExternalVariableNames();
-        QList<QString> variable_list;
-        for (const auto &name : variable_names)
-        {
-            variable_list.append(QString::fromStdString(name));
-        }
-        data_map.insert("Variable", variable_list);
-    }
-    else
-    {
-        context_button_->setVisible(false);
-    }
-    context_selection_widget_ = new ContextSelectionWidget(data_map, this);
+    context_selection_widget_ = new ContextSelectionWidget(completion_filter_model_, this);
     context_selection_widget_->setVisible(false);
     insert_button_->setVisible(false);
 
@@ -225,7 +154,7 @@ void EquationEditor::SetupConnections()
     connect(context_button_, &QPushButton::clicked, this, &EquationEditor::OnContextButtonClicked);
     connect(insert_button_, &QPushButton::clicked, this, &EquationEditor::OnInsertButtonClicked);
     connect(ok_button_, &QPushButton::clicked, this, &EquationEditor::OnOkButtonClicked);
-    connect(cancel_button_, &QPushButton::clicked, this, &EquationEditor::OnCancelButtonClicked);
+    connect(cancel_button_, &QPushButton::clicked, this, &QDialog::reject);
 }
 
 void EquationEditor::OnContextButtonClicked()
@@ -270,34 +199,14 @@ void EquationEditor::OnOkButtonClicked()
         return;
     }
 
-    QString statement = name + " = " + expression;
-    if (manager_->IsStatementSingleEquation(statement.toStdString()) == false)
+    if (group_ == nullptr)
     {
-        QMessageBox::warning(
-            this, "Warning", "equation insert editor only support insert single equation!", QMessageBox::Ok
-        );
-        return;
-    }
-
-    if (mode_ == Mode::kInsert)
-    {
-        emit AddEquationRequest(statement);
+        emit AddEquationRequest(name, expression);
     }
     else
     {
-        emit EditEquationRequest(group_->id(), statement);
+        emit EditEquationRequest(group_->id(), name, expression);
     }
 }
-
-void EquationEditor::OnCancelButtonClicked()
-{
-    reject();
-}
-
-void EquationEditor::OnSuccess()
-{
-    accept();
-}
-
 } // namespace gui
 } // namespace xequation

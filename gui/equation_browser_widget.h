@@ -2,7 +2,6 @@
 
 #include "core/bitmask.hpp"
 #include "core/equation_manager.h"
-#include "core/equation_signals_manager.h"
 #include <QList>
 #include <QMap>
 #include <QWidget>
@@ -22,11 +21,14 @@ class EquationBrowserWidget : public QWidget
     Q_OBJECT
 
   public:
-    EquationBrowserWidget(const EquationManager *manager, QWidget *parent);
+    EquationBrowserWidget(QWidget *parent);
     ~EquationBrowserWidget() = default;
 
     void SetCurrentEquation(const Equation *equation, bool expand = true);
     const Equation *GetCurrentEquation() const;
+    void OnEquationAdded(const Equation *equation);
+    void OnEquationRemoving(const Equation *equation);
+    void OnEquationUpdated(const Equation *equation, bitmask::bitmask<EquationUpdateFlag> change_type);
 
   signals:
     void EquationSelected(const Equation *equation);
@@ -34,9 +36,6 @@ class EquationBrowserWidget : public QWidget
   protected:
     void SetupUI();
     void SetupConnections();
-    void OnEquationAdded(const Equation *equation);
-    void OnEquationRemoving(const Equation *equation);
-    void OnEquationUpdated(const Equation *equation, bitmask::bitmask<EquationUpdateFlag> change_type);
 
     void OnBrowserItemChanged(QtBrowserItem *item);
 
@@ -89,13 +88,8 @@ class EquationBrowserWidget : public QWidget
   private:
     QtTreePropertyBrowser *property_browser_{nullptr};
     QtVariantPropertyManager *property_manager_{nullptr};
-    const EquationManager *manager_{nullptr};
     QMap<const Equation *, EquationPropertyItem> equation_property_item_map_;
     QMap<QtProperty *, const Equation *> property_equation_map_;
-
-    xequation::ScopedConnection equation_added_connection_;
-    xequation::ScopedConnection equation_removing_connection_;
-    xequation::ScopedConnection equation_updated_connection_;
 };
 
 } // namespace gui

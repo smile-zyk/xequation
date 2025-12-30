@@ -15,10 +15,8 @@ equation_editor.h
 equation_editor.cc
 equation_group_editor.h
 equation_group_editor.cc
-equation_group_filter_model.h
-equation_group_filter_model.cc
-equation_language_model.h
-equation_language_model.cc
+equation_completion_model.h
+equation_completion_model.cc
 value_model_view/value_item_builder.h
 value_model_view/value_item_builder.cc
 value_model_view/value_tree_model.h
@@ -29,8 +27,8 @@ value_model_view/value_item.h
 value_model_view/value_item.cc
 value_model_view/python_item_builder.h
 value_model_view/python_item_builder.cc
-code_editor/language_model.h
-code_editor/language_model.cc
+code_editor/completion_list_model.h
+code_editor/completion_list_model.cc
 code_editor/code_completer.h
 code_editor/code_completer.cc
 code_editor/code_editor.h

@@ -1,4 +1,5 @@
 #include "python_equation_context.h"
+#include "core/value.h"
 
 using namespace xequation;
 using namespace xequation::python;
@@ -15,7 +16,8 @@ Value PythonEquationContext::Get(const std::string &var_name) const
     pybind11::gil_scoped_acquire acquire;
     if (dict_->contains(var_name))
     {
-        return pybind11::cast<Value>((*dict_)[var_name.c_str()]);
+        Value value = pybind11::cast<Value>((*dict_)[var_name.c_str()]);
+        return value;
     }
     return Value::Null();
 }

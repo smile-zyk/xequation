@@ -38,8 +38,4 @@ private:
     xequation::EquationManager* manager_;
     QMap<xequation::EquationGroupId, QListWidgetItem*> id_to_item_map_;
     QMap<QListWidgetItem*, xequation::EquationGroupId> item_to_id_map_;
-
-    xequation::ScopedConnection group_added_connection_;
-    xequation::ScopedConnection group_removing_connection_;
-    xequation::ScopedConnection group_updated_connection_;
 };

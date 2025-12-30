@@ -134,8 +134,6 @@ class EquationManager
 
     std::vector<std::string> GetEquationNames() const;
 
-    const tsl::ordered_set<std::string> &GetExternalVariableNames() const;
-
     bool IsEquationGroupExist(const EquationGroupId &group_id) const;
 
     bool IsEquationExist(const std::string &eqn_name) const;
@@ -146,11 +144,9 @@ class EquationManager
 
     void EditEquationGroup(const EquationGroupId &group_id, const std::string &equation_statement);
 
+    void EditSingleEquation(const EquationGroupId &group_id, const std::string& equation_name, const std::string& equation_content);
+
     void RemoveEquationGroup(const EquationGroupId &group_id);
-
-    void SetExternalVariable(const std::string &var_name, const Value &value);
-
-    void RemoveExternalVariable(const std::string &var_name);
 
     ParseResult Parse(const std::string &expression, ParseMode mode) const;
 
@@ -216,7 +212,6 @@ class EquationManager
 
     EquationGroupPtrOrderedMap equation_group_map_;
     std::unordered_map<std::string, boost::uuids::uuid> equation_name_to_group_id_map_;
-    tsl::ordered_set<std::string> external_variable_names_;
 
     InterpretHandler interpret_handler_ = nullptr;
     ParseHandler parse_handler_ = nullptr;

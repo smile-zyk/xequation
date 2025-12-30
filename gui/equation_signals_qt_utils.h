@@ -3,6 +3,7 @@
 #include <type_traits>
 #include <QMetaObject>
 #include <QMetaMethod>
+#include <QObject>
 #include <core/equation_signals_manager.h>
 
 namespace xequation
@@ -175,16 +176,27 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupUpdated, T>
 };
 
 template<EquationEvent Event, typename T, typename Slot>
-inline ScopedConnection ConnectEquationSignal(
+inline void ConnectEquationSignal(
     const EquationSignalsManager* signals_manager,
     T* receiver,
     Slot slot
 )
 {
+    static_assert(std::is_base_of_v<QObject, T>, "receiver must inherit QObject");
+
     using Traits = EquationQtSignalTraits<Event, T>;
     static_assert(Traits::template IsValidSlot<Slot>(), "slot signature must match the event");
+
     auto invoke = Traits::MakeInvoker(receiver, slot);
-    return signals_manager->ConnectScoped<Event>(std::move(invoke));
+    auto connection = signals_manager->Connect<Event>(std::move(invoke));
+
+    // Disconnect automatically when receiver is destroyed
+    QObject::connect(receiver, &QObject::destroyed, [connection]() mutable {
+        if (connection.connected())
+        {
+            connection.disconnect();
+        }
+    });
 }
 
 } // namespace gui

@@ -2,7 +2,6 @@
 
 #include <string>
 #include <boost/compute/detail/lru_cache.hpp>
-#include <pybind11/pybind11.h>
 
 #include "python_common.h"
 #include "core/equation_common.h"

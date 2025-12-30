@@ -1,9 +1,6 @@
 #include "expression_watch_widget.h"
 
 #include "core/equation_common.h"
-#include "core/equation_manager.h"
-#include "core/equation_signals_manager.h"
-#include "equation_signals_qt_utils.h"
 #include "value_model_view/value_item.h"
 #include "value_model_view/value_item_builder.h"
 #include <QAction>

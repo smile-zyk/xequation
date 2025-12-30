@@ -6,8 +6,7 @@
 #include "code_editor/code_completer.h"
 #include "code_editor/code_editor.h"
 #include "code_editor/code_highlighter.h"
-#include "equation_group_filter_model.h"
-#include "equation_language_model.h"
+#include "equation_completion_model.h"
 
 namespace xequation 
 {
@@ -17,7 +16,7 @@ class EquationGroupEditor : public QDialog
 {
     Q_OBJECT
 public:
-    explicit EquationGroupEditor(EquationLanguageModel* language_model, QWidget *parent = nullptr, const QString &title = "text editor");
+    explicit EquationGroupEditor(EquationCompletionModel* language_model, QWidget *parent = nullptr, const QString &title = "text editor");
     ~EquationGroupEditor();
 
     void SetEquationGroup(const EquationGroup* group);
@@ -46,8 +45,8 @@ private:
     CodeEditor *editor_{};
     CodeHighlighter* editor_highlighter_{};
     CodeCompleter* editor_completer_{};
-    EquationGroupFilterModel* equation_group_filter_model_{};
-    EquationLanguageModel *language_model_{};
+    QString language_name_{};
+    EquationCompletionFilterModel* equation_completion_filter_model_{};
 
     QPushButton *ok_button_{};
     QPushButton *cancel_button_{};

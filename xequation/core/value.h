@@ -125,25 +125,25 @@ class Value
   public:
     Value() noexcept : value_ptr_(nullptr)
     {
-        NotifyBeforeConstruct(typeid(void));
+        NotifyBeforeOperation(typeid(void));
         value_ptr_.reset(new ValueHolder<void>());
-        NotifyAfterConstruct(*this);
+        NotifyAfterOperation(typeid(void));
     }
     ~Value() noexcept;
 
     template <typename T>
     Value(const T &val) noexcept : value_ptr_(nullptr)
     {
-        NotifyBeforeConstruct(typeid(T));
+        NotifyBeforeOperation(typeid(T));
         value_ptr_.reset(new ValueHolder<T>(val));
-        NotifyAfterConstruct(*this);
+        NotifyAfterOperation(typeid(T));
     }
 
     Value(const char *val) noexcept : value_ptr_(nullptr)
     {
-        NotifyBeforeConstruct(typeid(std::string));
+        NotifyBeforeOperation(typeid(std::string));
         value_ptr_.reset(new ValueHolder<std::string>(val));
-        NotifyAfterConstruct(*this);
+        NotifyAfterOperation(typeid(std::string));
     }
 
     Value(const Value &other);
@@ -208,53 +208,31 @@ class Value
     std::unique_ptr<ValueBase> value_ptr_;
 
   public:
-    using BeforeConstructCallback = std::function<void(const std::type_info &)>;
-    using AfterConstructCallback = std::function<void(const Value &)>;
-    using BeforeDestructCallback = std::function<void(const Value &)>;
-    using AfterDestructCallback = std::function<void(const std::type_info &)>;
+    using BeforeOperationCallback = std::function<void(const std::type_info &)>;
+    using AfterOperationCallback = std::function<void(const std::type_info &)>;
 
     template <typename T>
-    static void RegisterBeforeConstruct(BeforeConstructCallback cb)
+    static void RegisterBeforeOperation(BeforeOperationCallback cb)
     {
         std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        before_construct_callbacks_by_type_[std::type_index(typeid(T))].push_back(std::move(cb));
+        before_operation_callbacks_by_type_[std::type_index(typeid(T))].push_back(std::move(cb));
     }
 
     template <typename T>
-    static void RegisterAfterConstruct(AfterConstructCallback cb)
+    static void RegisterAfterOperation(AfterOperationCallback cb)
     {
         std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        after_construct_callbacks_by_type_[std::type_index(typeid(T))].push_back(std::move(cb));
-    }
-
-    template <typename T>
-    static void RegisterBeforeDestruct(BeforeDestructCallback cb)
-    {
-        std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        before_destruct_callbacks_by_type_[std::type_index(typeid(T))].push_back(std::move(cb));
-    }
-
-    template <typename T>
-    static void RegisterAfterDestruct(AfterDestructCallback cb)
-    {
-        std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        after_destruct_callbacks_by_type_[std::type_index(typeid(T))].push_back(std::move(cb));
+        after_operation_callbacks_by_type_[std::type_index(typeid(T))].push_back(std::move(cb));
     }
 
   private:
-    static void NotifyBeforeConstruct(const std::type_info &typeInfo);
-    static void NotifyAfterConstruct(const Value &value);
-    static void NotifyBeforeDestruct(const Value &value);
-    static void NotifyAfterDestruct(const std::type_info &typeInfo);
+    static void NotifyBeforeOperation(const std::type_info &typeInfo);
+    static void NotifyAfterOperation(const std::type_info &typeInfo);
 
-    static std::unordered_map<std::type_index, std::vector<BeforeConstructCallback>>
-        before_construct_callbacks_by_type_;
-    static std::unordered_map<std::type_index, std::vector<AfterConstructCallback>>
-        after_construct_callbacks_by_type_;
-    static std::unordered_map<std::type_index, std::vector<BeforeDestructCallback>>
-        before_destruct_callbacks_by_type_;
-    static std::unordered_map<std::type_index, std::vector<AfterDestructCallback>>
-        after_destruct_callbacks_by_type_;
+    static std::unordered_map<std::type_index, std::vector<BeforeOperationCallback>>
+        before_operation_callbacks_by_type_;
+    static std::unordered_map<std::type_index, std::vector<AfterOperationCallback>>
+        after_operation_callbacks_by_type_;
     static std::mutex callbacks_mutex_;
 };
 } // namespace xequation

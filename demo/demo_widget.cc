@@ -1,7 +1,5 @@
 #include "demo_widget.h"
-#include "code_editor/language_model.h"
-#include "core/equation_signals_manager.h"
-#include "equation_editor.h"
+#include "core/equation_common.h"
 
 #include <QAction>
 #include <QApplication>
@@ -17,13 +15,11 @@
 #include <QWidget>
 #include <QtConcurrent/QtConcurrent>
 #include <algorithm>
-#include <qnamespace.h>
 
+#include "equation_editor.h"
 #include "equation_group_editor.h"
-#include "equation_language_model.h"
-#include "python/python_qt_wrapper.h"
 #include "equation_signals_qt_utils.h"
-
+#include "python/python_qt_wrapper.h"
 
 using namespace xequation;
 
@@ -35,11 +31,21 @@ DemoWidget::DemoWidget(QWidget *parent)
 {
     equation_manager_ = xequation::python::PythonEquationEngine::GetInstance().CreateEquationManager();
     mock_equation_list_widget_ = new MockEquationGroupListWidget(equation_manager_.get(), this);
-    equation_browser_widget_ = new xequation::gui::EquationBrowserWidget(equation_manager_.get(), this);
+    equation_browser_widget_ = new xequation::gui::EquationBrowserWidget(this);
     variable_inspect_widget_ = new xequation::gui::VariableInspectWidget(this);
-    expression_watch_widget_ = new xequation::gui::ExpressionWatchWidget(equation_manager_.get(), this);
-    language_model_ =
-        new xequation::gui::EquationLanguageModel(QString::fromStdString(equation_manager_->language()), this);
+
+    equation_completion_model_ =
+        new xequation::gui::EquationCompletionModel(QString::fromStdString(equation_manager_->language()), this);
+
+    auto eval_expr_handle = [equation_manager_ptr = equation_manager_.get()](const QString &expression) {
+        return equation_manager_ptr->Eval(expression.toStdString());
+    };
+
+    auto parse_expr_handle = [equation_manager_ptr = equation_manager_.get()](const QString &expression) {
+        return equation_manager_ptr->Parse(expression.toStdString(), ParseMode::kExpression);
+    };
+
+    expression_watch_widget_ = new xequation::gui::ExpressionWatchWidget(parse_expr_handle, eval_expr_handle, this);
 
     SetupUI();
     SetupConnections();
@@ -54,7 +60,7 @@ void DemoWidget::SetupUI()
 
     CreateActions();
     CreateMenus();
-    InitializeLanguageModel();
+    InitCompletionModel();
 }
 
 void DemoWidget::SetupConnections()
@@ -97,18 +103,53 @@ void DemoWidget::SetupConnections()
         &DemoWidget::OnEquationSelected
     );
 
-    auto connection_added = xequation::gui::ConnectEquationSignal<EquationEvent::kEquationAdded>(
-        &equation_manager_->signals_manager(), language_model_,
-        &xequation::gui::EquationLanguageModel::OnEquationAdded
+    // xequation::gui::EquationBrowserWidget* equation_browser_widget_;
+    // xequation::gui::VariableInspectWidget* variable_inspect_widget_;
+    // xequation::gui::ExpressionWatchWidget* expression_watch_widget_;
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationAdded>(
+        &equation_manager_->signals_manager(), equation_browser_widget_,
+        &xequation::gui::EquationBrowserWidget::OnEquationAdded
     );
 
-    auto connection_removing = xequation::gui::ConnectEquationSignal<EquationEvent::kEquationRemoving>(
-        &equation_manager_->signals_manager(), language_model_,
-        &xequation::gui::EquationLanguageModel::OnEquationRemoving
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationRemoving>(
+        &equation_manager_->signals_manager(), equation_browser_widget_,
+        &xequation::gui::EquationBrowserWidget::OnEquationRemoving
     );
 
-    connection_map_[language_model_].push_back(std::move(connection_added));
-    connection_map_[language_model_].push_back(std::move(connection_removing));
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationUpdated>(
+        &equation_manager_->signals_manager(), equation_browser_widget_,
+        &xequation::gui::EquationBrowserWidget::OnEquationUpdated
+    );
+
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationRemoving>(
+        &equation_manager_->signals_manager(), variable_inspect_widget_,
+        &xequation::gui::VariableInspectWidget::OnEquationRemoving
+    );
+
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationUpdated>(
+        &equation_manager_->signals_manager(), variable_inspect_widget_,
+        &xequation::gui::VariableInspectWidget::OnEquationUpdated
+    );
+
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationRemoved>(
+        &equation_manager_->signals_manager(), expression_watch_widget_,
+        &xequation::gui::ExpressionWatchWidget::OnEquationRemoved
+    );
+
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationUpdated>(
+        &equation_manager_->signals_manager(), expression_watch_widget_,
+        &xequation::gui::ExpressionWatchWidget::OnEquationUpdated
+    );
+
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationAdded>(
+        &equation_manager_->signals_manager(), equation_completion_model_,
+        &xequation::gui::EquationCompletionModel::OnEquationAdded
+    );
+
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationRemoving>(
+        &equation_manager_->signals_manager(), equation_completion_model_,
+        &xequation::gui::EquationCompletionModel::OnEquationRemoving
+    );
 }
 
 void DemoWidget::CreateActions()
@@ -143,19 +184,19 @@ void DemoWidget::CreateActions()
     show_expression_watch_action_->setStatusTip("Watch expressions");
 }
 
-void DemoWidget::InitializeLanguageModel()
+void DemoWidget::InitCompletionModel()
 {
-    if(!language_model_)
+    if (!equation_completion_model_)
     {
         return;
     }
-    if(language_model_->language_name() == "Python")
+    if (equation_completion_model_->language_name() == "Python")
     {
         std::set<std::string> all_builtin_names = equation_manager_->context().GetBuiltinNames();
-        for (const auto& name : all_builtin_names)
+        for (const auto &name : all_builtin_names)
         {
             QString word = QString::fromStdString(name);
-            language_model_->AddWordItem(word, "Builtin", word);
+            equation_completion_model_->AddCompletionItem(word, "Builtin", word);
         }
     }
 }
@@ -184,15 +225,13 @@ void DemoWidget::CreateMenus()
 
 void DemoWidget::OnInsertEquationRequest()
 {
-    xequation::gui::EquationEditor *editor = new xequation::gui::EquationEditor(equation_manager_.get(), this);
+    xequation::gui::EquationEditor *editor = new xequation::gui::EquationEditor(equation_completion_model_, this);
 
-    connect(editor, &xequation::gui::EquationEditor::AddEquationRequest, [this, editor](const QString &statement) {
+    connect(editor, &xequation::gui::EquationEditor::AddEquationRequest, [this, editor](const QString &equation_name, const QString &expression) {
         xequation::EquationGroupId id;
-        if (AddEquationGroup(statement.toStdString(), id))
+        if (AddEquation(equation_name, expression))
         {
-            single_equation_set_.insert(id);
-            AsyncUpdateEquationGroup(id);
-            editor->OnSuccess();
+            editor->accept();
         }
     });
 
@@ -204,15 +243,14 @@ void DemoWidget::OnEditEquationGroupRequest(const xequation::EquationGroupId &id
     if (single_equation_set_.count(id) != 0)
     {
         auto group = equation_manager_->GetEquationGroup(id);
-        xequation::gui::EquationEditor *editor = new xequation::gui::EquationEditor(group, this);
-
+        xequation::gui::EquationEditor *editor = new xequation::gui::EquationEditor(equation_completion_model_, this);
+        editor->SetEquationGroup(group);
         connect(
             editor, &xequation::gui::EquationEditor::EditEquationRequest,
-            [this, editor](const EquationGroupId &group_id, const QString &statement) {
-                if (EditEquationGroup(group_id, statement.toStdString()))
+            [this, editor](const EquationGroupId &group_id, const QString &equation_name, const QString &expression) {
+                if (EditEquation(group_id, equation_name, expression))
                 {
-                    AsyncUpdateEquationGroup(group_id);
-                    editor->OnSuccess();
+                    editor->accept();
                 }
             }
         );
@@ -223,14 +261,13 @@ void DemoWidget::OnEditEquationGroupRequest(const xequation::EquationGroupId &id
     if (equation_group_set_.count(id) != 0)
     {
         xequation::gui::EquationGroupEditor *editor =
-            new xequation::gui::EquationGroupEditor(language_model_, this, "Edit Equation Group");
+            new xequation::gui::EquationGroupEditor(equation_completion_model_, this, "Edit Equation Group");
         editor->setAttribute(Qt::WA_DeleteOnClose);
         editor->SetEquationGroup(equation_manager_->GetEquationGroup(id));
         connect(
             editor, &xequation::gui::EquationGroupEditor::TextSubmitted, [this, editor, id](const QString &statement) {
                 if (EditEquationGroup(id, statement.toStdString()))
                 {
-                    AsyncUpdateEquationGroup(id);
                     editor->accept();
                 }
             }
@@ -261,11 +298,16 @@ void DemoWidget::OnCopyEquationGroupRequest(const xequation::EquationGroupId &id
     QApplication::clipboard()->setText(QString::fromStdString(equation_manager_->GetEquationGroup(id)->statement()));
 }
 
-bool DemoWidget::AddEquationGroup(const std::string &statement, xequation::EquationGroupId &id)
+bool DemoWidget::AddEquationGroup(const std::string &statement)
 {
     try
     {
-        id = equation_manager_->AddEquationGroup(statement);
+        auto id = equation_manager_->AddEquationGroup(statement);
+        equation_group_set_.insert(id);
+        // Delay the async update to ensure GIL is fully released
+        QTimer::singleShot(0, [this, id]() {
+            AsyncUpdateEquationGroup(id);
+        });
         return true;
     }
     catch (const EquationException &e)
@@ -289,6 +331,69 @@ bool DemoWidget::EditEquationGroup(const xequation::EquationGroupId &id, const s
     try
     {
         equation_manager_->EditEquationGroup(id, statement);
+        // Delay the async update to ensure GIL is fully released
+        QTimer::singleShot(0, [this, id]() {
+            AsyncUpdateEquationGroup(id);
+        });
+        return true;
+    }
+    catch (const EquationException &e)
+    {
+        QMessageBox::warning(this, "Warning", e.what(), QMessageBox::Ok);
+        return false;
+    }
+    catch (const ParseException &e)
+    {
+        QMessageBox::warning(this, "Warning", e.what(), QMessageBox::Ok);
+        return false;
+    }
+    catch (const DependencyCycleException &e)
+    {
+        QMessageBox::warning(this, "Warning", e.what(), QMessageBox::Ok);
+        return false;
+    }
+}
+
+bool DemoWidget::AddEquation(const QString &equation_name, const QString &expression)
+{
+    try
+    {
+        auto id = equation_manager_->AddSingleEquation(equation_name.toStdString(), expression.toStdString());
+        single_equation_set_.insert(id);
+        // Delay the async update to ensure GIL is fully released
+        QTimer::singleShot(0, [this, id]() {
+            AsyncUpdateEquationGroup(id);
+        });
+        return true;
+    }
+    catch (const EquationException &e)
+    {
+        QMessageBox::warning(this, "Warning", e.what(), QMessageBox::Ok);
+        return false;
+    }
+    catch (const ParseException &e)
+    {
+        QMessageBox::warning(this, "Warning", e.what(), QMessageBox::Ok);
+        return false;
+    }
+    catch (const DependencyCycleException &e)
+    {
+        QMessageBox::warning(this, "Warning", e.what(), QMessageBox::Ok);
+        return false;
+    }
+}
+
+bool DemoWidget::EditEquation(const xequation::EquationGroupId &group_id, const QString &equation_name, const QString &expression)
+{
+    try
+    {
+        equation_manager_->EditSingleEquation(
+            group_id, equation_name.toStdString(), expression.toStdString()
+        );
+        // Delay the async update to ensure GIL is fully released
+        QTimer::singleShot(0, [this, group_id]() {
+            AsyncUpdateEquationGroup(group_id);
+        });
         return true;
     }
     catch (const EquationException &e)
@@ -336,14 +441,17 @@ bool DemoWidget::RemoveEquationGroup(const xequation::EquationGroupId &id)
     }
 }
 
-void DemoWidget::AsyncUpdateEquationGroup(const xequation::EquationGroupId& id)
+void DemoWidget::AsyncUpdateEquationGroup(const xequation::EquationGroupId &id)
 {
+    // Use QFuture to properly manage the async task
+    // This ensures GIL is properly released before starting the background thread
     QtConcurrent::run([this, id]() {
         try
         {
+            // UpdateEquationGroup will acquire GIL internally as needed
             equation_manager_->UpdateEquationGroup(id);
         }
-        catch (const std::exception& e)
+        catch (const std::exception &e)
         {
             std::string error_msg = e.what();
             qDebug() << "Error updating equation group:" << QString::fromStdString(error_msg);
@@ -391,14 +499,12 @@ void DemoWidget::OnEquationSelected(const xequation::Equation *equation)
 void DemoWidget::OnInsertEquationGroupRequest()
 {
     xequation::gui::EquationGroupEditor *editor =
-        new xequation::gui::EquationGroupEditor(language_model_, this, "Insert Equation Group");
+        new xequation::gui::EquationGroupEditor(equation_completion_model_, this, "Insert Equation Group");
     editor->setAttribute(Qt::WA_DeleteOnClose);
     connect(editor, &xequation::gui::EquationGroupEditor::TextSubmitted, [this, editor](const QString &statement) {
         xequation::EquationGroupId id;
-        if (AddEquationGroup(statement.toStdString(), id))
+        if (AddEquationGroup(statement.toStdString()))
         {
-            equation_group_set_.insert(id);
-            AsyncUpdateEquationGroup(id);
             editor->accept();
         }
     });

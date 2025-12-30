@@ -1,5 +1,4 @@
 #include "variable_inspect_widget.h"
-#include "equation_signals_qt_utils.h"
 #include "value_model_view/value_item.h"
 #include "value_model_view/value_item_builder.h"
 

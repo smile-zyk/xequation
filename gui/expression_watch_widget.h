@@ -1,7 +1,6 @@
 #pragma once
 
 #include "core/equation.h"
-#include "core/equation_signals_manager.h"
 #include "value_model_view/value_item.h"
 #include "value_model_view/value_tree_model.h"
 #include "value_model_view/value_tree_view.h"
@@ -10,7 +9,6 @@
 #include <boost/bimap.hpp>
 #include <boost/bimap/multiset_of.hpp>
 #include <map>
-
 
 namespace xequation
 {

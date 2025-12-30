@@ -8,12 +8,11 @@
 #include <memory>
 #include <unordered_set>
 
-#include "core/equation_signals_manager.h"
 #include "equation_browser_widget.h"
 #include "variable_inspect_widget.h"
 #include "expression_watch_widget.h"
 #include "mock_equation_group_list_widget.h"
-#include "equation_language_model.h"
+#include "equation_completion_model.h"
 
 class QMenu;
 class QAction;
@@ -41,8 +40,10 @@ private:
     void OnShowEquationInspector();
     void OnShowExpressionWatch();
 
-    bool AddEquationGroup(const std::string& statement, xequation::EquationGroupId& id);
+    bool AddEquationGroup(const std::string& statement);
     bool EditEquationGroup(const xequation::EquationGroupId& id, const std::string& statement);
+    bool AddEquation(const QString& equation_name, const QString& expression);
+    bool EditEquation(const xequation::EquationGroupId& group_id, const QString& equation_name, const QString& expression);
     bool RemoveEquationGroup(const xequation::EquationGroupId& id);
     void AsyncUpdateEquationGroup(const xequation::EquationGroupId& id);
     
@@ -52,7 +53,7 @@ private:
 
     void CreateMenus();
     void CreateActions();
-    void InitializeLanguageModel();
+    void InitCompletionModel();
     
     QMenu *file_menu_;
     QMenu *edit_menu_;
@@ -69,12 +70,11 @@ private:
 
     std::unordered_set<xequation::EquationGroupId> single_equation_set_;
     std::unordered_set<xequation::EquationGroupId> equation_group_set_;
-    xequation::gui::EquationBrowserWidget* equation_browser_widget_;
+    std::unique_ptr<xequation::EquationManager> equation_manager_;
     MockEquationGroupListWidget* mock_equation_list_widget_;
+    xequation::gui::EquationBrowserWidget* equation_browser_widget_;
     xequation::gui::VariableInspectWidget* variable_inspect_widget_;
     xequation::gui::ExpressionWatchWidget* expression_watch_widget_;
-    xequation::gui::EquationLanguageModel* language_model_;
-    std::unique_ptr<xequation::EquationManager> equation_manager_;
+    xequation::gui::EquationCompletionModel* equation_completion_model_;
 
-    std::unordered_map<QObject*, std::vector<xequation::ScopedConnection>> connection_map_;
 };

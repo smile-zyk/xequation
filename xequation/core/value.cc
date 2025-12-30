@@ -3,23 +3,19 @@
 
 using namespace xequation;
 
-std::unordered_map<std::type_index, std::vector<Value::BeforeConstructCallback>>
-    Value::before_construct_callbacks_by_type_;
-std::unordered_map<std::type_index, std::vector<Value::AfterConstructCallback>>
-    Value::after_construct_callbacks_by_type_;
-std::unordered_map<std::type_index, std::vector<Value::BeforeDestructCallback>>
-    Value::before_destruct_callbacks_by_type_;
-std::unordered_map<std::type_index, std::vector<Value::AfterDestructCallback>>
-    Value::after_destruct_callbacks_by_type_;
+std::unordered_map<std::type_index, std::vector<Value::BeforeOperationCallback>>
+    Value::before_operation_callbacks_by_type_;
+std::unordered_map<std::type_index, std::vector<Value::AfterOperationCallback>>
+    Value::after_operation_callbacks_by_type_;
 std::mutex Value::callbacks_mutex_;
 
-void Value::NotifyBeforeConstruct(const std::type_info &typeInfo)
+void Value::NotifyBeforeOperation(const std::type_info &typeInfo)
 {
-    std::vector<BeforeConstructCallback> cbs;
+    std::vector<BeforeOperationCallback> cbs;
     {
         std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        auto it = before_construct_callbacks_by_type_.find(std::type_index(typeInfo));
-        if (it != before_construct_callbacks_by_type_.end())
+        auto it = before_operation_callbacks_by_type_.find(std::type_index(typeInfo));
+        if (it != before_operation_callbacks_by_type_.end())
         {
             cbs = it->second;
         }
@@ -30,47 +26,13 @@ void Value::NotifyBeforeConstruct(const std::type_info &typeInfo)
     }
 }
 
-void Value::NotifyAfterConstruct(const Value &value)
+void Value::NotifyAfterOperation(const std::type_info &typeInfo)
 {
-    std::vector<AfterConstructCallback> cbs;
+    std::vector<AfterOperationCallback> cbs;
     {
         std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        auto it = after_construct_callbacks_by_type_.find(std::type_index(value.Type()));
-        if (it != after_construct_callbacks_by_type_.end())
-        {
-            cbs = it->second;
-        }
-    }
-    for (auto &cb : cbs)
-    {
-        cb(value);
-    }
-}
-
-void Value::NotifyBeforeDestruct(const Value &value)
-{
-    std::vector<BeforeDestructCallback> cbs;
-    {
-        std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        auto it = before_destruct_callbacks_by_type_.find(std::type_index(value.Type()));
-        if (it != before_destruct_callbacks_by_type_.end())
-        {
-            cbs = it->second;
-        }
-    }
-    for (auto &cb : cbs)
-    {
-        cb(value);
-    }
-}
-
-void Value::NotifyAfterDestruct(const std::type_info &typeInfo)
-{
-    std::vector<AfterDestructCallback> cbs;
-    {
-        std::lock_guard<std::mutex> lock(callbacks_mutex_);
-        auto it = after_destruct_callbacks_by_type_.find(std::type_index(typeInfo));
-        if (it != after_destruct_callbacks_by_type_.end())
+        auto it = after_operation_callbacks_by_type_.find(std::type_index(typeInfo));
+        if (it != after_operation_callbacks_by_type_.end())
         {
             cbs = it->second;
         }
@@ -80,12 +42,14 @@ void Value::NotifyAfterDestruct(const std::type_info &typeInfo)
         cb(typeInfo);
     }
 }
+
+
 
 Value::Value(const Value &other)
 {
-    NotifyBeforeConstruct(other.Type());
+    NotifyBeforeOperation(other.Type());
     value_ptr_ = other.value_ptr_ != nullptr ? other.value_ptr_->Clone() : nullptr;
-    NotifyAfterConstruct(other);
+    NotifyAfterOperation(other.Type());
 }
 
 Value& Value::operator=(const Value &other)
@@ -99,12 +63,11 @@ Value& Value::operator=(const Value &other)
 
 Value::Value(Value &&other) noexcept
 {
-    // Begin construction using other's type
-    NotifyBeforeConstruct(other.Type());
-
-    // Trigger destructor callbacks for other's original content (before transfer)
+    // Capture the original type before moving
     const std::type_info &originalType = other.Type();
-    NotifyBeforeDestruct(other);
+    
+    // Begin operation for the type we're moving
+    NotifyBeforeOperation(originalType);
 
     // Transfer ownership to this instance
     value_ptr_ = std::move(other.value_ptr_);
@@ -112,20 +75,17 @@ Value::Value(Value &&other) noexcept
     // Reset other to a valid null immediately to avoid null deref during callbacks
     other.value_ptr_.reset(new ValueHolder<void>());
 
-    // Trigger destructor callbacks after transfer using original type
-    NotifyAfterDestruct(originalType);
-
-    // Construction finished callback using moved-from other
-    NotifyAfterConstruct(other);
+    // End operation using the same type we started with
+    NotifyAfterOperation(originalType);
 }
 
 Value &Value::operator=(Value &&other) noexcept
 {
     if (&other != this)
     {
-        // Trigger destructor callbacks for other's original content (before transfer)
+        // Capture the original type before moving
         const std::type_info &originalType = other.Type();
-        NotifyBeforeDestruct(other);
+        NotifyBeforeOperation(originalType);
 
         // Transfer ownership
         value_ptr_ = std::move(other.value_ptr_);
@@ -133,8 +93,8 @@ Value &Value::operator=(Value &&other) noexcept
         // Reset other to a valid null to avoid null deref during callbacks
         other.value_ptr_.reset(new ValueHolder<void>());
 
-        // Trigger destructor callbacks after transfer
-        NotifyAfterDestruct(originalType);
+        // End operation using the same type we started with
+        NotifyAfterOperation(originalType);
     }
     return *this;
 }
@@ -205,16 +165,23 @@ const std::type_info &Value::Type() const
 
 std::string Value::ToString() const
 {
-    return value_ptr_.get()->ToString();
+    const std::type_info &typeInfo = value_ptr_->Type();
+    NotifyBeforeOperation(typeInfo);
+    std::string result = value_ptr_.get()->ToString();
+    NotifyAfterOperation(typeInfo);
+    return result;
 }
 
 Value::~Value() noexcept
 {
-    const std::type_info &typeInfo = value_ptr_ ? value_ptr_->Type() : typeid(void);
-    NotifyBeforeDestruct(*this);
-    // Ensure underlying storage is released before after-destruction callbacks
-    std::unique_ptr<ValueBase> old;
-    old.swap(value_ptr_);
-    old.reset();
-    NotifyAfterDestruct(typeInfo);
+    if (value_ptr_ && !value_ptr_->IsNull())
+    {
+        const std::type_info &typeInfo = value_ptr_->Type();
+        NotifyBeforeOperation(typeInfo);
+
+        // Release underlying storage; After uses saved type only.
+        value_ptr_.reset();
+
+        NotifyAfterOperation(typeInfo);
+    }
 }

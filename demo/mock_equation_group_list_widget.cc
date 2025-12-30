@@ -2,7 +2,7 @@
 #include "core/equation.h"
 #include "core/equation_group.h"
 #include "core/equation_manager.h"
-#include "core/equation_signals_manager.h"
+#include "equation_signals_qt_utils.h"
 
 #include <QAction>
 #include <QDebug>
@@ -59,20 +59,19 @@ void MockEquationGroupListWidget::SetupUI()
 
 void MockEquationGroupListWidget::SetupConnections()
 {
-    group_added_connection_ = manager_->signals_manager().ConnectScoped<EquationEvent::kEquationGroupAdded>(
-        [this](const EquationGroup *group) { OnEquationGroupAdded(group); }
-    );
-
-    group_removing_connection_ = manager_->signals_manager().ConnectScoped<EquationEvent::kEquationGroupRemoving>(
-        [this](const EquationGroup *group) { OnEquationGroupRemoving(group); }
-    );
-
-    group_updated_connection_ = manager_->signals_manager().ConnectScoped<EquationEvent::kEquationGroupUpdated>(
-        [this](const EquationGroup *group, bitmask::bitmask<EquationGroupUpdateFlag> change_type) {
-            OnEquationGroupUpdated(group, change_type);
-        }
+    // connect to equation manager signals
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationGroupAdded>(
+        &manager_->signals_manager(), this, &MockEquationGroupListWidget::OnEquationGroupAdded
     );
     
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationGroupRemoving>(
+        &manager_->signals_manager(), this, &MockEquationGroupListWidget::OnEquationGroupRemoving
+    );
+
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationGroupUpdated>(
+        &manager_->signals_manager(), this, &MockEquationGroupListWidget::OnEquationGroupUpdated
+    );
+
     connect(
         this, &QListWidget::customContextMenuRequested, this, &MockEquationGroupListWidget::OnCustomContextMenuRequested
     );

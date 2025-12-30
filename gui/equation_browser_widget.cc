@@ -1,21 +1,19 @@
 #include "equation_browser_widget.h"
 #include "core/equation.h"
 #include "core/equation_common.h"
-#include "core/equation_signals_manager.h"
 #include <QDebug>
 #include <QLayout>
 #include <QVariant>
 #include <string>
 #include <tsl/ordered_set.h>
-#include "equation_signals_qt_utils.h"
 
 namespace xequation
 {
 namespace gui
 {
 
-EquationBrowserWidget::EquationBrowserWidget(const EquationManager *manager, QWidget *parent)
-    : QWidget(parent), manager_(manager)
+EquationBrowserWidget::EquationBrowserWidget(QWidget *parent)
+    : QWidget(parent)
 {
     SetupUI();
     SetupConnections();
@@ -299,12 +297,6 @@ void EquationBrowserWidget::SetupUI()
 
 void EquationBrowserWidget::SetupConnections()
 {
-    equation_added_connection_ = ConnectEquationSignal<EquationEvent::kEquationAdded>(&manager_->signals_manager(), this, &EquationBrowserWidget::OnEquationAdded);
-
-    equation_removing_connection_ = ConnectEquationSignal<EquationEvent::kEquationRemoving>(&manager_->signals_manager(), this, &EquationBrowserWidget::OnEquationRemoving);
-
-    equation_updated_connection_ = ConnectEquationSignal<EquationEvent::kEquationUpdated>(&manager_->signals_manager(), this, &EquationBrowserWidget::OnEquationUpdated);
-
     connect(
         property_browser_, &QtTreePropertyBrowser::currentItemChanged, this,
         &EquationBrowserWidget::OnBrowserItemChanged
