@@ -77,4 +77,6 @@ private:
     xequation::gui::ExpressionWatchWidget* expression_watch_widget_;
     xequation::gui::EquationCompletionModel* equation_completion_model_;
 
+    // State for managing EquationManager update lock
+    bool is_updating_equation_group_ = false;
 };

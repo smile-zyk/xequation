@@ -99,6 +99,11 @@ pybind11::dict PythonEquationContext::builtin_dict() const
 
 std::set<std::string> PythonEquationContext::GetBuiltinNames() const
 {
+    if (!builtin_names_cache_.empty())
+    {
+        return builtin_names_cache_;
+    }
+
     pybind11::gil_scoped_acquire acquire;
 
     pybind11::dict builtins_dict = builtin_dict();
@@ -107,5 +112,6 @@ std::set<std::string> PythonEquationContext::GetBuiltinNames() const
     {
         names.insert(key.cast<std::string>());
     }
+    builtin_names_cache_ = names;
     return names;
 }

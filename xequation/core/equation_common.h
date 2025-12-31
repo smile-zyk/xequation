@@ -15,6 +15,7 @@ class EquationContext;
 enum class ResultStatus
 {
     kPending,
+    kCalculating,
     kSuccess,
     kSyntaxError,
     kNameError,
@@ -186,6 +187,8 @@ class ResultStatusConverter
     {
         if (status_str == "Pending")
             return ResultStatus::kPending;
+        else if( status_str == "Calculating")
+            return ResultStatus::kCalculating;
         else if (status_str == "Success")
             return ResultStatus::kSuccess;
         else if (status_str == "SyntaxError")
@@ -220,6 +223,8 @@ class ResultStatusConverter
         {
         case ResultStatus::kPending:
             return "Pending";
+        case ResultStatus::kCalculating:
+            return "Calculating";
         case ResultStatus::kSuccess:
             return "Success";
         case ResultStatus::kSyntaxError:

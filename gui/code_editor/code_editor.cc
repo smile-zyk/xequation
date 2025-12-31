@@ -1,5 +1,4 @@
 #include "code_editor.h"
-#include "internal/QCodeEditor.hpp"
 
 #include <QFile>
 #include <QKeyEvent>
@@ -46,13 +45,13 @@ void CodeEditor::setCompleter(QCompleter *completer)
 
 void CodeEditor::SetupShortcuts()
 {
-    QShortcut *zoomInShortcut = new QShortcut(QKeySequence("Ctrl++"), this);
-    QShortcut *zoomOutShortcut = new QShortcut(QKeySequence("Ctrl+-"), this);
-    QShortcut *resetZoomShortcut = new QShortcut(QKeySequence("Ctrl+0"), this);
+    QShortcut *zoom_in_shortcut = new QShortcut(QKeySequence("Ctrl++"), this);
+    QShortcut *zoom_out_shortcut = new QShortcut(QKeySequence("Ctrl+-"), this);
+    QShortcut *reset_zoom_shortcut = new QShortcut(QKeySequence("Ctrl+0"), this);
 
-    connect(zoomInShortcut, &QShortcut::activated, this, &CodeEditor::ZoomIn);
-    connect(zoomOutShortcut, &QShortcut::activated, this, &CodeEditor::ZoomOut);
-    connect(resetZoomShortcut, &QShortcut::activated, this, &CodeEditor::ResetZoom);
+    connect(zoom_in_shortcut, &QShortcut::activated, this, &CodeEditor::ZoomIn);
+    connect(zoom_out_shortcut, &QShortcut::activated, this, &CodeEditor::ZoomOut);
+    connect(reset_zoom_shortcut, &QShortcut::activated, this, &CodeEditor::ResetZoom);
 }
 
 void CodeEditor::SetStyleMode(StyleMode mode)

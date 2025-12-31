@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QCloseEvent>
 #include <QtConcurrent/QtConcurrent>
 #include <algorithm>
 
@@ -300,6 +301,14 @@ void DemoWidget::OnCopyEquationGroupRequest(const xequation::EquationGroupId &id
 
 bool DemoWidget::AddEquationGroup(const std::string &statement)
 {
+    if (is_updating_equation_group_)
+    {
+        QMessageBox::warning(this, "Operation Locked", 
+            "Cannot add equation group while updating another equation group. Please wait for the current operation to complete.", 
+            QMessageBox::Ok);
+        return false;
+    }
+    
     try
     {
         auto id = equation_manager_->AddEquationGroup(statement);
@@ -328,6 +337,14 @@ bool DemoWidget::AddEquationGroup(const std::string &statement)
 }
 bool DemoWidget::EditEquationGroup(const xequation::EquationGroupId &id, const std::string &statement)
 {
+    if (is_updating_equation_group_)
+    {
+        QMessageBox::warning(this, "Operation Locked", 
+            "Cannot edit equation group while updating another equation group. Please wait for the current operation to complete.", 
+            QMessageBox::Ok);
+        return false;
+    }
+    
     try
     {
         equation_manager_->EditEquationGroup(id, statement);
@@ -356,6 +373,14 @@ bool DemoWidget::EditEquationGroup(const xequation::EquationGroupId &id, const s
 
 bool DemoWidget::AddEquation(const QString &equation_name, const QString &expression)
 {
+    if (is_updating_equation_group_)
+    {
+        QMessageBox::warning(this, "Operation Locked", 
+            "Cannot add equation while updating an equation group. Please wait for the current operation to complete.", 
+            QMessageBox::Ok);
+        return false;
+    }
+    
     try
     {
         auto id = equation_manager_->AddSingleEquation(equation_name.toStdString(), expression.toStdString());
@@ -385,6 +410,14 @@ bool DemoWidget::AddEquation(const QString &equation_name, const QString &expres
 
 bool DemoWidget::EditEquation(const xequation::EquationGroupId &group_id, const QString &equation_name, const QString &expression)
 {
+    if (is_updating_equation_group_)
+    {
+        QMessageBox::warning(this, "Operation Locked", 
+            "Cannot edit equation while updating an equation group. Please wait for the current operation to complete.", 
+            QMessageBox::Ok);
+        return false;
+    }
+    
     try
     {
         equation_manager_->EditSingleEquation(
@@ -415,6 +448,14 @@ bool DemoWidget::EditEquation(const xequation::EquationGroupId &group_id, const 
 
 bool DemoWidget::RemoveEquationGroup(const xequation::EquationGroupId &id)
 {
+    if (is_updating_equation_group_)
+    {
+        QMessageBox::warning(this, "Operation Locked", 
+            "Cannot remove equation group while updating another equation group. Please wait for the current operation to complete.", 
+            QMessageBox::Ok);
+        return false;
+    }
+    
     try
     {
         auto equation_names = equation_manager_->GetEquationGroup(id)->GetEquationNames();
@@ -443,6 +484,9 @@ bool DemoWidget::RemoveEquationGroup(const xequation::EquationGroupId &id)
 
 void DemoWidget::AsyncUpdateEquationGroup(const xequation::EquationGroupId &id)
 {
+    // Mark the update as in progress
+    is_updating_equation_group_ = true;
+    
     // Use QFuture to properly manage the async task
     // This ensures GIL is properly released before starting the background thread
     QtConcurrent::run([this, id]() {
@@ -456,6 +500,9 @@ void DemoWidget::AsyncUpdateEquationGroup(const xequation::EquationGroupId &id)
             std::string error_msg = e.what();
             qDebug() << "Error updating equation group:" << QString::fromStdString(error_msg);
         }
+        
+        // Mark the update as complete
+        is_updating_equation_group_ = false;
     });
 }
 
@@ -470,7 +517,7 @@ void DemoWidget::OnEquationGroupSelected(const xequation::EquationGroupId &id)
         auto equation_names = group->GetEquationNames();
         if (equation_names.size() >= 1)
         {
-            const auto &equation = group->GetEquation(equation_names[0]);
+            const auto &equation = group->GetEquation(equation_names.back());
             variable_inspect_widget_->SetCurrentEquation(equation);
             equation_browser_widget_->SetCurrentEquation(equation, false);
         }

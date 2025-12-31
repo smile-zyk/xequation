@@ -1,13 +1,14 @@
 #include "variable_inspect_widget.h"
+#include "core/equation_common.h"
 #include "value_model_view/value_item.h"
 #include "value_model_view/value_item_builder.h"
 
-#include <QVBoxLayout>
-#include <QMenu>
-#include <QEvent>
-#include <QKeyEvent>
 #include <QApplication>
 #include <QClipboard>
+#include <QEvent>
+#include <QKeyEvent>
+#include <QMenu>
+#include <QVBoxLayout>
 #include <core/equation_manager.h>
 #include <core/equation_signals_manager.h>
 
@@ -90,9 +91,12 @@ void VariableInspectWidget::SetCurrentEquation(const Equation *equation)
         {
             Value value = current_equation_->GetValue();
             ValueItem::UniquePtr item;
-            if (value.IsNull())
+            if (current_equation_->status() != ResultStatus::kSuccess)
             {
-                item = ValueItem::Create(name, QString::fromStdString(current_equation_->message()), "error");
+                item = ValueItem::Create(
+                    name, QString::fromStdString(current_equation_->message()),
+                    QString::fromStdString(ResultStatusConverter::ToString((current_equation_->status())))
+                );
             }
             else
             {
@@ -125,7 +129,24 @@ void VariableInspectWidget::OnEquationUpdated(
     const Equation *equation, bitmask::bitmask<EquationUpdateFlag> change_type
 )
 {
-    if (change_type & EquationUpdateFlag::kValue)
+    bool should_update = false;
+    if(equation->status() != ResultStatus::kSuccess)
+    {
+        if (change_type & EquationUpdateFlag::kStatus || change_type & EquationUpdateFlag::kMessage)
+        {
+            should_update = true;
+        }
+    }
+
+    if(equation->status() == ResultStatus::kSuccess)
+    {
+        if (change_type & EquationUpdateFlag::kValue)
+        {
+            should_update = true;
+        }
+    }
+
+    if(should_update)
     {
         if (variable_items_cache_.find(equation->name()) != variable_items_cache_.end())
         {
@@ -133,7 +154,7 @@ void VariableInspectWidget::OnEquationUpdated(
         }
     }
 
-    if (equation == current_equation_ && change_type & EquationUpdateFlag::kValue)
+    if (equation == current_equation_ && should_update)
     {
         current_equation_ = nullptr;
         SetCurrentEquation(equation);
@@ -176,7 +197,7 @@ bool VariableInspectWidget::eventFilter(QObject *obj, QEvent *event)
     return QWidget::eventFilter(obj, event);
 }
 
-void VariableInspectWidget::OnCustomContextMenuRequested(const QPoint& pos)
+void VariableInspectWidget::OnCustomContextMenuRequested(const QPoint &pos)
 {
     static QMenu *menu = nullptr;
 
@@ -235,7 +256,7 @@ void VariableInspectWidget::OnAddVariableToWatch()
 
         QVector<ValueItem *> hierarchy_items;
         ValueItem *current = item;
-        while(current->parent() != nullptr)
+        while (current->parent() != nullptr)
         {
             hierarchy_items.push_back(current);
             current = current->parent();
@@ -244,21 +265,21 @@ void VariableInspectWidget::OnAddVariableToWatch()
         std::reverse(hierarchy_items.begin(), hierarchy_items.end());
 
         QString expression;
-        for(int i = 0; i < hierarchy_items.size(); ++i)
+        for (int i = 0; i < hierarchy_items.size(); ++i)
         {
             if (i == 0)
             {
                 expression += hierarchy_items[i]->name();
             }
-            else if(hierarchy_items[i - 1]->value_item_type() == "python-dict")
+            else if (hierarchy_items[i - 1]->value_item_type() == "python-dict")
             {
                 expression += QString("[") + hierarchy_items[i]->name() + QString("]");
             }
-            else if(hierarchy_items[i - 1]->value_item_type() == "python-class")
+            else if (hierarchy_items[i - 1]->value_item_type() == "python-class")
             {
                 expression += QString(".") + hierarchy_items[i]->name();
             }
-            else 
+            else
             {
                 expression += hierarchy_items[i]->name();
             }

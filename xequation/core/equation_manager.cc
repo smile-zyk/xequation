@@ -465,6 +465,14 @@ void EquationManager::UpdateEquationInternal(const std::string &equation_name)
         return;
     }
 
+    // set status and message to calculating before calculation
+    equation->set_status(ResultStatus::kCalculating);
+    equation->set_message("Calculating...");
+
+    signals_manager_->Emit<EquationEvent::kEquationUpdated>(
+        equation, EquationUpdateFlag::kStatus | EquationUpdateFlag::kMessage
+    );
+
     const std::string &equation_statement = equation->type() == ItemType::kVariable
                                                 ? equation->name() + " = " + equation->content()
                                                 : equation->content();

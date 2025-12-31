@@ -57,6 +57,7 @@ class PythonEquationContext : public EquationContext
     PythonEquationContext(PythonEquationContext &&) noexcept = delete;
     PythonEquationContext &operator=(PythonEquationContext &&) noexcept = delete;
     std::unique_ptr<pybind11::dict> dict_;
+    mutable std::set<std::string> builtin_names_cache_;
 };
 } // namespace python
 } // namespace xequation
