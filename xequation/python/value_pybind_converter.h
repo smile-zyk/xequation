@@ -197,6 +197,11 @@ class PyObjectConverter
                 return pybind11::object(b);
             }
 
+            if (type == typeid(pybind11::none))
+            {
+                return pybind11::none();
+            }
+
             return pybind11::none();
         }
     };
@@ -266,7 +271,7 @@ struct type_caster<xequation::Value>
 
     bool load(handle src, bool convert)
     {
-        if (!src || src.is_none())
+        if (!src)
         {
             return false;
         }
