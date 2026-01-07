@@ -48,6 +48,12 @@ DemoWidget::DemoWidget(QWidget *parent)
     SetupConnections();
 }
 
+DemoWidget::~DemoWidget()
+{
+    delete task_manager_;
+    task_manager_ = nullptr;
+}
+
 void DemoWidget::SetupUI()
 {
     setWindowTitle("xequation demo");
@@ -75,6 +81,12 @@ void DemoWidget::SetupConnections()
         variable_inspect_widget_, &xequation::gui::VariableInspectWidget::AddExpressionToWatch,
         expression_watch_widget_, &xequation::gui::ExpressionWatchWidget::OnAddExpressionToWatch
     );
+
+    connect (expression_watch_widget_, &xequation::gui::ExpressionWatchWidget::ParseResultRequested,
+        this, &DemoWidget::OnParseResultRequested);
+
+    connect (expression_watch_widget_, &xequation::gui::ExpressionWatchWidget::EvalResultAsyncRequested,
+        this, &DemoWidget::OnEvalResultAsyncRequested);
 
     connect(
         mock_equation_list_widget_, &MockEquationGroupListWidget::EditEquationGroupRequested, this,
@@ -630,7 +642,6 @@ void DemoWidget::OnShowExpressionWatch()
 
 void DemoWidget::OnParseResultRequested(const QString &expression, xequation::ParseResult &result)
 {
-
     result = equation_manager_->Parse(expression.toStdString(), xequation::ParseMode::kExpression);
 }
 
@@ -640,12 +651,10 @@ void DemoWidget::OnEvalResultAsyncRequested(xequation::gui::ValueItem *item)
         "Evaluate Expression",  equation_manager_.get(), item->name().toStdString()
     );
 
-    connect(
-        task, &gui::EvalExpressionTask::EvalCompleted,
-        [this, item](const InterpretResult &result) {
-            OnEvalResultSubmitted(item, result);
-        }
-    );
+    connect(task, &gui::EvalExpressionTask::EvalCompleted, this, [this, item](InterpretResult result)
+    {
+        expression_watch_widget_->OnEvalResultSubmitted(item, result);
+    });
 
     task_manager_->EnqueueTask(std::unique_ptr<gui::EvalExpressionTask>(task));
 }

@@ -1,7 +1,8 @@
 #include "toast_progress_bar.h"
 #include "toast_manager.h"
 
-#include <iostream>
+#include <QPainter>
+#include <QPainterPath>
 
 namespace xequation
 {
@@ -104,6 +105,36 @@ void ToastProgressBar::closeEvent(QCloseEvent *event)
     emit Finished();
 }
 
+void ToastProgressBar::paintEvent(QPaintEvent *event)
+{
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    
+    // Draw rounded rectangle background with shadow
+    QPainterPath path;
+    path.addRoundedRect(rect(), 10, 10);
+    
+    // Draw shadow with increased opacity and blur
+    painter.setPen(Qt::NoPen);
+    for (int i = 0; i < 15; ++i)
+    {
+        int alpha = 30 - i * 2;
+        if (alpha < 0) alpha = 0;
+        QColor shadowColor(0, 0, 0, alpha);
+        painter.setBrush(shadowColor);
+        QPainterPath shadowPath;
+        shadowPath.addRoundedRect(rect().adjusted(-i, -i + 5, i, i + 5), 10 + i, 10 + i);
+        painter.drawPath(shadowPath);
+    }
+    
+    // Draw white background
+    painter.setBrush(Qt::white);
+    painter.setPen(Qt::NoPen);
+    painter.drawPath(path);
+    
+    QWidget::paintEvent(event);
+}
+
 bool ToastProgressBar::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == parentWidget())
@@ -119,14 +150,22 @@ bool ToastProgressBar::eventFilter(QObject *watched, QEvent *event)
 void ToastProgressBar::SetupUI()
 {
     QVBoxLayout *main_layout = new QVBoxLayout(this);
+    main_layout->setContentsMargins(20, 15, 20, 15);
+    main_layout->setSpacing(12);
 
     QHBoxLayout *title_layout = new QHBoxLayout();
-    title_label_ = new QLabel(windowTitle(), this);    
+    title_label_ = new QLabel(windowTitle(), this);
+    QFont title_font = title_label_->font();
+    title_font.setPointSize(9);
+    title_font.setBold(true);
+    title_label_->setFont(title_font);
     title_layout->addWidget(title_label_);
     title_layout->addStretch();
     close_button_ = new QPushButton(this);
     close_button_->setIcon(QIcon(":/icons/close.png"));
     close_button_->setFlat(true);
+    close_button_->setFixedSize(24, 24);
+    close_button_->setCursor(Qt::PointingHandCursor);
     title_layout->addWidget(close_button_);
 
     progress_bar_ = new QProgressBar(this);
@@ -134,13 +173,27 @@ void ToastProgressBar::SetupUI()
     progress_bar_->setValue(0);
     progress_bar_->setTextVisible(true);
     progress_bar_->setFormat("%p%");
+    progress_bar_->setMinimumHeight(20);
+    QFont progress_font = progress_bar_->font();
+    progress_font.setPointSize(8);
+    progress_bar_->setFont(progress_font);
 
     message_label_ = new QLabel(this);
+    message_label_->setWordWrap(true);
+    QFont message_font = message_label_->font();
+    message_font.setPointSize(8);
+    message_label_->setFont(message_font);
 
     QHBoxLayout *button_layout = new QHBoxLayout();
     button_layout->addStretch();
 
     cancel_button_ = new QPushButton("Cancel", this);
+    cancel_button_->setMinimumWidth(80);
+    cancel_button_->setMinimumHeight(28);
+    cancel_button_->setCursor(Qt::PointingHandCursor);
+    QFont button_font = cancel_button_->font();
+    button_font.setPointSize(8);
+    cancel_button_->setFont(button_font);
 
     button_layout->addWidget(cancel_button_);
 

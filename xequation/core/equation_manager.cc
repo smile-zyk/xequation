@@ -550,16 +550,6 @@ void EquationManager::UpdateEquation(const std::string &equation_name)
     }
 }
 
-void EquationManager::UpdateSingleEquation(const std::string &equation_name)
-{
-    if (IsEquationExist(equation_name) == false)
-    {
-        throw EquationException::EquationNotFound(equation_name);
-    }
-
-    UpdateEquationInternal(equation_name);
-}
-
 void EquationManager::UpdateEquationGroup(const EquationGroupId &group_id)
 {
     if (IsEquationGroupExist(group_id) == false)
@@ -585,6 +575,23 @@ void EquationManager::UpdateEquationWithoutPropagate(const std::string &equation
     }
 
     UpdateEquationInternal(equation_name);
+}
+
+void EquationManager::UpdateEquationStatus(const std::string &equation_name, ResultStatus status, const std::string& message)
+{
+    if (IsEquationExist(equation_name) == false)
+    {
+        throw EquationException::EquationNotFound(equation_name);
+    }
+
+    Equation *equation = GetEquationInternal(equation_name);
+    equation->set_status(status);
+    equation->set_message(message);
+    context_->Remove(equation_name);
+
+    signals_manager_->Emit<EquationEvent::kEquationUpdated>(
+        equation, EquationUpdateFlag::kStatus | EquationUpdateFlag::kMessage | EquationUpdateFlag::kValue
+    );
 }
 
 Equation *EquationManager::GetEquationInternal(const std::string &equation_name)

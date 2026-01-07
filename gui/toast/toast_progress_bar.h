@@ -18,6 +18,7 @@
 #include <QCloseEvent>
 #include <QEvent>
 #include <qpushbutton.h>
+#include <QGraphicsDropShadowEffect>
 
 namespace xequation
 {
@@ -53,6 +54,7 @@ signals:
 protected:
     void showEvent(QShowEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:

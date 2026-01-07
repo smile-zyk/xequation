@@ -1,6 +1,7 @@
 #include "equation_manager_tasks.h"
 #include "core/equation_common.h"
 #include "python/python_qt_wrapper.h"
+#include <QThread>
 
 namespace xequation
 {
@@ -51,11 +52,14 @@ void UpdateEquationGroupTask::Execute()
     {
         if (cancel_requested_.load())
         {
-            return;
+            manager->UpdateEquationStatus(update_equation_names[i], ResultStatus::kKeyBoardInterrupt);
+            continue;
         }
         int progress = 10 + static_cast<int>(80.0 * i / update_equation_names.size());
         SetProgress(progress, "Updating equation: " + QString::fromStdString(update_equation_names[i]));
         manager->UpdateEquationWithoutPropagate(update_equation_names[i]);
+        // release GIL for main thread to update UI
+        QThread::msleep(200);
     }
     if (cancel_requested_.load())
     {
@@ -77,11 +81,14 @@ void UpdateManagerTask::Execute()
     {
         if (cancel_requested_.load())
         {
-            return;
+            manager->UpdateEquationStatus(update_equation_names[i], ResultStatus::kKeyBoardInterrupt);
+            continue;
         }
         int progress = 10 + static_cast<int>(80.0 * i / update_equation_names.size());
         SetProgress(progress, "Updating equation: " + QString::fromStdString(update_equation_names[i]));
         manager->UpdateEquationWithoutPropagate(update_equation_names[i]);
+        // release GIL for main thread to update UI
+        QThread::msleep(200);
     }
     if (cancel_requested_.load())
     {
@@ -103,17 +110,26 @@ void UpdateEquationsTask::Execute()
     {
         if (cancel_requested_.load())
         {
-            return;
+            manager->UpdateEquationStatus(update_equation_names[i], ResultStatus::kKeyBoardInterrupt);
+            continue;
         }
         int progress = 10 + static_cast<int>(80.0 * i / update_equation_names.size());
         SetProgress(progress, "Updating equation: " + QString::fromStdString(update_equation_names[i]));
         manager->UpdateEquationWithoutPropagate(update_equation_names[i]);
+        // release GIL for main thread to update UI
+        QThread::msleep(200);
     }
     if (cancel_requested_.load())
     {
         return;
     }
     SetProgress(100, "Update completed.");
+}
+
+EvalExpressionTask::EvalExpressionTask(const QString &title, EquationManager *manager, const std::string &expression)
+    : EquationManagerTask(title, manager), expression_(expression)
+{
+    connect(this, &Task::Finished, this, [this](QUuid id) { emit EvalCompleted(result_); });
 }
 
 void EvalExpressionTask::Execute()
@@ -123,10 +139,7 @@ void EvalExpressionTask::Execute()
     auto manager = equation_manager();
 
     SetProgress(10, "Evaluating expression...");
-    InterpretResult result = manager->Eval(expression_);
-    status_ = result.status;
-    message_ = result.message;
-    value_ = result.value;
+    result_ = manager->Eval(expression_);
     if (cancel_requested_.load())
     {
         return;

@@ -158,11 +158,11 @@ class EquationManager
 
     void UpdateEquation(const std::string &equation_name);
 
-    void UpdateSingleEquation(const std::string &equation_name);
-
     void UpdateEquationGroup(const EquationGroupId &group_id);
 
     void UpdateEquationWithoutPropagate(const std::string &equation_name);
+
+    void UpdateEquationStatus(const std::string &equation_name, ResultStatus status, const std::string& message = "");
 
     const DependencyGraph &graph()
     {

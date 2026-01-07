@@ -87,38 +87,23 @@ void VariableInspectWidget::SetCurrentEquation(const Equation *equation)
     if (current_equation_)
     {
         QString name = QString::fromStdString(current_equation_->name());
-        if (variable_items_cache_.find(current_equation_->name()) == variable_items_cache_.end())
+        if (current_equation_->status() != ResultStatus::kSuccess)
         {
-            Value value = current_equation_->GetValue();
-            ValueItem::UniquePtr item;
-            if (current_equation_->status() != ResultStatus::kSuccess)
-            {
-                item = ValueItem::Create(
-                    name, QString::fromStdString(current_equation_->message()),
-                    QString::fromStdString(ResultStatusConverter::ToString((current_equation_->status())))
-                );
-            }
-            else
-            {
-                item = gui::BuilderUtils::CreateValueItem(name, current_equation_->GetValue());
-            }
-            model_->AddRootItem(item.get());
-            variable_items_cache_[current_equation_->name()] = std::move(item);
+            current_variable_item_ = ValueItem::Create(
+                name, QString::fromStdString(current_equation_->message()),
+                QString::fromStdString(ResultStatusConverter::ToString((current_equation_->status())))
+            );
         }
         else
         {
-            ValueItem *item = variable_items_cache_[current_equation_->name()].get();
-            model_->AddRootItem(item);
+            current_variable_item_ = gui::BuilderUtils::CreateValueItem(name, current_equation_->GetValue());
         }
+        model_->AddRootItem(current_variable_item_.get());
     }
 }
 
 void VariableInspectWidget::OnEquationRemoving(const Equation *equation)
 {
-    if (variable_items_cache_.find(equation->name()) != variable_items_cache_.end())
-    {
-        variable_items_cache_.erase(equation->name());
-    }
     if (equation == current_equation_)
     {
         SetCurrentEquation(nullptr);
@@ -130,7 +115,7 @@ void VariableInspectWidget::OnEquationUpdated(
 )
 {
     bool should_update = false;
-    if(equation->status() != ResultStatus::kSuccess)
+    if (equation->status() != ResultStatus::kSuccess)
     {
         if (change_type & EquationUpdateFlag::kStatus || change_type & EquationUpdateFlag::kMessage)
         {
@@ -138,19 +123,11 @@ void VariableInspectWidget::OnEquationUpdated(
         }
     }
 
-    if(equation->status() == ResultStatus::kSuccess)
+    if (equation->status() == ResultStatus::kSuccess)
     {
         if (change_type & EquationUpdateFlag::kValue)
         {
             should_update = true;
-        }
-    }
-
-    if(should_update)
-    {
-        if (variable_items_cache_.find(equation->name()) != variable_items_cache_.end())
-        {
-            variable_items_cache_.erase(equation->name());
         }
     }
 

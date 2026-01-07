@@ -34,10 +34,6 @@ InterpretResult PythonExecutor::Exec(const std::string &code_string, const pybin
         pybind11::object str_func = pybind11::module_::import("builtins").attr("str");
         std::string error_msg = str_func(pv).cast<std::string>();
         res.message = error_msg;
-        if(status == ResultStatus::kKeyBoardInterrupt && res.message.empty()) 
-        {
-            res.message = "interrupted by user.";
-        }
     }
     return res;
 }
@@ -65,10 +61,6 @@ InterpretResult PythonExecutor::Eval(const std::string &expression, const pybind
         pybind11::object str_func = pybind11::module_::import("builtins").attr("str");
         std::string error_msg = str_func(pv).cast<std::string>();
         res.message = error_msg;
-        if(status == ResultStatus::kKeyBoardInterrupt && res.message.empty()) 
-        {
-            res.message = "interrupted by user.";
-        }
     }
     return res;
 }

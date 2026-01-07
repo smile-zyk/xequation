@@ -26,6 +26,7 @@ class DemoWidget : public QMainWindow
 
 public:
     explicit DemoWidget(QWidget *parent = nullptr);
+    ~DemoWidget() override;
 
 private:
     void OnOpen();
@@ -76,13 +77,14 @@ private:
     QAction *show_variable_inspector_action_;
     QAction *show_expression_watch_action_;
 
+    std::unique_ptr<xequation::EquationManager> equation_manager_;
+    xequation::gui::ToastTaskManager* task_manager_;
+    
     std::unordered_set<xequation::EquationGroupId> single_equation_set_;
     std::unordered_set<xequation::EquationGroupId> equation_group_set_;
-    std::unique_ptr<xequation::EquationManager> equation_manager_;
     MockEquationGroupListWidget* mock_equation_list_widget_;
     xequation::gui::EquationBrowserWidget* equation_browser_widget_;
     xequation::gui::VariableInspectWidget* variable_inspect_widget_;
     xequation::gui::ExpressionWatchWidget* expression_watch_widget_;
     xequation::gui::EquationCompletionModel* equation_completion_model_;
-    xequation::gui::ToastTaskManager* task_manager_;
 };

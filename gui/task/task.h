@@ -62,11 +62,11 @@ class Task : public QObject
     void Started(QUuid task_id);
     void Completed(QUuid task_id);
     void Cancelled(QUuid task_id);
+    void Finished(QUuid task_id);
     void ProgressUpdated(QUuid task_id, int progress, QString progress_message);
 
   protected:
-    Task(const QString& title, QObject *parent = nullptr)
-        : QObject(parent), state_(State::kPending), title_(title) {}
+    Task(const QString& title, QObject *parent = nullptr);
     Task(const Task &) = delete;
     Task &operator=(const Task &) = delete;
     Task(Task &&) noexcept = delete;

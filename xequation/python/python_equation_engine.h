@@ -29,7 +29,6 @@ class PythonEquationEngine : public EquationEngine<PythonEquationEngine>
     friend class EquationEngine<PythonEquationEngine>;
 
     void InitializePyEnv();
-    void FinalizePyEnv();
     PythonEquationEngine();
     ~PythonEquationEngine() override;
 

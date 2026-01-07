@@ -8,9 +8,11 @@
 #include <QClipboard>
 #include <QKeyEvent>
 #include <QMenu>
-#include <QVBoxLayout>
 #include <QMessageBox>
+#include <QVBoxLayout>
 
+
+#include <iostream>
 
 namespace xequation
 {
@@ -211,23 +213,26 @@ void ExpressionWatchWidget::OnEquationUpdated(
     const Equation *equation, bitmask::bitmask<EquationUpdateFlag> change_type
 )
 {
-    // find all watch items depending on this equation
-    auto range = expression_item_equation_name_bimap_.right.equal_range(equation->name());
-    std::vector<ValueItem *> items_to_update;
-    for (auto it = range.first; it != range.second; ++it)
+    if (change_type & EquationUpdateFlag::kValue)
     {
-        ValueItem *item = it->get_left();
-        items_to_update.push_back(item);
-    }
-    for (auto item : items_to_update)
-    {
-        auto expression = item->name();
-        // recreate the watch item
-        auto new_item = CreateWatchItem(expression);
-        if (new_item)
+        // find all watch items depending on this equation
+        auto range = expression_item_equation_name_bimap_.right.equal_range(equation->name());
+        std::vector<ValueItem *> items_to_update;
+        for (auto it = range.first; it != range.second; ++it)
         {
-            model_->ReplaceWatchItem(item, new_item);
-            DeleteWatchItem(item);
+            ValueItem *item = it->get_left();
+            items_to_update.push_back(item);
+        }
+        for (auto item : items_to_update)
+        {
+            auto expression = item->name();
+            // recreate the watch item
+            auto new_item = CreateWatchItem(expression);
+            if (new_item)
+            {
+                model_->ReplaceWatchItem(item, new_item);
+                DeleteWatchItem(item);
+            }
         }
     }
 }
@@ -244,7 +249,7 @@ void ExpressionWatchWidget::OnAddExpressionToWatch(const QString &expression)
 
 void ExpressionWatchWidget::OnEvalResultSubmitted(ValueItem *old_item, const InterpretResult &result)
 {
-    if (!old_item)
+    if (!old_item || expression_item_equation_name_bimap_.left.count(old_item) == 0)
         return;
 
     ValueItem::UniquePtr new_item;
@@ -264,16 +269,22 @@ void ExpressionWatchWidget::OnEvalResultSubmitted(ValueItem *old_item, const Int
         new_item = BuilderUtils::CreateValueItem(expression, value);
     }
 
+    auto new_item_ptr = new_item.get();
     // get old item dependencies
     auto range = expression_item_equation_name_bimap_.left.equal_range(old_item);
+    std::vector<std::string> old_dependencies;
     for (auto it = range.first; it != range.second; ++it)
     {
-        expression_item_equation_name_bimap_.insert({new_item.get(), it->get_right()});
-    }    
+        old_dependencies.push_back(it->get_right());
+    }
+    for (const auto &dep : old_dependencies)
+    {
+        expression_item_equation_name_bimap_.insert({new_item_ptr, dep});
+    }
     // insert new item
     expression_item_map_.insert({expression.toStdString(), std::move(new_item)});
 
-    model_->ReplaceWatchItem(old_item, new_item.get());
+    model_->ReplaceWatchItem(old_item, new_item_ptr);
     DeleteWatchItem(old_item);
 }
 
@@ -380,12 +391,12 @@ ValueItem *ExpressionWatchWidget::CreateWatchItem(const QString &expression)
     {
         // create calculating value item
         item = ValueItem::Create(expression, "Calculating...", "Calculating");
-        emit EvalResultAsyncRequested(item.get());
         const auto &dependencies = parse_item.dependencies;
         for (const auto &dependency : dependencies)
         {
             expression_item_equation_name_bimap_.insert({item.get(), dependency});
         }
+        emit EvalResultAsyncRequested(item.get());
     }
     auto item_ptr = item.get();
     expression_item_map_.insert({expression.toStdString(), std::move(item)});
@@ -436,7 +447,7 @@ void ExpressionWatchWidget::OnRequestRemoveWatchItem(ValueItem *item)
 
 void ExpressionWatchWidget::OnRequestReplaceWatchItem(ValueItem *old_item, const QString &new_expression)
 {
-    if(old_item->type() == "Calculating")
+    if (old_item->type() == "Calculating")
     {
         QMessageBox::warning(this, "Warning", "Cannot edit an expression that is still calculating.");
         return;

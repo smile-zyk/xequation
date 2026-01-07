@@ -4,7 +4,6 @@
 #include "value_model_view/value_item.h"
 #include "value_model_view/value_tree_model.h"
 #include "value_model_view/value_tree_view.h"
-#include "task/task_manager.h"
 
 #include <QEvent>
 #include <boost/bimap.hpp>
@@ -42,6 +41,7 @@ class ExpressionWatchModel : public ValueTreeModel
 
 class ExpressionWatchWidget : public QWidget
 {
+    Q_OBJECT
   public:
     ExpressionWatchWidget(QWidget *parent = nullptr);
     ~ExpressionWatchWidget() = default;

@@ -73,7 +73,10 @@ void TaskManager::CancelTask(const QUuid &task_id)
         auto task_it = all_tasks_.find(task_id);
         if (task_it != all_tasks_.end() && task_it->second)
         {
-            task_it->second->RequestCancel();
+            task_it->second->state_ = Task::State::kCanceling;
+            QtConcurrent::run(thread_pool_, [task_ptr = task_it->second.get()]() {
+                task_ptr->RequestCancel();
+            });
         }
         return;
     }
@@ -131,7 +134,10 @@ void TaskManager::Shutdown()
         auto task_it = all_tasks_.find(entry.first);
         if (task_it != all_tasks_.end() && task_it->second)
         {
-            task_it->second->RequestCancel();
+            task_it->second->state_ = Task::State::kCanceling;
+            QtConcurrent::run(thread_pool_, [task_ptr = task_it->second.get()]() {
+                task_ptr->RequestCancel();
+            });
         }
     }
 }
@@ -327,7 +333,6 @@ void TaskManager::OnTaskFinished(const QUuid &task_id)
             emit task_ptr->Completed(task_id);
             emit TaskCompleted(task_id);
         }
-		emit TaskFinished(task_id);
         {
             std::lock_guard<std::mutex> lock(mutex_);
             all_tasks_.erase(task_id);

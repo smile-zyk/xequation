@@ -1,6 +1,5 @@
 #pragma once
 #include <QWidget>
-#include <string>
 
 #include "core/equation.h"
 #include "value_model_view/value_item.h"
@@ -38,9 +37,8 @@ protected:
 private:
     ValueTreeView *view_;
     ValueTreeModel *model_;
-    std::map<std::string, std::unique_ptr<ValueItem>> variable_items_cache_;
     const Equation* current_equation_{};
-    
+    ValueItem::UniquePtr current_variable_item_;
     // actions
     QAction* copy_action_{};
     QAction* add_watch_action_{};

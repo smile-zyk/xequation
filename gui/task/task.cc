@@ -5,10 +5,16 @@ namespace xequation
 namespace gui
 {
 
+Task::Task(const QString& title, QObject *parent)
+    : QObject(parent), state_(State::kPending), title_(title) 
+{
+    connect(this, &Task::Completed, this, &Task::Finished);
+    connect(this, &Task::Cancelled, this, &Task::Finished);
+}
+
 void Task::RequestCancel()
 {
     cancel_requested_.store(true);
-    state_ = State::kCanceling;
 }
 
 void Task::SetProgress(int progress, const QString &message)

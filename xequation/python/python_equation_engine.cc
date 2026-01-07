@@ -110,23 +110,29 @@ void PythonEquationEngine::InitializePyEnv()
     g_main_thread_state = PyEval_SaveThread();
 }
 
-void PythonEquationEngine::FinalizePyEnv()
-{
-    // Restore GIL to finalize cleanly
-    if (g_main_thread_state)
-    {
-        PyEval_RestoreThread(g_main_thread_state);
-        g_main_thread_state = nullptr;
-    }
-    Py_Finalize();
-}
-
 PythonEquationEngine::~PythonEquationEngine()
 {
-    code_parser.reset();
-    code_executor.reset();
     if (manage_python_context_)
     {
-        FinalizePyEnv();
+        // Restore GIL before destroying Python objects
+        if (g_main_thread_state)
+        {
+            PyEval_RestoreThread(g_main_thread_state);
+            g_main_thread_state = nullptr;
+        }
+        
+        // Destroy pybind11 objects while holding GIL
+        code_parser.reset();
+        code_executor.reset();
+        
+        // Now finalize Python
+        Py_Finalize();
+    }
+    else
+    {
+        // If we don't manage the context, destroy objects with GIL acquired
+        pybind11::gil_scoped_acquire acquire;
+        code_parser.reset();
+        code_executor.reset();
     }
 }

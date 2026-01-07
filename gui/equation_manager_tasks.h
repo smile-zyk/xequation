@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/equation_common.h"
 #include "core/equation_manager.h"
 #include "task/task.h"
 #include <string>
@@ -75,39 +76,16 @@ class EvalExpressionTask : public EquationManagerTask
 {
     Q_OBJECT
   public:
-    EvalExpressionTask(const QString &title, EquationManager *manager, const std::string &expression)
-        : EquationManagerTask(title, manager), expression_(expression)
-    {
-    }
+    EvalExpressionTask(const QString &title, EquationManager *manager, const std::string &expression);
     ~EvalExpressionTask() override = default;
 
     void Execute() override;
 
-    const std::string &expression() const
-    {
-        return expression_;
-    }
-
-    const Value &value() const
-    {
-        return value_;
-    }
-
-    const std::string &message() const
-    {
-        return message_;
-    }
-
-    ResultStatus status() const
-    {
-        return status_;
-    }
-
+  signals:
+    void EvalCompleted(InterpretResult result);
   private:
     std::string expression_;
-    Value value_;
-    std::string message_;
-    ResultStatus status_{ResultStatus::kUnknownError};
+    InterpretResult result_;
 };
 } // namespace gui
 } // namespace xequation
