@@ -34,10 +34,10 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 enable_testing()
-add_subdirectory(xequation)
-add_subdirectory(tests)
 
 add_subdirectory(3rd/qtpropertybrowser)
 add_subdirectory(3rd/qcodeeditor)
-add_subdirectory(gui)
+
+add_subdirectory(src)
+add_subdirectory(tests)
 add_subdirectory(demo)

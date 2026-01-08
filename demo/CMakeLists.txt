@@ -13,7 +13,8 @@ main.cc
 add_executable(xequation_demo ${xequation_demo_SRC})
 
 target_link_libraries(xequation_demo PUBLIC qt_config)
-target_link_libraries(xequation_demo PUBLIC xequation)
+target_link_libraries(xequation_demo PUBLIC xequation_core)
+target_link_libraries(xequation_demo PUBLIC xequation_python)
 target_link_libraries(xequation_demo PUBLIC xequation_gui)
 
 if(WIN32)

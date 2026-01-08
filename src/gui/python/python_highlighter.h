@@ -1,0 +1,23 @@
+#include "code_editor/code_highlighter.h"
+#include <QHighlightBlockRule>
+#include <QHighlightRule>
+
+namespace xequation
+{
+namespace gui
+{
+class PythonHighlighter : public CodeHighlighter
+{
+    Q_OBJECT
+public:
+    explicit PythonHighlighter(QTextDocument* document = nullptr);
+protected:
+    void highlightBlock(const QString& text) override;
+    void ApplyRules(const QString& text, const QVector<QHighlightRule>& rules);
+protected:
+    QVector<QHighlightRule> pre_model_rules_;
+    QVector<QHighlightRule> post_model_rules_;
+    QVector<QHighlightBlockRule> block_rules_;
+};
+}
+}
