@@ -369,10 +369,6 @@ void ExpressionWatchWidget::SetupConnections()
     connect(model_, &ExpressionWatchModel::AddWatchItemRequested, this, &ExpressionWatchWidget::OnRequestAddWatchItem);
 
     connect(
-        model_, &ExpressionWatchModel::RemoveWatchItemRequested, this, &ExpressionWatchWidget::OnRequestRemoveWatchItem
-    );
-
-    connect(
         model_, &ExpressionWatchModel::ReplaceWatchItemRequested, this, &ExpressionWatchWidget::OnRequestReplaceWatchItem
     );
 
@@ -449,12 +445,6 @@ void ExpressionWatchWidget::OnRequestAddWatchItem(const QString &expression)
     if (!item)
         return;
     model_->AddWatchItem(item);
-}
-
-void ExpressionWatchWidget::OnRequestRemoveWatchItem(const QUuid& id)
-{
-    model_->RemoveWatchItem(id);
-    DeleteWatchItem(id);
 }
 
 void ExpressionWatchWidget::OnRequestReplaceWatchItem(const QUuid& id, const QString &new_expression)

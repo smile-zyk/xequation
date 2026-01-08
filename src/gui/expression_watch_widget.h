@@ -34,7 +34,6 @@ class ExpressionWatchModel : public ValueTreeModel
     void ReplaceWatchItem(const QUuid& id, ValueItem *new_item);
   signals:
     void AddWatchItemRequested(const QString &expression);
-    void RemoveWatchItemRequested(const QUuid& id);
     void ReplaceWatchItemRequested(const QUuid& id, const QString &new_expression);
 
   private:
@@ -64,7 +63,6 @@ class ExpressionWatchWidget : public QWidget
     void DeleteWatchItem(const QUuid& id);
     void SetCurrentItemToPlaceholder();
     void OnRequestAddWatchItem(const QString &expression);
-    void OnRequestRemoveWatchItem(const QUuid& id);
     void OnRequestReplaceWatchItem(const QUuid& id, const QString &new_expression);
 
     void OnCustomContextMenuRequested(const QPoint &pos);

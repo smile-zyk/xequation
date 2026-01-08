@@ -277,7 +277,7 @@ void EquationBrowserWidget::ClearPropertySubItems(QtVariantProperty *property)
 
 void EquationBrowserWidget::SetupUI()
 {
-    setWindowTitle("Equation Manager");
+    setWindowTitle("Equation Browser");
     setWindowFlags(
         Qt::Window | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint
     );
