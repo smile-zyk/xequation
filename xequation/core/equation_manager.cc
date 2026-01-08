@@ -151,7 +151,7 @@ EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_st
     return id;
 }
 
-EquationGroupId EquationManager::AddSingleEquation(const std::string& equation_name, const std::string& equation_content)
+EquationGroupId EquationManager::AddEquation(const std::string& equation_name, const std::string& equation_content)
 {
     if (IsEquationExist(equation_name))
     {
@@ -673,12 +673,55 @@ std::string EquationManager::GenerateEquationDotNodeLabel(const std::string &equ
         return equation_name;
     }
 
-    std::ostringstream oss;
-    oss << equation_name << "|{" << ItemTypeConverter::ToString(equation->type()) << "|";
+    // Helper lambda to escape text for record labels
+    auto escape_for_record = [](const std::string& text) -> std::string {
+        std::string escaped;
+        for (char c : text)
+        {
+            // Escape all special characters for record format
+            if (c == '{' || c == '}' || c == '|' || c == '<' || c == '>')
+            {
+                escaped += "\\";
+                escaped += c;
+            }
+            else if (c == '"')
+            {
+                escaped += "\\\"";
+            }
+            else if (c == '\\')
+            {
+                escaped += "\\\\";
+            }
+            else if (c == '\n')
+            {
+                escaped += "\\n";
+            }
+            else if (c == '\r')
+            {
+                // Skip carriage return
+            }
+            else if (c == '\t')
+            {
+                escaped += "    "; // Replace tab with spaces
+            }
+            else
+            {
+                escaped += c;
+            }
+        }
+        return escaped;
+    };
+
+    // Escape equation name
+    std::string escaped_name = escape_for_record(equation_name);
+
+    // Get and escape type
+    std::string type_str = ItemTypeConverter::ToString(equation->type());
+    std::string escaped_type = escape_for_record(type_str);
 
     // Truncate content if too long
     std::string content = equation->content();
-    const size_t max_content_length = 250;
+    const size_t max_content_length = 100;
     bool truncated = false;
     
     if (content.length() > max_content_length)
@@ -687,40 +730,23 @@ std::string EquationManager::GenerateEquationDotNodeLabel(const std::string &equ
         truncated = true;
     }
 
-    // Escape newlines and special characters in content for graphviz
-    std::string escaped_content;
-    for (char c : content)
-    {
-        if (c == '\n')
-        {
-            escaped_content += "\\n";
-        }
-        else if (c == '"')
-        {
-            escaped_content += "'"; // Replace quotes with single quotes
-        }
-        else if (c == '\\')
-        {
-            escaped_content += "\\\\";
-        }
-        else
-        {
-            escaped_content += c;
-        }
-    }
-
     if (truncated)
     {
-        escaped_content += "...";
+        content += "...";
     }
 
-    oss << escaped_content << "}";
+    // Escape content
+    std::string escaped_content = escape_for_record(content);
+
+    // Build record format: {name|{type|content}}
+    std::ostringstream oss;
+    oss << "{" << escaped_name << "|{" << escaped_type << "|" << escaped_content << "}}";
     return oss.str();
 }
 
-void EquationManager::WriteDependencyGraphToDotFile(const std::string &file_path) const
+bool EquationManager::WriteDependencyGraphToDotFile(const std::string &file_path) const
 {
-    graph_->WriteDotFile(file_path, [this](const std::string &node_name) {
+    return graph_->WriteDotFile(file_path, [this](const std::string &node_name) {
         return GenerateEquationDotNodeLabel(node_name);
     });
 }

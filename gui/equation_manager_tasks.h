@@ -3,7 +3,8 @@
 #include "core/equation_common.h"
 #include "core/equation_manager.h"
 #include "task/task.h"
-#include <string>
+
+#include <QSize>
 
 namespace xequation
 {
@@ -83,9 +84,27 @@ class EvalExpressionTask : public EquationManagerTask
 
   signals:
     void EvalCompleted(InterpretResult result);
+
   private:
     std::string expression_;
     InterpretResult result_;
 };
+
+class EquationDependencyGraphGenerationTask : public EquationManagerTask
+{
+    Q_OBJECT
+  public:
+    EquationDependencyGraphGenerationTask(const QString &title, EquationManager *manager);
+    ~EquationDependencyGraphGenerationTask() override = default;
+
+    void Execute() override;
+
+  signals:
+    void DependencyGraphImageGenerated(const QString &image_path);
+
+  private:
+    QString image_path_;
+};
+
 } // namespace gui
 } // namespace xequation

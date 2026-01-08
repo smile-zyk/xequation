@@ -152,7 +152,7 @@ bool EquationCompletionFilterModel::filterAcceptsRow(int source_row, const QMode
 
 	if (!filter_text_.isEmpty())
 	{
-		if (!word.contains(filter_text_, Qt::CaseInsensitive))
+		if (!word.startsWith(filter_text_, Qt::CaseInsensitive))
 		{
 			return false;
 		}

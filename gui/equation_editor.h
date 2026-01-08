@@ -7,8 +7,10 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QWidget>
+#include <qcompleter.h>
 
 #include "core/equation_group.h"
+#include "code_editor/completer_line_edit.h"
 #include "equation_completion_model.h"
 
 namespace xequation
@@ -19,7 +21,7 @@ class ContextSelectionWidget : public QWidget
 {
     Q_OBJECT
   public:
-    ContextSelectionWidget(EquationCompletionFilterModel* completion_filter_model, QWidget *parent = nullptr);
+    ContextSelectionWidget(EquationCompletionFilterModel* model, QWidget *parent = nullptr);
     ~ContextSelectionWidget() {}
     QString GetSelectedVariable() const;
     void OnComboBoxChanged(const QString &text);
@@ -30,7 +32,7 @@ class ContextSelectionWidget : public QWidget
     void SetupConnections();
 
   private:
-    EquationCompletionFilterModel* completion_filter_model_{};
+    EquationCompletionFilterModel* model_{};
     QComboBox *context_combo_box_;
     QLineEdit *context_filter_edit_;
     QListView *context_list_view_;
@@ -57,11 +59,12 @@ class EquationEditor : public QDialog
 
   private:
     const EquationGroup* group_{};
+    EquationCompletionFilterModel* context_selection_filter_model_{};
     EquationCompletionFilterModel* completion_filter_model_{};
     QLabel *equation_name_label_{};
     QLineEdit *equation_name_edit_{};
     QLabel *expression_label_{};
-    QLineEdit *expression_edit_{};
+    CompleterLineEdit *expression_edit_{};
     QPushButton *context_button_{};
     ContextSelectionWidget *context_selection_widget_{};
     QPushButton *insert_button_{};

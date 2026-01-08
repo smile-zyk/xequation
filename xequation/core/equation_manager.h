@@ -140,7 +140,7 @@ class EquationManager
 
     EquationGroupId AddEquationGroup(const std::string &equation_statement);
 
-    EquationGroupId AddSingleEquation(const std::string& equation_name, const std::string& equation_content);
+    EquationGroupId AddEquation(const std::string& equation_name, const std::string& equation_content);
 
     void EditEquationGroup(const EquationGroupId &group_id, const std::string &equation_statement);
 
@@ -164,7 +164,7 @@ class EquationManager
 
     void UpdateEquationStatus(const std::string &equation_name, ResultStatus status, const std::string& message = "");
 
-    void WriteDependencyGraphToDotFile(const std::string &file_path) const;
+    bool WriteDependencyGraphToDotFile(const std::string &file_path) const;
 
     const DependencyGraph &graph()
     {

@@ -1,11 +1,9 @@
 #pragma once
 
-#include <cstddef>
-#include <memory>
-#include <vector>
 #include <QString>
-#include <tsl/ordered_map.h>
+#include <QUuid>
 #include <core/value.h>
+#include <quuid.h>
 
 namespace xequation
 {
@@ -33,6 +31,7 @@ public:
     void set_value_item_type(const QString &value_item_type) { value_item_type_ = value_item_type; }
 
     const QString& name() const { return name_; }
+    const QUuid& id() const { return id_; }
     const Value& value() const { return value_; }
     const QString& type() const { return type_; }
     const QString& display_value() const { return display_value_; }
@@ -45,6 +44,7 @@ protected:
     ValueItem(const QString &name, const Value &value, ValueItem* parent = nullptr);
     ValueItem(const QString &name, const QString& display_value, const QString& type, ValueItem* parent = nullptr);
 private:
+    QUuid id_;
     QString name_;
     Value value_;
     QString type_;

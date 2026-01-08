@@ -39,10 +39,6 @@ TaskManager::~TaskManager()
 
 void TaskManager::EnqueueTask(std::unique_ptr<Task> task, int priority)
 {
-    if (task->id_.isNull())
-    {
-        task->id_ = QUuid::createUuid();
-    }
     task->create_time_ = QDateTime::currentDateTime();
     task->state_ = Task::State::kPending;
 

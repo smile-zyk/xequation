@@ -127,7 +127,7 @@ void EquationGroupEditor::SetupConnections()
 
 void EquationGroupEditor::OnOpen()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, "Open File", QString(), "Text Files (*.txt);;Python Files (*.py);;All Files (*.*)");
+    QString fileName = QFileDialog::getOpenFileName(this, "Open File", QString(), "Python Files (*.py)");
     if (fileName.isEmpty()) return;
 
     QFile file(fileName);
@@ -142,7 +142,7 @@ void EquationGroupEditor::OnOpen()
 
 void EquationGroupEditor::OnSave()
 {
-    QString fileName = QFileDialog::getSaveFileName(this, "Save File", QString(), "Text Files (*.txt);;Python Files (*.py);;All Files (*.*)");
+    QString fileName = QFileDialog::getSaveFileName(this, "Save File", QString(), "Python Files (*.py)");
     if (fileName.isEmpty()) return;
 
     QFile file(fileName);

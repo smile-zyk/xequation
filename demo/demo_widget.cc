@@ -5,23 +5,23 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QDateTime>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDir>
+#include <QFileDialog>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QProcess>
 #include <QStatusBar>
+#include <QSvgWidget>
 #include <QTextEdit>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QtConcurrent/QtConcurrent>
-#include <QFileDialog>
-#include <QDir>
-#include <QDateTime>
-#include <QProcess>
-#include <QSvgWidget>
-#include <QDialog>
-#include <QDialogButtonBox>
 
 #include "equation_editor.h"
 #include "equation_group_editor.h"
@@ -45,7 +45,9 @@ DemoWidget::DemoWidget(QWidget *parent)
     equation_completion_model_ =
         new xequation::gui::EquationCompletionModel(QString::fromStdString(equation_manager_->language()), this);
 
-    expression_watch_widget_ = new xequation::gui::ExpressionWatchWidget(this);
+    expression_watch_widget_ = new xequation::gui::ExpressionWatchWidget(equation_completion_model_, this);
+
+    dependency_graph_viewer_ = new xequation::gui::EquationDependencyGraphViewer(this);
 
     task_manager_ = new xequation::gui::ToastTaskManager(this, 1);
 
@@ -87,11 +89,20 @@ void DemoWidget::SetupConnections()
         expression_watch_widget_, &xequation::gui::ExpressionWatchWidget::OnAddExpressionToWatch
     );
 
-    connect (expression_watch_widget_, &xequation::gui::ExpressionWatchWidget::ParseResultRequested,
-        this, &DemoWidget::OnParseResultRequested);
+    connect(
+        expression_watch_widget_, &xequation::gui::ExpressionWatchWidget::ParseResultRequested, this,
+        &DemoWidget::OnParseResultRequested
+    );
 
-    connect (expression_watch_widget_, &xequation::gui::ExpressionWatchWidget::EvalResultAsyncRequested,
-        this, &DemoWidget::OnEvalResultAsyncRequested);
+    connect(
+        expression_watch_widget_, &xequation::gui::ExpressionWatchWidget::EvalResultAsyncRequested, this,
+        &DemoWidget::OnEvalResultAsyncRequested
+    );
+
+    connect(
+        dependency_graph_viewer_, &xequation::gui::EquationDependencyGraphViewer::DependencyGraphImageRequested, this,
+        &DemoWidget::OnEquationDependencyGraphImageRequested
+    );
 
     connect(
         mock_equation_list_widget_, &MockEquationGroupListWidget::EditEquationGroupRequested, this,
@@ -171,6 +182,21 @@ void DemoWidget::SetupConnections()
     xequation::gui::ConnectEquationSignalDirect<EquationEvent::kEquationRemoving>(
         &equation_manager_->signals_manager(), equation_completion_model_,
         &xequation::gui::EquationCompletionModel::OnEquationRemoving
+    );
+
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationGroupAdded>(
+        &equation_manager_->signals_manager(), dependency_graph_viewer_,
+        &xequation::gui::EquationDependencyGraphViewer::OnEquationGroupAdded
+    );
+
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationGroupUpdated>(
+        &equation_manager_->signals_manager(), dependency_graph_viewer_,
+        &xequation::gui::EquationDependencyGraphViewer::OnEquationGroupUpdated
+    );
+
+    xequation::gui::ConnectEquationSignalDirect<EquationEvent::kEquationGroupRemoving>(
+        &equation_manager_->signals_manager(), dependency_graph_viewer_,
+        &xequation::gui::EquationDependencyGraphViewer::OnEquationGroupRemoving
     );
 }
 
@@ -294,8 +320,7 @@ void DemoWidget::OnEditEquationGroupRequest(const xequation::EquationGroupId &id
         editor->setAttribute(Qt::WA_DeleteOnClose);
         editor->SetEquationGroup(equation_manager_->GetEquationGroup(id));
         connect(
-            editor, &xequation::gui::EquationGroupEditor::TextSubmitted,
-            [this, editor, id](const QString &statement) {
+            editor, &xequation::gui::EquationGroupEditor::TextSubmitted, [this, editor, id](const QString &statement) {
                 if (EditEquationGroup(id, statement.toStdString()))
                 {
                     editor->accept();
@@ -435,7 +460,7 @@ bool DemoWidget::AddEquation(const QString &equation_name, const QString &expres
 
     try
     {
-        auto id = equation_manager_->AddSingleEquation(equation_name.toStdString(), expression.toStdString());
+        auto id = equation_manager_->AddEquation(equation_name.toStdString(), expression.toStdString());
         single_equation_set_.insert(id);
         // Delay the async update to ensure GIL is fully released
         QTimer::singleShot(0, [this, id]() { AsyncUpdateEquationGroup(id); });
@@ -611,81 +636,9 @@ void DemoWidget::OnInsertEquationGroupRequest()
 
 void DemoWidget::OnShowDependencyGraph()
 {
-    try
-    {
-        // Create temp directory if it doesn't exist
-        QDir temp_dir("temp");
-        if (!temp_dir.exists())
-        {
-            temp_dir.mkpath(".");
-        }
-
-        // Generate timestamp-based filename
-        QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
-        QString dot_file = QString("temp/%1_dependency.dot").arg(timestamp);
-        QString svg_file = QString("temp/%1_dependency.svg").arg(timestamp);
-
-        // Write DOT file
-        equation_manager_->WriteDependencyGraphToDotFile(dot_file.toStdString());
-
-        // Generate SVG using graphviz dot command
-        QProcess process;
-        process.start("dot", QStringList() << "-Tsvg" << dot_file << "-o" << svg_file);
-        
-        if (!process.waitForFinished(5000))
-        {
-            QMessageBox::warning(this, "Error", "Failed to generate SVG: Graphviz timeout or not installed.", QMessageBox::Ok);
-            return;
-        }
-
-        if (process.exitCode() != 0)
-        {
-            QString error = process.readAllStandardError();
-            QMessageBox::warning(this, "Error", QString("Failed to generate SVG: %1").arg(error), QMessageBox::Ok);
-            return;
-        }
-
-        // Clean up old files (keep only the latest 10 pairs)
-        QStringList dot_files = temp_dir.entryList(QStringList() << "*_dependency.dot", QDir::Files, QDir::Name);
-        QStringList svg_files = temp_dir.entryList(QStringList() << "*_dependency.svg", QDir::Files, QDir::Name);
-        
-        if (dot_files.size() > 10)
-        {
-            for (int i = 0; i < dot_files.size() - 10; ++i)
-            {
-                temp_dir.remove(dot_files[i]);
-            }
-        }
-        
-        if (svg_files.size() > 10)
-        {
-            for (int i = 0; i < svg_files.size() - 10; ++i)
-            {
-                temp_dir.remove(svg_files[i]);
-            }
-        }
-
-        // Display SVG in a dialog with QSvgWidget
-        QDialog *dialog = new QDialog(this);
-        dialog->setWindowTitle("Dependency Graph");
-        dialog->resize(800, 600);
-        
-        QVBoxLayout *layout = new QVBoxLayout(dialog);
-        QSvgWidget *svg_widget = new QSvgWidget(svg_file, dialog);
-        layout->addWidget(svg_widget);
-        
-        QDialogButtonBox *button_box = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
-        connect(button_box, &QDialogButtonBox::rejected, dialog, &QDialog::accept);
-        layout->addWidget(button_box);
-        
-        dialog->setLayout(layout);
-        dialog->setAttribute(Qt::WA_DeleteOnClose);
-        dialog->show();
-    }
-    catch (const std::exception &e)
-    {
-        QMessageBox::warning(this, "Error", QString("Failed to show dependency graph: %1").arg(e.what()), QMessageBox::Ok);
-    }
+    dependency_graph_viewer_->show();
+    dependency_graph_viewer_->raise();
+    dependency_graph_viewer_->activateWindow();
 }
 
 void DemoWidget::OnShowEquationManager()
@@ -714,16 +667,28 @@ void DemoWidget::OnParseResultRequested(const QString &expression, xequation::Pa
     result = equation_manager_->Parse(expression.toStdString(), xequation::ParseMode::kExpression);
 }
 
-void DemoWidget::OnEvalResultAsyncRequested(xequation::gui::ValueItem *item)
+void DemoWidget::OnEvalResultAsyncRequested(const QUuid& id, const QString& expression)
 {
-    gui::EvalExpressionTask* task = new gui::EvalExpressionTask(
-        "Evaluate Expression",  equation_manager_.get(), item->name().toStdString()
-    );
+    gui::EvalExpressionTask *task =
+        new gui::EvalExpressionTask("Evaluate Expression", equation_manager_.get(), expression.toStdString());
 
-    connect(task, &gui::EvalExpressionTask::EvalCompleted, this, [this, item](InterpretResult result)
-    {
-        expression_watch_widget_->OnEvalResultSubmitted(item, result);
+    connect(task, &gui::EvalExpressionTask::EvalCompleted, this, [this, id](InterpretResult result) {
+        expression_watch_widget_->OnEvalResultSubmitted(id, result);
     });
 
     task_manager_->EnqueueTask(std::unique_ptr<gui::EvalExpressionTask>(task));
+}
+
+void DemoWidget::OnEquationDependencyGraphImageRequested()
+{
+    gui::EquationDependencyGraphGenerationTask *task = new gui::EquationDependencyGraphGenerationTask(
+        "Generate Dependency Graph", equation_manager_.get()
+    );
+
+    connect(
+        task, &gui::EquationDependencyGraphGenerationTask::DependencyGraphImageGenerated, this,
+        [this](const QString &image_path) { dependency_graph_viewer_->OnDependencyGraphImageGenerated(image_path); }
+    );
+
+    task_manager_->EnqueueTask(std::unique_ptr<gui::EquationDependencyGraphGenerationTask>(task));
 }

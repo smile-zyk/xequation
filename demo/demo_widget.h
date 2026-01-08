@@ -6,6 +6,7 @@
 #include <QWidget>
 #include <QMainWindow>
 #include <memory>
+#include <quuid.h>
 #include <unordered_set>
 
 #include "equation_browser_widget.h"
@@ -13,6 +14,7 @@
 #include "expression_watch_widget.h"
 #include "mock_equation_group_list_widget.h"
 #include "equation_completion_model.h"
+#include "equation_dependency_graph_viewer.h"
 #include "task/toast_task_manager.h"
 
 class QMenu;
@@ -44,7 +46,8 @@ private:
     void OnShowEquationInspector();
     void OnShowExpressionWatch();
     void OnParseResultRequested(const QString& expression, xequation::ParseResult &result);
-    void OnEvalResultAsyncRequested(xequation::gui::ValueItem* item);
+    void OnEvalResultAsyncRequested(const QUuid& id, const QString& expression);
+    void OnEquationDependencyGraphImageRequested();
 
     bool AddEquationGroup(const std::string& statement);
     bool EditEquationGroup(const xequation::EquationGroupId& id, const std::string& statement);
@@ -87,4 +90,5 @@ private:
     xequation::gui::VariableInspectWidget* variable_inspect_widget_;
     xequation::gui::ExpressionWatchWidget* expression_watch_widget_;
     xequation::gui::EquationCompletionModel* equation_completion_model_;
+    xequation::gui::EquationDependencyGraphViewer* dependency_graph_viewer_;
 };

@@ -5,8 +5,8 @@ namespace xequation
 namespace gui
 {
 
-Task::Task(const QString& title, QObject *parent)
-    : QObject(parent), state_(State::kPending), title_(title) 
+Task::Task(const QString &title, QObject *parent)
+    : QObject(parent), state_(State::kPending), title_(title), id_(QUuid::createUuid())
 {
     connect(this, &Task::Completed, this, &Task::Finished);
     connect(this, &Task::Cancelled, this, &Task::Finished);

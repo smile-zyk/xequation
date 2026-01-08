@@ -19,6 +19,8 @@ equation_group_editor.h
 equation_group_editor.cc
 equation_completion_model.h
 equation_completion_model.cc
+equation_dependency_graph_viewer.h
+equation_dependency_graph_viewer.cc
 value_model_view/value_item_builder.h
 value_model_view/value_item_builder.cc
 value_model_view/value_tree_model.h
@@ -29,6 +31,10 @@ value_model_view/value_item.h
 value_model_view/value_item.cc
 value_model_view/python_item_builder.h
 value_model_view/python_item_builder.cc
+code_editor/completer_line_edit.h
+code_editor/completer_line_edit.cc
+code_editor/completer_delegate.h
+code_editor/completer_delegate.cc
 code_editor/completion_list_model.h
 code_editor/completion_list_model.cc
 code_editor/code_completer.h

@@ -4,11 +4,13 @@
 #include "value_model_view/value_item.h"
 #include "value_model_view/value_tree_model.h"
 #include "value_model_view/value_tree_view.h"
+#include "code_editor/completer_delegate.h"
+#include "equation_completion_model.h"
 
 #include <QEvent>
 #include <boost/bimap.hpp>
 #include <boost/bimap/multiset_of.hpp>
-#include <map>
+#include <quuid.h>
 
 namespace xequation
 {
@@ -28,12 +30,12 @@ class ExpressionWatchModel : public ValueTreeModel
     Qt::ItemFlags flags(const QModelIndex &index) const override;
     bool IsPlaceHolderIndex(const QModelIndex &index) const;
     void AddWatchItem(ValueItem *item);
-    void RemoveWatchItem(ValueItem *item);
-    void ReplaceWatchItem(ValueItem *old_item, ValueItem *new_item);
+    void RemoveWatchItem(const QUuid& id);
+    void ReplaceWatchItem(const QUuid& id, ValueItem *new_item);
   signals:
-    void RequestAddWatchItem(const QString &expression);
-    void RequestRemoveWatchItem(ValueItem *item);
-    void RequestReplaceWatchItem(ValueItem *old_item, const QString &new_expression);
+    void AddWatchItemRequested(const QString &expression);
+    void RemoveWatchItemRequested(const QUuid& id);
+    void ReplaceWatchItemRequested(const QUuid& id, const QString &new_expression);
 
   private:
     void *placeholder_flag_ = nullptr;
@@ -43,27 +45,27 @@ class ExpressionWatchWidget : public QWidget
 {
     Q_OBJECT
   public:
-    ExpressionWatchWidget(QWidget *parent = nullptr);
+    ExpressionWatchWidget(EquationCompletionModel* completion_model, QWidget *parent = nullptr);
     ~ExpressionWatchWidget() = default;
     void OnEquationRemoved(const std::string &equation_name);
     void OnEquationUpdated(const Equation *equation, bitmask::bitmask<EquationUpdateFlag> change_type);
     void OnAddExpressionToWatch(const QString &expression);
-    void OnEvalResultSubmitted(ValueItem* item, const InterpretResult& result);
+    void OnEvalResultSubmitted(const QUuid& id, const InterpretResult& result);
     
   signals:
     void ParseResultRequested(const QString& expression, ParseResult &result);
-    void EvalResultAsyncRequested(ValueItem* item);
+    void EvalResultAsyncRequested(const QUuid& id, const QString& expression);
 
   protected:
     void SetupUI();
     void SetupConnections();
     static int GetSelectionFlags(const QModelIndexList &indexes, ExpressionWatchModel *model);
     ValueItem *CreateWatchItem(const QString &expression);
-    void DeleteWatchItem(ValueItem *item);
+    void DeleteWatchItem(const QUuid& id);
     void SetCurrentItemToPlaceholder();
     void OnRequestAddWatchItem(const QString &expression);
-    void OnRequestRemoveWatchItem(ValueItem *item);
-    void OnRequestReplaceWatchItem(ValueItem *old_item, const QString &new_expression);
+    void OnRequestRemoveWatchItem(const QUuid& id);
+    void OnRequestReplaceWatchItem(const QUuid& id, const QString &new_expression);
 
     void OnCustomContextMenuRequested(const QPoint &pos);
     void OnSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
@@ -76,12 +78,14 @@ class ExpressionWatchWidget : public QWidget
     bool eventFilter(QObject *obj, QEvent *event) override;
 
   private:
-    typedef boost::bimaps::bimap<boost::bimaps::multiset_of<ValueItem *>, boost::bimaps::multiset_of<std::string>>
+    typedef boost::bimaps::bimap<boost::bimaps::multiset_of<QUuid>, boost::bimaps::multiset_of<std::string>>
         ExpressionItemEquationNameBimap;
     ExpressionWatchModel *model_;
     ValueTreeView *view_;
+    EquationCompletionModel* completion_model_;
+    CompleterDelegate *completer_delegate_;
     ExpressionItemEquationNameBimap expression_item_equation_name_bimap_;
-    std::multimap<std::string, ValueItem::UniquePtr> expression_item_map_;
+    std::map<QUuid, ValueItem::UniquePtr> expression_item_map_;
 
     // actions
     QAction *copy_action_{};

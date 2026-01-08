@@ -3,8 +3,6 @@
 #include <QAbstractListModel>
 #include <QMap>
 #include <QSet>
-#include <qchar.h>
-
 
 namespace xequation
 {

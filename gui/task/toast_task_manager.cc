@@ -27,7 +27,7 @@ void ToastTaskManager::SetupConnections()
     connect(toast_manager_, &ToastManager::ProgressCancelRequested, this, &ToastTaskManager::OnToastProgressCancelRequested);
 }
 
-void ToastTaskManager::OnTaskQueued(const QUuid &task_id) 
+void ToastTaskManager::OnTaskQueued(const QUuid &task_id)
 {
     Task* task = GetTask(task_id);
     if(task == nullptr)

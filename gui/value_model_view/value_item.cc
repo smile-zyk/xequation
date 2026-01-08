@@ -7,12 +7,12 @@ namespace gui
 {
 
 ValueItem::ValueItem(const QString &name, const Value &value, ValueItem *parent)
-    : name_(name), value_(value), parent_(parent)
+    : name_(name), value_(value), parent_(parent), id_(QUuid::createUuid())
 {
 }
 
 ValueItem::ValueItem(const QString &name, const QString &display_value, const QString &type, ValueItem *parent)
-    : name_(name), value_(), type_(type), display_value_(display_value), parent_(parent)
+    : name_(name), value_(), type_(type), display_value_(display_value), parent_(parent), id_(QUuid::createUuid())
 {
 }
 

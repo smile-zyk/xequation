@@ -1,7 +1,12 @@
 #include "equation_manager_tasks.h"
 #include "core/equation_common.h"
 #include "python/python_qt_wrapper.h"
+#include <QDir>
+#include <QProcess>
 #include <QThread>
+#include <QFont>
+#include <QFontDatabase>
+
 
 namespace xequation
 {
@@ -145,6 +150,96 @@ void EvalExpressionTask::Execute()
         return;
     }
     SetProgress(100, "Evaluation completed.");
+}
+
+EquationDependencyGraphGenerationTask::EquationDependencyGraphGenerationTask(
+    const QString &title, EquationManager *manager
+)
+    : EquationManagerTask(title, manager)
+{
+    connect(this, &Task::Finished, this, [this](QUuid id) { emit DependencyGraphImageGenerated(image_path_); });
+}
+
+void EquationDependencyGraphGenerationTask::Execute()
+{
+    EquationManagerTask::Execute();
+    SetProgress(0, "Starting dependency graph generation...");
+    QDir temp_dir("temp");
+    if (!temp_dir.exists())
+    {
+        temp_dir.mkpath(".");
+    }
+    SetProgress(10, "Generating dependency graph DOT file...");
+    // Generate SVG using graphviz dot command
+    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    QString dot_file = QString("temp/%1_dependency.dot").arg(timestamp);
+    QString svg_file = QString("temp/%1_dependency.svg").arg(timestamp);
+    bool result = equation_manager()->WriteDependencyGraphToDotFile(dot_file.toStdString());
+    if (!result)
+    {
+        SetProgress(0, "Failed to generate DOT file.");
+        return;
+    }
+
+    // clear old temp files, keep only last 10 files
+    QStringList dot_files = temp_dir.entryList(QStringList() << "*_dependency.dot", QDir::Files, QDir::Name);
+    QStringList svg_files = temp_dir.entryList(QStringList() << "*_dependency.svg", QDir::Files, QDir::Name);
+    QStringList png_files = temp_dir.entryList(QStringList() << "*_dependency.png", QDir::Files, QDir::Name);
+
+    if (dot_files.size() > 10)
+    {
+        for (int i = 0; i < dot_files.size() - 10; ++i)
+        {
+            temp_dir.remove(dot_files[i]);
+        }
+    }
+
+    if (svg_files.size() > 10)
+    {
+        for (int i = 0; i < svg_files.size() - 10; ++i)
+        {
+            temp_dir.remove(svg_files[i]);
+        }
+    }
+
+    if (png_files.size() > 10)
+    {
+        for (int i = 0; i < png_files.size() - 10; ++i)
+        {
+            temp_dir.remove(png_files[i]);
+        }
+    }
+
+    SetProgress(60, "Converting DOT file to SVG...");
+    QProcess process;
+    
+    // Get fixed-width font for better readability
+    QFont fixed_font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    QString font_name = fixed_font.family();
+    
+    QStringList args;
+    args << "-Tsvg"
+         << "-Gfontname=" + font_name     // Set graph font
+         << "-Nfontname=" + font_name     // Set node font
+         << "-Efontname=" + font_name     // Set edge font
+         << dot_file 
+         << "-o" 
+         << svg_file;
+    
+    process.start("dot", args);
+    if (!process.waitForFinished(5000))
+    {
+        SetProgress(60, "Failed to generate dependency graph: Graphviz timeout or not installed.");
+        return;
+    }
+    if (process.exitCode() != 0)
+    {
+        QString error = process.readAllStandardError();
+        SetProgress(60, "Failed to generate dependency graph");
+        return;
+    }
+    image_path_ = svg_file;
+    SetProgress(100, "Successfully generated dependency graph");
 }
 } // namespace gui
 } // namespace xequation
