@@ -53,6 +53,7 @@ void ContextSelectionWidget::SetupConnections()
 {
     connect(context_combo_box_, &QComboBox::currentTextChanged, this, &ContextSelectionWidget::OnComboBoxChanged);
     connect(context_filter_edit_, &QLineEdit::textChanged, this, &ContextSelectionWidget::OnFilterTextChanged);
+    connect(context_list_view_, &QListView::doubleClicked, this, &ContextSelectionWidget::OnListViewDoubleClicked);
 }
 
 QString ContextSelectionWidget::GetSelectedVariable() const
@@ -60,7 +61,7 @@ QString ContextSelectionWidget::GetSelectedVariable() const
     QModelIndex current_index = context_list_view_->currentIndex();
     if (current_index.isValid())
     {
-        return current_index.data().toString();
+        return current_index.data(Qt::DisplayRole).toString();
     }
     return QString();
 }
@@ -73,6 +74,15 @@ void ContextSelectionWidget::OnComboBoxChanged(const QString &text)
 void ContextSelectionWidget::OnFilterTextChanged(const QString &text)
 {
     model_->SetFilterText(text);
+}
+
+void ContextSelectionWidget::OnListViewDoubleClicked(const QModelIndex &index)
+{
+    if (index.isValid())
+    {
+        QString variable = index.data().toString();
+        emit VariableDoubleClicked(variable);
+    }
 }
 
 EquationEditor::EquationEditor(EquationCompletionModel* language_model, QWidget *parent)
@@ -114,6 +124,7 @@ void EquationEditor::SetupUI()
     expression_label_ = new QLabel("Expression:", this);
     expression_edit_ = new CompletionLineEdit(this);
     insert_button_ = new QPushButton("Insert", this);
+    switch_to_group_button_ = new QPushButton("Switch to Group", this);
     ok_button_ = new QPushButton("OK", this);
     cancel_button_ = new QPushButton("Cancel", this);
 
@@ -142,6 +153,7 @@ void EquationEditor::SetupUI()
     context_layout->addLayout(context_button_layout);
     context_layout->addWidget(context_selection_widget_);
 
+    button_layout->addWidget(switch_to_group_button_);
     button_layout->addStretch();
     button_layout->addWidget(insert_button_);
     button_layout->addWidget(ok_button_);
@@ -162,8 +174,10 @@ void EquationEditor::SetupConnections()
 {
     connect(context_button_, &QPushButton::clicked, this, &EquationEditor::OnContextButtonClicked);
     connect(insert_button_, &QPushButton::clicked, this, &EquationEditor::OnInsertButtonClicked);
+    connect(switch_to_group_button_, &QPushButton::clicked, this, &EquationEditor::OnSwitchToGroupEditorClicked);
     connect(ok_button_, &QPushButton::clicked, this, &EquationEditor::OnOkButtonClicked);
     connect(cancel_button_, &QPushButton::clicked, this, &QDialog::reject);
+    connect(context_selection_widget_, &ContextSelectionWidget::VariableDoubleClicked, this, &EquationEditor::OnVariableDoubleClicked);
 }
 
 void EquationEditor::OnContextButtonClicked()
@@ -189,6 +203,37 @@ void EquationEditor::OnInsertButtonClicked()
     {
         expression_edit_->insert(select_variable);
     }
+}
+
+void EquationEditor::OnVariableDoubleClicked(const QString& variable)
+{
+    if (variable.isEmpty() == false)
+    {
+        expression_edit_->insert(variable);
+    }
+}
+
+void EquationEditor::OnSwitchToGroupEditorClicked()
+{
+    QString name = equation_name_edit_->text().trimmed();
+    QString expression = expression_edit_->text().trimmed();
+    QString initial_text;
+    
+    if (!name.isEmpty() && !expression.isEmpty())
+    {
+        initial_text = name + " = " + expression;
+    }
+    else if (!name.isEmpty())
+    {
+        initial_text = name + " = ";
+    }
+    else if (!expression.isEmpty())
+    {
+        initial_text = expression;
+    }
+    
+    emit SwitchToGroupEditorRequest(initial_text);
+    accept();  // Close this dialog
 }
 
 void EquationEditor::OnOkButtonClicked()

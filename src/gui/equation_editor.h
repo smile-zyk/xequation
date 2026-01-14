@@ -27,11 +27,16 @@ class ContextSelectionWidget : public QWidget
     void OnComboBoxChanged(const QString &text);
     void OnFilterTextChanged(const QString &text);
 
+  signals:
+    void VariableDoubleClicked(const QString& variable);
+
   protected:
     void SetupUI();
     void SetupConnections();
 
   private:
+    void OnListViewDoubleClicked(const QModelIndex &index);
+
     EquationCompletionFilterModel* model_{};
     QComboBox *context_combo_box_;
     QLineEdit *context_filter_edit_;
@@ -49,12 +54,16 @@ class EquationEditor : public QDialog
   signals:
     void AddEquationRequest(const QString& equation_name, const QString& expression);
     void EditEquationRequest(const EquationGroupId& group_id, const QString& equation_name, const QString& expression);
+    void VariableInsertRequested(const QString& variable);
+    void SwitchToGroupEditorRequest(const QString& initial_text);
 
   private:
     void SetupUI();
     void SetupConnections();
     void OnContextButtonClicked();
     void OnInsertButtonClicked();
+    void OnVariableDoubleClicked(const QString& variable);
+    void OnSwitchToGroupEditorClicked();
     void OnOkButtonClicked();
 
   private:
@@ -67,8 +76,7 @@ class EquationEditor : public QDialog
     CompletionLineEdit *expression_edit_{};
     QPushButton *context_button_{};
     ContextSelectionWidget *context_selection_widget_{};
-    QPushButton *insert_button_{};
-    QPushButton *ok_button_{};
+    QPushButton *insert_button_{};    QPushButton *switch_to_group_button_;    QPushButton *ok_button_{};
     QPushButton *cancel_button_{};
 };
 } // namespace gui

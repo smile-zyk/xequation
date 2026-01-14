@@ -35,6 +35,7 @@ EquationGroupEditor::~EquationGroupEditor()
 
 void EquationGroupEditor::SetEquationGroup(const EquationGroup* group)
 {
+    group_ = group;
     if(!group)
     {
         return;
@@ -192,7 +193,25 @@ void EquationGroupEditor::OnSwitchMode()
 
 void EquationGroupEditor::OnOkClicked()
 {
-    emit TextSubmitted(GetText());
+    QString text = GetText().trimmed();
+    
+    if (text.isEmpty())
+    {
+        QMessageBox::warning(this, "Warning", "Equation group content is empty!", QMessageBox::Ok);
+        return;
+    }
+    
+    emit TextSubmitted(text);  // Keep for backward compatibility
+    
+    // Emit unified signals
+    if (group_)
+    {
+        emit EditGroupRequest(group_->id(), text);
+    }
+    else
+    {
+        emit AddGroupRequest(text);
+    }
 }
 
 void EquationGroupEditor::OnCancelClicked()

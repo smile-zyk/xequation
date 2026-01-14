@@ -78,7 +78,6 @@ void DemoWidget::SetupConnections()
     connect(open_action_, &QAction::triggered, this, &DemoWidget::OnOpen);
     connect(exit_action_, &QAction::triggered, qApp, &QApplication::quit);
     connect(insert_equation_action_, &QAction::triggered, this, &DemoWidget::OnInsertEquationRequest);
-    connect(insert_equation_group_action_, &QAction::triggered, this, &DemoWidget::OnInsertEquationGroupRequest);
     connect(update_all_action_, &QAction::triggered, this, &DemoWidget::AsyncUpdateManager);
     connect(show_dependency_graph_action_, &QAction::triggered, this, &DemoWidget::OnShowDependencyGraph);
     connect(show_equation_manager_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationManager);
@@ -213,10 +212,7 @@ void DemoWidget::CreateActions()
 
     // Edit menu actions
     insert_equation_action_ = new QAction("Insert Equation", this);
-    insert_equation_action_->setStatusTip("Insert a single equation");
-
-    insert_equation_group_action_ = new QAction("Insert Equation Group", this);
-    insert_equation_group_action_->setStatusTip("Insert multiple equations");
+    insert_equation_action_->setStatusTip("Insert a new equation (can switch to group mode)");
 
     update_all_action_ = new QAction("Update All Equations", this);
     update_all_action_->setStatusTip("Update all equations in the manager");
@@ -263,7 +259,6 @@ void DemoWidget::CreateMenus()
     // Edit menu
     edit_menu_ = menuBar()->addMenu("&Edit");
     edit_menu_->addAction(insert_equation_action_);
-    edit_menu_->addAction(insert_equation_group_action_);
     edit_menu_->addAction(update_all_action_);
 
     // View menu
@@ -282,11 +277,40 @@ void DemoWidget::OnInsertEquationRequest()
     connect(
         editor, &xequation::gui::EquationEditor::AddEquationRequest,
         [this, editor](const QString &equation_name, const QString &expression) {
-            xequation::EquationGroupId id;
             if (AddEquation(equation_name, expression))
             {
                 editor->accept();
             }
+        }
+    );
+    
+    // Handle switch to group editor for new equation
+    connect(
+        editor, &xequation::gui::EquationEditor::SwitchToGroupEditorRequest,
+        [this](const QString &initial_text) {
+            // Use QTimer to ensure EquationEditor closes first
+            QTimer::singleShot(0, [this, initial_text]() {
+                xequation::gui::EquationGroupEditor *group_editor =
+                    new xequation::gui::EquationGroupEditor(equation_completion_model_, this, "Insert Equation Group");
+                group_editor->setAttribute(Qt::WA_DeleteOnClose);
+                
+                if (!initial_text.isEmpty())
+                {
+                    group_editor->SetText(initial_text);
+                }
+                
+                connect(
+                    group_editor, &xequation::gui::EquationGroupEditor::TextSubmitted,
+                    [this, group_editor](const QString &statement) {
+                        if (AddEquationGroup(statement.toStdString()))
+                        {
+                            group_editor->accept();
+                        }
+                    }
+                );
+                
+                group_editor->exec();
+            });
         }
     );
 
@@ -295,11 +319,22 @@ void DemoWidget::OnInsertEquationRequest()
 
 void DemoWidget::OnEditEquationGroupRequest(const xequation::EquationGroupId &id)
 {
-    if (single_equation_set_.count(id) != 0)
+    auto group = equation_manager_->GetEquationGroup(id);
+    if (!group)
     {
-        auto group = equation_manager_->GetEquationGroup(id);
+        return;
+    }
+    
+    // Decide which editor to open based on editor_type_map_
+    auto it = editor_type_map_.find(id);
+    EditorType editor_type = (it != editor_type_map_.end()) ? it->second : EditorType::SingleEquation;
+    
+    if (editor_type == EditorType::SingleEquation)
+    {
+        // Open EquationEditor
         xequation::gui::EquationEditor *editor = new xequation::gui::EquationEditor(equation_completion_model_, this);
         editor->SetEquationGroup(group);
+        
         connect(
             editor, &xequation::gui::EquationEditor::EditEquationRequest,
             [this, editor](const EquationGroupId &group_id, const QString &equation_name, const QString &expression) {
@@ -309,18 +344,53 @@ void DemoWidget::OnEditEquationGroupRequest(const xequation::EquationGroupId &id
                 }
             }
         );
+        
+        // Handle switch to group editor
+        connect(
+            editor, &xequation::gui::EquationEditor::SwitchToGroupEditorRequest,
+            [this, id](const QString &initial_text) {
+                // Use QTimer to ensure EquationEditor closes first
+                QTimer::singleShot(0, [this, id, initial_text]() {
+                    xequation::gui::EquationGroupEditor *group_editor =
+                        new xequation::gui::EquationGroupEditor(equation_completion_model_, this, "Edit Equation Group");
+                    group_editor->setAttribute(Qt::WA_DeleteOnClose);
+                    group_editor->SetEquationGroup(equation_manager_->GetEquationGroup(id));
+                    
+                    if (!initial_text.isEmpty())
+                    {
+                        group_editor->SetText(initial_text);
+                    }
+                    
+                    connect(
+                        group_editor, &xequation::gui::EquationGroupEditor::TextSubmitted,
+                        [this, group_editor, id](const QString &statement) {
+                            if (EditEquationGroup(id, statement.toStdString()))
+                            {
+                                // Mark as converted to group editor
+                                editor_type_map_[id] = EditorType::Group;
+                                group_editor->accept();
+                            }
+                        }
+                    );
+                    
+                    group_editor->exec();
+                });
+            }
+        );
 
         editor->exec();
     }
-
-    if (equation_group_set_.count(id) != 0)
+    else  // EditorType::Group
     {
+        // Open EquationGroupEditor
         xequation::gui::EquationGroupEditor *editor =
             new xequation::gui::EquationGroupEditor(equation_completion_model_, this, "Edit Equation Group");
         editor->setAttribute(Qt::WA_DeleteOnClose);
-        editor->SetEquationGroup(equation_manager_->GetEquationGroup(id));
+        editor->SetEquationGroup(group);
+        
         connect(
-            editor, &xequation::gui::EquationGroupEditor::TextSubmitted, [this, editor, id](const QString &statement) {
+            editor, &xequation::gui::EquationGroupEditor::TextSubmitted,
+            [this, editor, id](const QString &statement) {
                 if (EditEquationGroup(id, statement.toStdString()))
                 {
                     editor->accept();
@@ -336,15 +406,7 @@ void DemoWidget::OnRemoveEquationGroupRequest(const xequation::EquationGroupId &
 {
     if (RemoveEquationGroup(id))
     {
-        if (single_equation_set_.count(id) != 0)
-        {
-            single_equation_set_.erase(id);
-        }
-
-        if (equation_group_set_.count(id) != 0)
-        {
-            equation_group_set_.erase(id);
-        }
+        editor_type_map_.erase(id);
     }
 }
 
@@ -388,7 +450,7 @@ bool DemoWidget::AddEquationGroup(const std::string &statement)
     try
     {
         auto id = equation_manager_->AddEquationGroup(statement);
-        equation_group_set_.insert(id);
+        editor_type_map_[id] = EditorType::Group;
         // Delay the async update to ensure GIL is fully released
         QTimer::singleShot(0, [this, id]() { AsyncUpdateEquationGroup(id); });
         return true;
@@ -461,7 +523,7 @@ bool DemoWidget::AddEquation(const QString &equation_name, const QString &expres
     try
     {
         auto id = equation_manager_->AddEquation(equation_name.toStdString(), expression.toStdString());
-        single_equation_set_.insert(id);
+        editor_type_map_[id] = EditorType::SingleEquation;
         // Delay the async update to ensure GIL is fully released
         QTimer::singleShot(0, [this, id]() { AsyncUpdateEquationGroup(id); });
         return true;
@@ -616,22 +678,6 @@ void DemoWidget::OnEquationSelected(const xequation::Equation *equation)
 
     mock_equation_list_widget_->blockSignals(false);
     variable_inspect_widget_->blockSignals(false);
-}
-
-void DemoWidget::OnInsertEquationGroupRequest()
-{
-    xequation::gui::EquationGroupEditor *editor =
-        new xequation::gui::EquationGroupEditor(equation_completion_model_, this, "Insert Equation Group");
-    editor->setAttribute(Qt::WA_DeleteOnClose);
-    connect(editor, &xequation::gui::EquationGroupEditor::TextSubmitted, [this, editor](const QString &statement) {
-        xequation::EquationGroupId id;
-        if (AddEquationGroup(statement.toStdString()))
-        {
-            editor->accept();
-        }
-    });
-
-    editor->exec();
 }
 
 void DemoWidget::OnShowDependencyGraph()

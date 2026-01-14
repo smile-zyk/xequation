@@ -23,8 +23,12 @@ public:
     QString GetText() const;
     void SetText(const QString &text);
     void ClearText();
+    
 signals:
     void TextSubmitted(const QString &text);
+    // Unified signal for both add and edit operations
+    void AddGroupRequest(const QString &text);
+    void EditGroupRequest(const EquationGroupId& group_id, const QString &text);
 protected:
     void SetupUI();
     void SetupConnections();
@@ -47,6 +51,8 @@ private:
     CodeCompleter* editor_completer_{};
     QString language_name_{};
     EquationCompletionFilterModel* equation_completion_filter_model_{};
+    
+    const EquationGroup* group_{};  // Store group for edit mode
 
     QPushButton *ok_button_{};
     QPushButton *cancel_button_{};

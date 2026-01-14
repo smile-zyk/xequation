@@ -7,7 +7,6 @@
 #include <QMainWindow>
 #include <memory>
 #include <quuid.h>
-#include <unordered_set>
 
 #include "equation_browser_widget.h"
 #include "variable_inspect_widget.h"
@@ -16,6 +15,14 @@
 #include "equation_completion_model.h"
 #include "equation_dependency_graph_viewer.h"
 #include "task/toast_task_manager.h"
+
+namespace {
+enum class EditorType
+{
+    SingleEquation,  // Use EquationEditor
+    Group           // Use EquationGroupEditor
+};
+}
 
 class QMenu;
 class QAction;
@@ -40,7 +47,6 @@ private:
     void OnAddEquationGroupToExpressionWatchRequest(const xequation::EquationGroupId& id);
     void OnEquationGroupSelected(const xequation::EquationGroupId& id);
     void OnEquationSelected(const xequation::Equation* equation);
-    void OnInsertEquationGroupRequest();
     void OnShowDependencyGraph();
     void OnShowEquationManager();
     void OnShowEquationInspector();
@@ -73,7 +79,6 @@ private:
     QAction *open_action_;
     QAction *exit_action_;
     QAction *insert_equation_action_;
-    QAction *insert_equation_group_action_;
     QAction *update_all_action_;
     QAction *show_dependency_graph_action_;
     QAction *show_equation_manager_action_;
@@ -83,8 +88,8 @@ private:
     std::unique_ptr<xequation::EquationManager> equation_manager_;
     xequation::gui::ToastTaskManager* task_manager_;
     
-    std::unordered_set<xequation::EquationGroupId> single_equation_set_;
-    std::unordered_set<xequation::EquationGroupId> equation_group_set_;
+    std::unordered_map<xequation::EquationGroupId, EditorType> editor_type_map_;
+    
     MockEquationGroupListWidget* mock_equation_list_widget_;
     xequation::gui::EquationBrowserWidget* equation_browser_widget_;
     xequation::gui::VariableInspectWidget* variable_inspect_widget_;
