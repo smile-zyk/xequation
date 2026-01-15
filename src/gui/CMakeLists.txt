@@ -15,8 +15,8 @@ equation_editor.h
 equation_editor.cc
 equation_manager_tasks.h
 equation_manager_tasks.cc
-equation_group_editor.h
-equation_group_editor.cc
+equation_code_editor.h
+equation_code_editor.cc
 equation_completion_model.h
 equation_completion_model.cc
 equation_dependency_graph_viewer.h

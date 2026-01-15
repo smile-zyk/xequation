@@ -14,13 +14,15 @@
 #include "mock_equation_group_list_widget.h"
 #include "equation_completion_model.h"
 #include "equation_dependency_graph_viewer.h"
+#include "equation_editor.h"
+#include "equation_code_editor.h"
 #include "task/toast_task_manager.h"
 
 namespace {
 enum class EditorType
 {
-    SingleEquation,  // Use EquationEditor
-    Group           // Use EquationGroupEditor
+    Normal,
+    Code
 };
 }
 
@@ -64,6 +66,13 @@ private:
     void AsyncUpdateManager();
     void AsyncUpdateEquationsAfterRemoveGroup(const std::vector<std::string>& equation_names);
     
+    // Slots for persistent editors
+    void OnEquationEditorAddEquationRequest(const QString &equation_name, const QString &expression);
+    void OnEquationEditorUseCodeEditorRequest(const QString &initial_text);
+    void OnEquationEditorEditEquationRequest(const xequation::EquationGroupId &group_id, const QString &equation_name, const QString &expression);
+    void OnCodeEditorAddEquationRequest(const QString &statement);
+    void OnCodeEditorEditEquationRequest(const xequation::EquationGroupId& group_id, const QString &statement);
+    
 private:
     void SetupUI();
     void SetupConnections();
@@ -96,4 +105,8 @@ private:
     xequation::gui::ExpressionWatchWidget* expression_watch_widget_;
     xequation::gui::EquationCompletionModel* equation_completion_model_;
     xequation::gui::EquationDependencyGraphViewer* dependency_graph_viewer_;
+    
+    // Persistent editors - created once and reused
+    xequation::gui::EquationEditor* equation_editor_;
+    xequation::gui::EquationCodeEditor* equation_code_editor_;
 };

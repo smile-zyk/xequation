@@ -12,12 +12,12 @@ namespace xequation
 {
 namespace gui 
 {
-class EquationGroupEditor : public QDialog
+class EquationCodeEditor : public QDialog
 {
     Q_OBJECT
 public:
-    explicit EquationGroupEditor(EquationCompletionModel* language_model, QWidget *parent = nullptr, const QString &title = "text editor");
-    ~EquationGroupEditor();
+    explicit EquationCodeEditor(EquationCompletionModel* language_model, QWidget *parent = nullptr);
+    ~EquationCodeEditor();
 
     void SetEquationGroup(const EquationGroup* group);
     QString GetText() const;
@@ -25,13 +25,13 @@ public:
     void ClearText();
     
 signals:
-    void TextSubmitted(const QString &text);
-    // Unified signal for both add and edit operations
-    void AddGroupRequest(const QString &text);
-    void EditGroupRequest(const EquationGroupId& group_id, const QString &text);
+    void AddEquationRequest(const QString &text);
+    void EditEquationRequest(const EquationGroupId& group_id, const QString &statement);
 protected:
     void SetupUI();
     void SetupConnections();
+    void done(int result) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
     void OnOpen();
     void OnSave();

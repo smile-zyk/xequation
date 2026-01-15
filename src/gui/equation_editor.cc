@@ -5,11 +5,13 @@
 
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QMessageBox>
 #include <QVBoxLayout>
 #include <qcompleter.h>
 #include <qdialog.h>
 #include <qlistview.h>
+#include <qnamespace.h>
 
 namespace xequation
 {
@@ -61,7 +63,7 @@ QString ContextSelectionWidget::GetSelectedVariable() const
     QModelIndex current_index = context_list_view_->currentIndex();
     if (current_index.isValid())
     {
-        return current_index.data(Qt::DisplayRole).toString();
+        return current_index.data(Qt::EditRole).toString();
     }
     return QString();
 }
@@ -80,8 +82,53 @@ void ContextSelectionWidget::OnListViewDoubleClicked(const QModelIndex &index)
 {
     if (index.isValid())
     {
-        QString variable = index.data().toString();
+        QString variable = index.data(Qt::EditRole).toString();
         emit VariableDoubleClicked(variable);
+    }
+}
+
+void ContextSelectionWidget::ResetFilters()
+{
+    // Clear filter text
+    if (context_filter_edit_)
+    {
+        context_filter_edit_->blockSignals(true);
+        context_filter_edit_->clear();
+        context_filter_edit_->blockSignals(false);
+    }
+    // Reset combo box to first category
+    if (context_combo_box_)
+    {
+        context_combo_box_->blockSignals(true);
+        context_combo_box_->setCurrentIndex(0);
+        context_combo_box_->blockSignals(false);
+        OnComboBoxChanged(context_combo_box_->currentText());
+    }
+}
+
+void ContextSelectionWidget::RefreshCategories()
+{
+    // Reload categories from model
+    if (context_combo_box_)
+    {
+        context_combo_box_->blockSignals(true);
+        context_combo_box_->clear();
+        
+        if (model_)
+        {
+            auto categories = model_->GetAllCategories();
+            for (const auto &category : categories)
+            {
+                context_combo_box_->addItem(category.name);
+            }
+        }
+        
+        context_combo_box_->setCurrentIndex(0);
+        context_combo_box_->blockSignals(false);
+        if (context_combo_box_->count() > 0)
+        {
+            OnComboBoxChanged(context_combo_box_->currentText());
+        }
     }
 }
 
@@ -100,8 +147,16 @@ void EquationEditor::SetEquationGroup(const EquationGroup* group)
     group_ = group;
     context_selection_filter_model_->SetEquationGroup(group);
     completion_filter_model_->SetEquationGroup(group);
+    
+    // Refresh categories when group changes
+    if (context_selection_widget_)
+    {
+        context_selection_widget_->RefreshCategories();
+    }
+    
     if (group_ != nullptr)
     {
+        setWindowTitle("Edit Equation");
         const auto &equation_names = group_->GetEquationNames();
         if (equation_names.size() == 1)
         {
@@ -115,6 +170,10 @@ void EquationEditor::SetEquationGroup(const EquationGroup* group)
             expression_edit_->clear();
         }
     }
+    else
+    {
+        setWindowTitle("Insert Equation");
+    }
 }
 
 void EquationEditor::SetupUI()
@@ -124,7 +183,7 @@ void EquationEditor::SetupUI()
     expression_label_ = new QLabel("Expression:", this);
     expression_edit_ = new CompletionLineEdit(this);
     insert_button_ = new QPushButton("Insert", this);
-    switch_to_group_button_ = new QPushButton("Switch to Group", this);
+    switch_to_group_button_ = new QPushButton("Use Editor", this);
     ok_button_ = new QPushButton("OK", this);
     cancel_button_ = new QPushButton("Cancel", this);
 
@@ -232,8 +291,8 @@ void EquationEditor::OnSwitchToGroupEditorClicked()
         initial_text = expression;
     }
     
-    emit SwitchToGroupEditorRequest(initial_text);
-    accept();  // Close this dialog
+    emit UseCodeEditorRequest(initial_text);
+    reject();
 }
 
 void EquationEditor::OnOkButtonClicked()
@@ -261,6 +320,57 @@ void EquationEditor::OnOkButtonClicked()
     {
         emit EditEquationRequest(group_->id(), name, expression);
     }
+}
+
+void EquationEditor::ClearText()
+{
+    if (equation_name_edit_) equation_name_edit_->clear();
+    if (expression_edit_) expression_edit_->clear();
+}
+
+void EquationEditor::ResetState()
+{
+    // Reset all state except text fields
+    group_ = nullptr;
+    if (context_selection_filter_model_) context_selection_filter_model_->SetEquationGroup(nullptr);
+    if (completion_filter_model_) completion_filter_model_->SetEquationGroup(nullptr);
+    
+    // Reset context selection widget to initial state (hide and clear filters)
+    if (context_selection_widget_)
+    {
+        context_selection_widget_->setVisible(false);
+        context_selection_widget_->ResetFilters();
+    }
+    
+    if (insert_button_) insert_button_->setVisible(false);
+    if (context_button_) context_button_->setText("Context>>");
+}
+
+void EquationEditor::done(int result)
+{
+    ResetState();
+    ClearText();
+    QDialog::done(result);
+}
+
+void EquationEditor::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+    // Refresh categories when window is about to show
+    if (context_selection_widget_)
+    {
+        context_selection_widget_->RefreshCategories();
+    }
+}
+
+void EquationEditor::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Escape)
+    {
+        event->ignore();  // Ignore Escape key to prevent closing dialog
+        return;
+    }
+    QDialog::keyPressEvent(event);
 }
 } // namespace gui
 } // namespace xequation

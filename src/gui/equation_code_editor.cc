@@ -1,10 +1,11 @@
-#include "equation_group_editor.h"
+#include "equation_code_editor.h"
 #include "core/equation_group.h"
 #include "equation_completion_model.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFileDialog>
+#include <QKeyEvent>
 #include <QListView>
 #include <QFile>
 #include <QTextStream>
@@ -17,49 +18,51 @@ namespace xequation
 namespace gui
 {
 
-EquationGroupEditor::EquationGroupEditor(EquationCompletionModel* model, QWidget *parent, const QString &title)
+EquationCodeEditor::EquationCodeEditor(EquationCompletionModel* model, QWidget *parent)
     : QDialog(parent), language_name_(model->language_name())
 {
     equation_completion_filter_model_ = new EquationCompletionFilterModel(model, this);
 
-    setWindowTitle(title);
+    setWindowTitle("Insert Equation");
     setMinimumSize(800, 600);
 
     SetupUI();
     SetupConnections();
 }
 
-EquationGroupEditor::~EquationGroupEditor()
+EquationCodeEditor::~EquationCodeEditor()
 {
 }
 
-void EquationGroupEditor::SetEquationGroup(const EquationGroup* group)
+void EquationCodeEditor::SetEquationGroup(const EquationGroup* group)
 {
     group_ = group;
     if(!group)
     {
+        setWindowTitle("Insert Equation");
         return;
     }
+    setWindowTitle("Edit Equation");
     equation_completion_filter_model_->SetEquationGroup(group);
     SetText(QString::fromStdString(group->statement()));
 }
 
-QString EquationGroupEditor::GetText() const
+QString EquationCodeEditor::GetText() const
 {
     return editor_ ? editor_->toPlainText() : QString();
 }
 
-void EquationGroupEditor::SetText(const QString &text)
+void EquationCodeEditor::SetText(const QString &text)
 {
     if (editor_) editor_->setPlainText(text);
 }
 
-void EquationGroupEditor::ClearText()
+void EquationCodeEditor::ClearText()
 {
     if (editor_) editor_->clear();
 }
 
-void EquationGroupEditor::SetupUI()
+void EquationCodeEditor::SetupUI()
 {
     // Toolbar with actions
     tool_bar_ = new QToolBar(this);
@@ -111,22 +114,22 @@ void EquationGroupEditor::SetupUI()
     main_layout->addLayout(button_layout);
 }
 
-void EquationGroupEditor::SetupConnections()
+void EquationCodeEditor::SetupConnections()
 {
     // Toolbar actions
-    connect(open_action_, &QAction::triggered, this, &EquationGroupEditor::OnOpen);
-    connect(save_action_, &QAction::triggered, this, &EquationGroupEditor::OnSave);
-    connect(reset_action_, &QAction::triggered, this, &EquationGroupEditor::OnReset);
-    connect(undo_action_, &QAction::triggered, this, &EquationGroupEditor::OnUndo);
-    connect(redo_action_, &QAction::triggered, this, &EquationGroupEditor::OnRedo);
-    connect(switch_mode_action_, &QAction::triggered, this, &EquationGroupEditor::OnSwitchMode);
+    connect(open_action_, &QAction::triggered, this, &EquationCodeEditor::OnOpen);
+    connect(save_action_, &QAction::triggered, this, &EquationCodeEditor::OnSave);
+    connect(reset_action_, &QAction::triggered, this, &EquationCodeEditor::OnReset);
+    connect(undo_action_, &QAction::triggered, this, &EquationCodeEditor::OnUndo);
+    connect(redo_action_, &QAction::triggered, this, &EquationCodeEditor::OnRedo);
+    connect(switch_mode_action_, &QAction::triggered, this, &EquationCodeEditor::OnSwitchMode);
 
     // Dialog buttons
-    connect(ok_button_, &QPushButton::clicked, this, &EquationGroupEditor::OnOkClicked);
-    connect(cancel_button_, &QPushButton::clicked, this, &EquationGroupEditor::OnCancelClicked);
+    connect(ok_button_, &QPushButton::clicked, this, &EquationCodeEditor::OnOkClicked);
+    connect(cancel_button_, &QPushButton::clicked, this, &EquationCodeEditor::OnCancelClicked);
 }
 
-void EquationGroupEditor::OnOpen()
+void EquationCodeEditor::OnOpen()
 {
     QString fileName = QFileDialog::getOpenFileName(this, "Open File", QString(), "Python Files (*.py)");
     if (fileName.isEmpty()) return;
@@ -141,7 +144,7 @@ void EquationGroupEditor::OnOpen()
     SetText(in.readAll());
 }
 
-void EquationGroupEditor::OnSave()
+void EquationCodeEditor::OnSave()
 {
     QString fileName = QFileDialog::getSaveFileName(this, "Save File", QString(), "Python Files (*.py)");
     if (fileName.isEmpty()) return;
@@ -156,22 +159,22 @@ void EquationGroupEditor::OnSave()
     out << GetText();
 }
 
-void EquationGroupEditor::OnReset()
+void EquationCodeEditor::OnReset()
 {
     ClearText();
 }
 
-void EquationGroupEditor::OnUndo()
+void EquationCodeEditor::OnUndo()
 {
     if (editor_) editor_->undo();
 }
 
-void EquationGroupEditor::OnRedo()
+void EquationCodeEditor::OnRedo()
 {
     if (editor_) editor_->redo();
 }
 
-void EquationGroupEditor::OnSwitchMode()
+void EquationCodeEditor::OnSwitchMode()
 {
     // Toggle between light and dark
     bool isDark = switch_mode_action_->data().toBool();
@@ -191,7 +194,7 @@ void EquationGroupEditor::OnSwitchMode()
     }
 }
 
-void EquationGroupEditor::OnOkClicked()
+void EquationCodeEditor::OnOkClicked()
 {
     QString text = GetText().trimmed();
     
@@ -201,22 +204,36 @@ void EquationGroupEditor::OnOkClicked()
         return;
     }
     
-    emit TextSubmitted(text);  // Keep for backward compatibility
-    
     // Emit unified signals
     if (group_)
     {
-        emit EditGroupRequest(group_->id(), text);
+        emit EditEquationRequest(group_->id(), text);
     }
     else
     {
-        emit AddGroupRequest(text);
+        emit AddEquationRequest(text);
     }
 }
 
-void EquationGroupEditor::OnCancelClicked()
+void EquationCodeEditor::OnCancelClicked()
 {
     reject();
+}
+
+void EquationCodeEditor::done(int result)
+{
+    ClearText();
+    QDialog::done(result);
+}
+
+void EquationCodeEditor::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Escape)
+    {
+        event->ignore();  // Ignore Escape key to prevent closing dialog
+        return;
+    }
+    QDialog::keyPressEvent(event);
 }
 
 } // namespace gui

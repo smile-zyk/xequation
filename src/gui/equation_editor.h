@@ -26,6 +26,8 @@ class ContextSelectionWidget : public QWidget
     QString GetSelectedVariable() const;
     void OnComboBoxChanged(const QString &text);
     void OnFilterTextChanged(const QString &text);
+    void ResetFilters();  // Reset filter text and combo box
+    void RefreshCategories();  // Reload categories from model
 
   signals:
     void VariableDoubleClicked(const QString& variable);
@@ -50,12 +52,14 @@ class EquationEditor : public QDialog
     EquationEditor(EquationCompletionModel* language_model, QWidget *parent = nullptr);
     ~EquationEditor() {}
     void SetEquationGroup(const EquationGroup* group);
+    void ClearText();
+    void ResetState();  // Reset all state except text fields
 
   signals:
     void AddEquationRequest(const QString& equation_name, const QString& expression);
     void EditEquationRequest(const EquationGroupId& group_id, const QString& equation_name, const QString& expression);
     void VariableInsertRequested(const QString& variable);
-    void SwitchToGroupEditorRequest(const QString& initial_text);
+    void UseCodeEditorRequest(const QString& initial_text);
 
   private:
     void SetupUI();
@@ -65,6 +69,9 @@ class EquationEditor : public QDialog
     void OnVariableDoubleClicked(const QString& variable);
     void OnSwitchToGroupEditorClicked();
     void OnOkButtonClicked();
+    void done(int result) override;
+    void showEvent(QShowEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
   private:
     const EquationGroup* group_{};
