@@ -103,8 +103,13 @@ EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_st
 {
     auto res = Parse(equation_statement, ParseMode::kStatement);
 
+    std::set<std::string> builtin_names = context_->GetBuiltinNames();
     for (const auto &item : res.items)
     {
+        if (builtin_names.count(item.name) > 0)
+        {
+            throw EquationException::EquationConflictsWithBuiltin(item.name);
+        }
         if (IsEquationExist(item.name))
         {
             throw EquationException::EquationAlreadyExists(item.name);
@@ -153,6 +158,12 @@ EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_st
 
 EquationGroupId EquationManager::AddEquation(const std::string& equation_name, const std::string& equation_content)
 {
+    std::set<std::string> builtin_names = context_->GetBuiltinNames();
+    if (builtin_names.count(equation_name) > 0)
+    {
+        throw EquationException::EquationConflictsWithBuiltin(equation_name);
+    }
+
     if (IsEquationExist(equation_name))
     {
         throw EquationException::EquationAlreadyExists(equation_name);
@@ -200,8 +211,13 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
         new_name_item_map.insert({item.name, item});
     }
 
+    std::set<std::string> builtin_names = context_->GetBuiltinNames();
     for (const auto &new_item : new_result.items)
     {
+        if (builtin_names.count(new_item.name) > 0 && !group->IsEquationExist(new_item.name))
+        {
+            throw EquationException::EquationConflictsWithBuiltin(new_item.name);
+        }
         if (group->IsEquationExist(new_item.name) == false && IsEquationExist(new_item.name))
         {
             throw EquationException::EquationAlreadyExists(new_item.name);

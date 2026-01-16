@@ -25,6 +25,7 @@ class EquationException : public std::exception
         kEquationGroupAlreadyExists,
         kEquationNotFound,
         kEquationAlreayExists,
+        kEquationConflictsWithBuiltin,
     };
 
     const char *what() const noexcept override
@@ -71,6 +72,11 @@ class EquationException : public std::exception
         return EquationException(ErrorCode::kEquationAlreayExists, equation_name);
     }
 
+    static EquationException EquationConflictsWithBuiltin(const std::string &equation_name)
+    {
+        return EquationException(ErrorCode::kEquationConflictsWithBuiltin, equation_name);
+    }
+
   private:
     std::string GenerateErrorMessage() const
     {
@@ -92,6 +98,10 @@ class EquationException : public std::exception
 
         case ErrorCode::kEquationAlreayExists:
             oss << "Equation already exists. Name: '" << equation_name_ << "'";
+            break;
+
+        case ErrorCode::kEquationConflictsWithBuiltin:
+            oss << "Equation name conflicts with builtin name: '" << equation_name_ << "'";
             break;
 
         default:
