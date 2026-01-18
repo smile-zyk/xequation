@@ -23,11 +23,12 @@
 #include <QWidget>
 #include <QtConcurrent/QtConcurrent>
 
-#include "equation_editor.h"
 #include "equation_code_editor.h"
+#include "equation_editor.h"
 #include "equation_manager_tasks.h"
 #include "equation_signals_qt_utils.h"
 #include "python/python_qt_wrapper.h"
+
 
 using namespace xequation;
 
@@ -52,31 +53,31 @@ DemoWidget::DemoWidget(QWidget *parent)
     dependency_graph_viewer_ = new xequation::gui::EquationDependencyGraphViewer(this);
 
     task_manager_ = new xequation::gui::ToastTaskManager(this, 1);
-    
+
     // Create persistent editors and connect signals once
     equation_editor_ = new xequation::gui::EquationEditor(equation_completion_model_, this);
     equation_code_editor_ = new xequation::gui::EquationCodeEditor(equation_completion_model_, this);
-    
+
     // Connect editor signals once
     connect(
-        equation_editor_, &xequation::gui::EquationEditor::AddEquationRequest,
-        this, &DemoWidget::OnEquationEditorAddEquationRequest
+        equation_editor_, &xequation::gui::EquationEditor::AddEquationRequest, this,
+        &DemoWidget::OnEquationEditorAddEquationRequest
     );
     connect(
-        equation_editor_, &xequation::gui::EquationEditor::EditEquationRequest,
-        this, &DemoWidget::OnEquationEditorEditEquationRequest
+        equation_editor_, &xequation::gui::EquationEditor::EditEquationRequest, this,
+        &DemoWidget::OnEquationEditorEditEquationRequest
     );
     connect(
-        equation_editor_, &xequation::gui::EquationEditor::UseCodeEditorRequest,
-        this, &DemoWidget::OnEquationEditorUseCodeEditorRequest
+        equation_editor_, &xequation::gui::EquationEditor::UseCodeEditorRequest, this,
+        &DemoWidget::OnEquationEditorUseCodeEditorRequest
     );
     connect(
-        equation_code_editor_, &xequation::gui::EquationCodeEditor::AddEquationRequest,
-        this, &DemoWidget::OnCodeEditorAddEquationRequest
+        equation_code_editor_, &xequation::gui::EquationCodeEditor::AddEquationRequest, this,
+        &DemoWidget::OnCodeEditorAddEquationRequest
     );
     connect(
-        equation_code_editor_, &xequation::gui::EquationCodeEditor::EditEquationRequest,
-        this, &DemoWidget::OnCodeEditorEditEquationRequest
+        equation_code_editor_, &xequation::gui::EquationCodeEditor::EditEquationRequest, this,
+        &DemoWidget::OnCodeEditorEditEquationRequest
     );
 
     SetupUI();
@@ -311,10 +312,10 @@ void DemoWidget::OnEditEquationGroupRequest(const xequation::EquationGroupId &id
     {
         return;
     }
-    
+
     auto it = editor_type_map_.find(id);
     EditorType editor_type = (it != editor_type_map_.end()) ? it->second : EditorType::Normal;
-    
+
     if (editor_type == EditorType::Normal)
     {
         equation_editor_->SetEquationGroup(group);
@@ -640,7 +641,7 @@ void DemoWidget::OnParseResultRequested(const QString &expression, xequation::Pa
     result = equation_manager_->Parse(expression.toStdString(), xequation::ParseMode::kExpression);
 }
 
-void DemoWidget::OnEvalResultAsyncRequested(const QUuid& id, const QString& expression)
+void DemoWidget::OnEvalResultAsyncRequested(const QUuid &id, const QString &expression)
 {
     gui::EvalExpressionTask *task =
         new gui::EvalExpressionTask("Evaluate Expression", equation_manager_.get(), expression.toStdString());
@@ -654,9 +655,8 @@ void DemoWidget::OnEvalResultAsyncRequested(const QUuid& id, const QString& expr
 
 void DemoWidget::OnEquationDependencyGraphImageRequested()
 {
-    gui::EquationDependencyGraphGenerationTask *task = new gui::EquationDependencyGraphGenerationTask(
-        "Generate Dependency Graph", equation_manager_.get()
-    );
+    gui::EquationDependencyGraphGenerationTask *task =
+        new gui::EquationDependencyGraphGenerationTask("Generate Dependency Graph", equation_manager_.get());
 
     connect(
         task, &gui::EquationDependencyGraphGenerationTask::DependencyGraphImageGenerated, this,
@@ -674,7 +674,9 @@ void DemoWidget::OnEquationEditorAddEquationRequest(const QString &equation_name
     }
 }
 
-void DemoWidget::OnEquationEditorEditEquationRequest(const xequation::EquationGroupId &group_id, const QString &equation_name, const QString &expression)
+void DemoWidget::OnEquationEditorEditEquationRequest(
+    const xequation::EquationGroupId &group_id, const QString &equation_name, const QString &expression
+)
 {
     if (EditEquation(group_id, equation_name, expression))
     {
@@ -684,18 +686,18 @@ void DemoWidget::OnEquationEditorEditEquationRequest(const xequation::EquationGr
 
 void DemoWidget::OnEquationEditorUseCodeEditorRequest(const QString &initial_text)
 {
+    auto group = equation_editor_->equation_group();
+
     equation_editor_->reject();
-    QTimer::singleShot(0, [this, initial_text]() {
-        // SetEquationGroup(nullptr) will auto set title to "Insert Equation"
-        equation_code_editor_->SetEquationGroup(nullptr);
-        
-        if (!initial_text.isEmpty())
-        {
-            equation_code_editor_->SetText(initial_text);
-        }
-        
-        equation_code_editor_->exec();
-    });
+
+    equation_code_editor_->SetEquationGroup(group);
+
+    if (!initial_text.isEmpty())
+    {
+        equation_code_editor_->SetText(initial_text);
+    }
+
+    equation_code_editor_->exec();
 }
 
 void DemoWidget::OnCodeEditorAddEquationRequest(const QString &statement)
@@ -706,7 +708,7 @@ void DemoWidget::OnCodeEditorAddEquationRequest(const QString &statement)
     }
 }
 
-void DemoWidget::OnCodeEditorEditEquationRequest(const xequation::EquationGroupId& group_id, const QString &statement)
+void DemoWidget::OnCodeEditorEditEquationRequest(const xequation::EquationGroupId &group_id, const QString &statement)
 {
     if (EditEquationGroup(group_id, statement.toStdString()))
     {

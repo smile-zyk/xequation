@@ -54,7 +54,7 @@ class EquationEditor : public QDialog
     void SetEquationGroup(const EquationGroup* group);
     void ClearText();
     void ResetState();  // Reset all state except text fields
-
+    const EquationGroup* equation_group() const { return group_; }
   signals:
     void AddEquationRequest(const QString& equation_name, const QString& expression);
     void EditEquationRequest(const EquationGroupId& group_id, const QString& equation_name, const QString& expression);
