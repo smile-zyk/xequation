@@ -1,6 +1,7 @@
 #pragma once
 #include <QCodeEditor>
 #include <QListView>
+#include <qcompleter.h>
 
 namespace xequation 
 {
@@ -24,11 +25,14 @@ namespace gui
         void setCompleter(QCompleter *completer) override;
         void SetupShortcuts();
         void SetStyleMode(StyleMode mode);
+        void SetZoomFactor(double factor);
         void ZoomIn();
         void ZoomOut();
         void ResetZoom();
         StyleMode style_mode() const { return style_mode_; }
         double zoom_factor() const { return zoom_factor_; }
+        static double GetMinZoom() { return kMinZoom; }
+        static double GetMaxZoom() { return kMaxZoom; }
     signals:
         void ZoomChanged(double zoom_factor);
     protected:
@@ -38,7 +42,8 @@ namespace gui
         void UpdateCompleterPopupView();
     private:
         static QMap<StyleMode, QString> language_style_file_map_;
-        QListView* completer_popup_view_{nullptr};
+        QCompleter* completer_{};
+        QListView* completer_popup_view_{};
         StyleMode style_mode_;
         QMap<StyleMode, QSyntaxStyle*> style_map_;
         double zoom_factor_ = 1.0;

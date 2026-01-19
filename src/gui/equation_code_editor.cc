@@ -12,6 +12,7 @@
 #include <QIcon>
 #include <QMessageBox>
 #include <QPushButton>
+#include <qcompleter.h>
 
 namespace xequation
 {
@@ -62,6 +63,16 @@ void EquationCodeEditor::ClearText()
     if (editor_) editor_->clear();
 }
 
+void EquationCodeEditor::SetEditorZoomFactor(double zoom_factor)
+{
+    if (editor_) editor_->SetZoomFactor(zoom_factor);
+}
+
+void EquationCodeEditor::SetEditorStyleMode(CodeEditor::StyleMode mode)
+{
+    if (editor_) editor_->SetStyleMode(mode);
+}
+
 void EquationCodeEditor::SetupUI()
 {
     // Toolbar with actions
@@ -89,12 +100,10 @@ void EquationCodeEditor::SetupUI()
     // Central editor
     editor_ = new xequation::gui::CodeEditor(language_name_, this);
     editor_highlighter_ = CodeHighlighter::Create(language_name_, editor_->document());
-    editor_completer_ = new CodeCompleter(this);
 
     equation_completion_filter_model_->sort(0);
-    editor_completer_->setModel(equation_completion_filter_model_);
+    editor_->completer()->setModel(equation_completion_filter_model_);
     editor_highlighter_->SetModel(equation_completion_filter_model_);
-    editor_->setCompleter(editor_completer_);
     editor_->setHighlighter(editor_highlighter_);
 
     // Bottom-right buttons
@@ -123,6 +132,14 @@ void EquationCodeEditor::SetupConnections()
     connect(undo_action_, &QAction::triggered, this, &EquationCodeEditor::OnUndo);
     connect(redo_action_, &QAction::triggered, this, &EquationCodeEditor::OnRedo);
     connect(switch_mode_action_, &QAction::triggered, this, &EquationCodeEditor::OnSwitchMode);
+
+    // Editor signals
+    if (editor_)
+    {
+        connect(editor_, &xequation::gui::CodeEditor::ZoomChanged, this, [this](double zoom) {
+            emit ZoomChanged(zoom);
+        });
+    }
 
     // Dialog buttons
     connect(ok_button_, &QPushButton::clicked, this, &EquationCodeEditor::OnOkClicked);
@@ -184,6 +201,7 @@ void EquationCodeEditor::OnSwitchMode()
         switch_mode_action_->setIcon(QIcon(":/icons/mode-light.png"));
         switch_mode_action_->setData(false);
         switch_mode_action_->setText("Switch to Dark");
+        emit StyleModeChanged(CodeEditor::StyleMode::kLight);
     }
     else
     {
@@ -191,6 +209,7 @@ void EquationCodeEditor::OnSwitchMode()
         switch_mode_action_->setIcon(QIcon(":/icons/mode-light-filled.png"));
         switch_mode_action_->setData(true);
         switch_mode_action_->setText("Switch to Light");
+        emit StyleModeChanged(CodeEditor::StyleMode::kDark);
     }
 }
 

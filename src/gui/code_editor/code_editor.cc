@@ -8,6 +8,7 @@
 #include <QShortcut>
 #include <QSyntaxStyle>
 #include <QWheelEvent>
+#include <qcompleter.h>
 namespace xequation
 {
 namespace gui
@@ -20,14 +21,20 @@ QMap<CodeEditor::StyleMode, QString> CodeEditor::language_style_file_map_ = {
 CodeEditor::CodeEditor(const QString &language, QWidget *parent) : QCodeEditor(parent), style_mode_(StyleMode::kLight)
 {
     Q_INIT_RESOURCE(gui_resource);
+    completer_popup_view_ = new QListView(this);
+    completer_popup_view_->hide();
+    completer_popup_view_->setUniformItemSizes(true);
+    completer_ = new QCompleter(this);
+    completer_->setWrapAround(true);
+    setCompleter(completer_);
     SetStyleMode(style_mode_);
     base_font_size_ = font().pointSizeF();
     SetupShortcuts();
-    completer_popup_view_ = new QListView(this);
-    completer_popup_view_->setUniformItemSizes(true);
 }
 
-CodeEditor::~CodeEditor() {}
+CodeEditor::~CodeEditor() 
+{
+}
 
 void CodeEditor::setCompleter(QCompleter *completer)
 {
@@ -115,6 +122,16 @@ void CodeEditor::ResetZoom()
     emit ZoomChanged(zoom_factor_);
 }
 
+void CodeEditor::SetZoomFactor(double factor)
+{
+    if (factor >= kMinZoom && factor <= kMaxZoom)
+    {
+        zoom_factor_ = factor;
+        ApplyZoom();
+        emit ZoomChanged(zoom_factor_);
+    }
+}
+
 void CodeEditor::wheelEvent(QWheelEvent *event)
 {
     if (event->modifiers() & Qt::ControlModifier)
@@ -145,7 +162,6 @@ void CodeEditor::ApplyZoom()
     if (newSize < 6)
         newSize = 6;
 
-    QTextCursor cursor = textCursor();
     int scrollValue = verticalScrollBar()->value();
 
     QFont font = this->font();

@@ -9,6 +9,8 @@
 #include <QPushButton>
 
 #include "code_editor/code_editor.h"
+#include "code_editor/code_highlighter.h"
+#include "equation_completion_model.h"
 
 namespace xequation
 {
@@ -27,7 +29,7 @@ class EquationManagerConfigWidget : public QWidget
     Q_OBJECT
 
   public:
-    explicit EquationManagerConfigWidget(QWidget *parent = nullptr);
+    explicit EquationManagerConfigWidget(EquationCompletionModel* completion_model, QWidget *parent = nullptr);
     ~EquationManagerConfigWidget() override;
     
     EquationManagerConfigOption GetConfigOption() const;
@@ -46,7 +48,6 @@ private slots:
 
 private:
     QGroupBox* startup_script_groupbox_;
-    QLabel* startup_script_label_;
     CodeEditor* startup_script_editor_;
     QGroupBox* code_editor_groupbox_;
     QLabel* style_model_label_;
@@ -57,6 +58,8 @@ private:
     QCheckBox* auto_update_checkbox_;
     QPushButton* ok_button_;
     QPushButton* cancel_button_;
+    EquationCompletionModel* completion_model_;
+    CodeHighlighter* editor_highlighter_{nullptr};
 };
 } // namespace gui
 } // namespace xequation

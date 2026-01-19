@@ -2,15 +2,15 @@
 
 #include <QDialog>
 #include <QToolBar>
+#include <qcompleter.h>
 
-#include "code_editor/code_completer.h"
 #include "code_editor/code_editor.h"
 #include "code_editor/code_highlighter.h"
 #include "equation_completion_model.h"
 
 namespace xequation 
 {
-namespace gui 
+namespace gui
 {
 class EquationCodeEditor : public QDialog
 {
@@ -23,10 +23,14 @@ public:
     QString GetText() const;
     void SetText(const QString &text);
     void ClearText();
+    void SetEditorZoomFactor(double zoom_factor);
+    void SetEditorStyleMode(CodeEditor::StyleMode mode);
     
 signals:
     void AddEquationRequest(const QString &text);
     void EditEquationRequest(const EquationGroupId& group_id, const QString &statement);
+    void StyleModeChanged(CodeEditor::StyleMode mode);
+    void ZoomChanged(double zoom_factor);
 protected:
     void SetupUI();
     void SetupConnections();
@@ -48,7 +52,6 @@ private:
 
     CodeEditor *editor_{};
     CodeHighlighter* editor_highlighter_{};
-    CodeCompleter* editor_completer_{};
     QString language_name_{};
     EquationCompletionFilterModel* equation_completion_filter_model_{};
     

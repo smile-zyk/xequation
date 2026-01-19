@@ -16,6 +16,7 @@
 #include "equation_dependency_graph_viewer.h"
 #include "equation_editor.h"
 #include "equation_code_editor.h"
+#include "equation_manager_config_widget.h"
 #include "task/toast_task_manager.h"
 
 namespace {
@@ -53,6 +54,10 @@ private:
     void OnShowEquationManager();
     void OnShowEquationInspector();
     void OnShowExpressionWatch();
+    void OnShowEquationManagerConfig();
+    void OnEquationManagerConfigAccepted(const xequation::gui::EquationManagerConfigOption& option);
+    void OnCodeEditorZoomChanged(double zoom_factor);
+    void OnCodeEditorStyleModeChanged(xequation::gui::CodeEditor::StyleMode mode);
     void OnParseResultRequested(const QString& expression, xequation::ParseResult &result);
     void OnEvalResultAsyncRequested(const QUuid& id, const QString& expression);
     void OnEquationDependencyGraphImageRequested();
@@ -93,6 +98,7 @@ private:
     QAction *show_equation_manager_action_;
     QAction *show_variable_inspector_action_;
     QAction *show_expression_watch_action_;
+    QAction *show_equation_manager_config_action_;
 
     std::unique_ptr<xequation::EquationManager> equation_manager_;
     xequation::gui::ToastTaskManager* task_manager_;
@@ -109,4 +115,8 @@ private:
     // Persistent editors - created once and reused
     xequation::gui::EquationEditor* equation_editor_;
     xequation::gui::EquationCodeEditor* equation_code_editor_;
+    xequation::gui::EquationManagerConfigWidget* equation_manager_config_widget_;
+    
+    // Configuration option
+    xequation::gui::EquationManagerConfigOption config_option_;
 };

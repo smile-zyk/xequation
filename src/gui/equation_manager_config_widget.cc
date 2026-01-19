@@ -2,14 +2,16 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
+#include <qchar.h>
+#include "code_editor/code_highlighter.h"
 
 namespace xequation
 {
 namespace gui
 {
 
-EquationManagerConfigWidget::EquationManagerConfigWidget(QWidget *parent)
-    : QWidget(parent)
+EquationManagerConfigWidget::EquationManagerConfigWidget(EquationCompletionModel* completion_model, QWidget *parent)
+    : QWidget(parent), completion_model_(completion_model)
 {
     SetupUI();
     SetupConnections();
@@ -21,14 +23,19 @@ EquationManagerConfigWidget::~EquationManagerConfigWidget()
 
 void EquationManagerConfigWidget::SetupUI()
 {
+    setWindowFlag(Qt::Window);
+    setWindowTitle("Equation Manager Config");
+
     auto *main_layout = new QVBoxLayout(this);
 
     // Startup Script Group
     startup_script_groupbox_ = new QGroupBox("Startup Script", this);
     auto *startup_layout = new QVBoxLayout(startup_script_groupbox_);
-    startup_script_label_ = new QLabel("Script to execute on startup:", startup_script_groupbox_);
-    startup_script_editor_ = new CodeEditor(startup_script_groupbox_);
-    startup_layout->addWidget(startup_script_label_);
+    startup_script_editor_ = new CodeEditor(completion_model_->language_name(), startup_script_groupbox_);
+    editor_highlighter_ = CodeHighlighter::Create(completion_model_->language_name(), startup_script_editor_->document());
+    editor_highlighter_->SetModel(completion_model_);
+    startup_script_editor_->setHighlighter(editor_highlighter_);
+    startup_script_editor_->completer()->setModel(completion_model_);
     startup_layout->addWidget(startup_script_editor_);
     main_layout->addWidget(startup_script_groupbox_);
 
@@ -38,14 +45,18 @@ void EquationManagerConfigWidget::SetupUI()
     
     style_model_label_ = new QLabel("Style Model:", code_editor_groupbox_);
     style_model_combobox_ = new QComboBox(code_editor_groupbox_);
-    style_model_combobox_->addItems({"Dark", "Light", "Auto"});
+    style_model_combobox_->addItems({"Light", "Dark"});
+    style_model_combobox_->setCurrentIndex(0);  // Default to Light
     editor_form_layout->addRow(style_model_label_, style_model_combobox_);
     
     scale_factor_label_ = new QLabel("Scale Factor:", code_editor_groupbox_);
     scale_factor_spinbox_ = new QSpinBox(code_editor_groupbox_);
-    scale_factor_spinbox_->setRange(50, 200);
+    int min_zoom_percent = static_cast<int>(CodeEditor::GetMinZoom() * 100);
+    int max_zoom_percent = static_cast<int>(CodeEditor::GetMaxZoom() * 100);
+    scale_factor_spinbox_->setRange(min_zoom_percent, max_zoom_percent);
     scale_factor_spinbox_->setSuffix("%");
     scale_factor_spinbox_->setValue(100);
+    scale_factor_spinbox_->setSingleStep(10);
     editor_form_layout->addRow(scale_factor_label_, scale_factor_spinbox_);
     
     main_layout->addWidget(code_editor_groupbox_);
@@ -68,12 +79,38 @@ void EquationManagerConfigWidget::SetupUI()
     main_layout->addLayout(button_layout);
 
     setLayout(main_layout);
+
+    setMinimumSize(800, 600);
 }
 
 void EquationManagerConfigWidget::SetupConnections()
 {
     connect(ok_button_, &QPushButton::clicked, this, &EquationManagerConfigWidget::OnOkButtonClicked);
     connect(cancel_button_, &QPushButton::clicked, this, &EquationManagerConfigWidget::OnCancelButtonClicked);
+    
+    // Connect startup script editor signals
+    if (startup_script_editor_)
+    {
+        connect(startup_script_editor_, &CodeEditor::ZoomChanged, this, [this](double zoom) {
+            // Update spinbox when editor zoom changes (but don't trigger the spinbox's value changed signal)
+            scale_factor_spinbox_->blockSignals(true);
+            scale_factor_spinbox_->setValue(static_cast<int>(zoom * 100));
+            scale_factor_spinbox_->blockSignals(false);
+        });
+    }
+    
+    // Connect code editor settings to startup script editor
+    connect(style_model_combobox_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]() {
+        QString style = style_model_combobox_->currentText();
+        CodeEditor::StyleMode mode = (style == "Dark") ? CodeEditor::StyleMode::kDark : CodeEditor::StyleMode::kLight;
+        startup_script_editor_->SetStyleMode(mode);
+    });
+    
+    connect(scale_factor_spinbox_, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
+        // Convert percentage to zoom factor (100% = 1.0)
+        double zoom = value / 100.0;
+        startup_script_editor_->SetZoomFactor(zoom);
+    });
 }
 
 EquationManagerConfigOption EquationManagerConfigWidget::GetConfigOption() const
@@ -104,16 +141,12 @@ void EquationManagerConfigWidget::OnOkButtonClicked()
 {
     EquationManagerConfigOption option = GetConfigOption();
     emit ConfigAccepted(option);
+    close();
 }
 
 void EquationManagerConfigWidget::OnCancelButtonClicked()
 {
-    // 如果这个widget是在对话框中，应该关闭父对话框
-    // 这里可以emit一个cancel信号，或者直接关闭父widget
-    if (parentWidget())
-    {
-        parentWidget()->close();
-    }
+    close();
 }
 
 } // namespace gui

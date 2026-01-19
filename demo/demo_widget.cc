@@ -29,7 +29,6 @@
 #include "equation_signals_qt_utils.h"
 #include "python/python_qt_wrapper.h"
 
-
 using namespace xequation;
 
 DemoWidget::DemoWidget(QWidget *parent)
@@ -38,8 +37,14 @@ DemoWidget::DemoWidget(QWidget *parent)
       variable_inspect_widget_(nullptr),
       expression_watch_widget_(nullptr),
       equation_editor_(nullptr),
-      equation_code_editor_(nullptr)
+      equation_code_editor_(nullptr),
+      equation_manager_config_widget_(nullptr)
 {
+    // Initialize config option with default values
+    config_option_.scale_factor = 100;
+    config_option_.style_model = "Light";
+    config_option_.auto_update = true;
+
     equation_manager_ = xequation::python::PythonEquationEngine::GetInstance().CreateEquationManager();
     mock_equation_list_widget_ = new MockEquationGroupListWidget(equation_manager_.get(), this);
     equation_browser_widget_ = new xequation::gui::EquationBrowserWidget(this);
@@ -57,6 +62,7 @@ DemoWidget::DemoWidget(QWidget *parent)
     // Create persistent editors and connect signals once
     equation_editor_ = new xequation::gui::EquationEditor(equation_completion_model_, this);
     equation_code_editor_ = new xequation::gui::EquationCodeEditor(equation_completion_model_, this);
+    equation_manager_config_widget_ = new xequation::gui::EquationManagerConfigWidget(equation_completion_model_, this);
 
     // Connect editor signals once
     connect(
@@ -79,6 +85,30 @@ DemoWidget::DemoWidget(QWidget *parent)
         equation_code_editor_, &xequation::gui::EquationCodeEditor::EditEquationRequest, this,
         &DemoWidget::OnCodeEditorEditEquationRequest
     );
+    connect(
+        equation_code_editor_, &xequation::gui::EquationCodeEditor::StyleModeChanged, this,
+        &DemoWidget::OnCodeEditorStyleModeChanged
+    );
+    connect(
+        equation_code_editor_, &xequation::gui::EquationCodeEditor::ZoomChanged, this,
+        &DemoWidget::OnCodeEditorZoomChanged
+    );
+    connect(
+        equation_manager_config_widget_, &xequation::gui::EquationManagerConfigWidget::ConfigAccepted, this,
+        &DemoWidget::OnEquationManagerConfigAccepted
+    );
+
+    // Apply initial config to code editor
+    equation_code_editor_->blockSignals(true);
+    equation_code_editor_->SetEditorZoomFactor(config_option_.scale_factor / 100.0);
+    xequation::gui::CodeEditor::StyleMode initial_mode = (config_option_.style_model == "Dark")
+                                                             ? xequation::gui::CodeEditor::StyleMode::kDark
+                                                             : xequation::gui::CodeEditor::StyleMode::kLight;
+    equation_code_editor_->SetEditorStyleMode(initial_mode);
+    equation_code_editor_->blockSignals(false);
+
+    // Load config to config widget as well
+    equation_manager_config_widget_->SetConfigOption(config_option_);
 
     SetupUI();
     SetupConnections();
@@ -113,6 +143,7 @@ void DemoWidget::SetupConnections()
     connect(show_equation_manager_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationManager);
     connect(show_variable_inspector_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationInspector);
     connect(show_expression_watch_action_, &QAction::triggered, this, &DemoWidget::OnShowExpressionWatch);
+    connect(show_equation_manager_config_action_, &QAction::triggered, this, &DemoWidget::OnShowEquationManagerConfig);
     connect(
         variable_inspect_widget_, &xequation::gui::VariableInspectWidget::AddExpressionToWatch,
         expression_watch_widget_, &xequation::gui::ExpressionWatchWidget::OnAddExpressionToWatch
@@ -259,6 +290,9 @@ void DemoWidget::CreateActions()
 
     show_expression_watch_action_ = new QAction("Expression Watch", this);
     show_expression_watch_action_->setStatusTip("Watch expressions");
+
+    show_equation_manager_config_action_ = new QAction("Equation Manager Config", this);
+    show_equation_manager_config_action_->setStatusTip("Configure equation manager settings");
 }
 
 void DemoWidget::InitCompletionModel()
@@ -298,6 +332,7 @@ void DemoWidget::CreateMenus()
     view_menu_->addAction(show_equation_manager_action_);
     view_menu_->addAction(show_variable_inspector_action_);
     view_menu_->addAction(show_expression_watch_action_);
+    view_menu_->addAction(show_equation_manager_config_action_);
 }
 
 void DemoWidget::OnInsertEquationRequest()
@@ -634,6 +669,53 @@ void DemoWidget::OnShowExpressionWatch()
     expression_watch_widget_->show();
     expression_watch_widget_->raise();
     expression_watch_widget_->activateWindow();
+}
+
+void DemoWidget::OnShowEquationManagerConfig()
+{
+    equation_manager_config_widget_->SetConfigOption(config_option_);
+    equation_manager_config_widget_->show();
+    equation_manager_config_widget_->raise();
+    equation_manager_config_widget_->activateWindow();
+}
+
+void DemoWidget::OnEquationManagerConfigAccepted(const xequation::gui::EquationManagerConfigOption &option)
+{
+    config_option_ = option;
+    // Apply configuration to global code editor
+    if (equation_code_editor_)
+    {
+        double zoom_factor = config_option_.scale_factor / 100.0;
+        xequation::gui::CodeEditor::StyleMode style_mode = (config_option_.style_model == "Dark")
+                                                               ? xequation::gui::CodeEditor::StyleMode::kDark
+                                                               : xequation::gui::CodeEditor::StyleMode::kLight;
+        equation_code_editor_->SetEditorZoomFactor(zoom_factor);
+        equation_code_editor_->SetEditorStyleMode(style_mode);
+    }
+}
+
+void DemoWidget::OnCodeEditorZoomChanged(double zoom_factor)
+{
+    // Update config option when zoom changes
+    config_option_.scale_factor = static_cast<int>(zoom_factor * 100);
+
+    // Also apply to global code editor to keep them in sync
+    if (equation_code_editor_)
+    {
+        equation_code_editor_->SetEditorZoomFactor(zoom_factor);
+    }
+}
+
+void DemoWidget::OnCodeEditorStyleModeChanged(xequation::gui::CodeEditor::StyleMode mode)
+{
+    // Update config option when style mode changes
+    config_option_.style_model = (mode == xequation::gui::CodeEditor::StyleMode::kDark) ? "Dark" : "Light";
+
+    // Also apply to global code editor to keep them in sync
+    if (equation_code_editor_)
+    {
+        equation_code_editor_->SetEditorStyleMode(mode);
+    }
 }
 
 void DemoWidget::OnParseResultRequested(const QString &expression, xequation::ParseResult &result)
