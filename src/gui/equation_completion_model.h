@@ -38,6 +38,7 @@ class EquationCompletionFilterModel : public QSortFilterProxyModel
     void SetEquationGroup(const EquationGroup *group);
     void SetFilterText(const QString &filter_text);
     void SetCategory(const QString &category);
+    void SetVisibleTypes(const QSet<CompletionItemType> &types);
     QList<CompletionCategory> GetAllCategories();
 
   protected:
@@ -50,6 +51,7 @@ class EquationCompletionFilterModel : public QSortFilterProxyModel
     QString filter_text_;
     QString category_;
     bool display_only_word_{false};
+    QSet<CompletionItemType> visible_types_; // 空集合表示显示所有类型
     bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override;
 };
 

@@ -83,6 +83,12 @@ void EquationCompletionFilterModel::SetCategory(const QString &category)
 	invalidateFilter();
 }
 
+void EquationCompletionFilterModel::SetVisibleTypes(const QSet<CompletionItemType> &types)
+{
+	visible_types_ = types;
+	invalidateFilter();
+}
+
 QList<CompletionCategory> EquationCompletionFilterModel::GetAllCategories()
 {
 	QList<CompletionCategory> categories;
@@ -139,6 +145,17 @@ bool EquationCompletionFilterModel::filterAcceptsRow(int source_row, const QMode
 	if (group_ && group_->IsEquationExist(word.toStdString()))
 	{
 		return false;
+	}
+
+	// Type filter: 如果 visible_types_ 不为空，只显示指定类型
+	if (!visible_types_.isEmpty())
+	{
+		int type_value = src->data(idx, CompletionListModel::kTypeRole).toInt();
+		CompletionItemType item_type = static_cast<CompletionItemType>(type_value);
+		if (!visible_types_.contains(item_type))
+		{
+			return false;
+		}
 	}
 
 	if (!category_.isEmpty())

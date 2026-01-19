@@ -113,6 +113,10 @@ QVariant CompletionListModel::data(const QModelIndex &index, int role) const
     {
         return item.category.priority;
     }
+    else if (role == kTypeRole)
+    {
+        return static_cast<int>(item.type);
+    }
 
     return QVariant();
 }
@@ -149,7 +153,7 @@ CompletionCategory CompletionListModel::FindCategoryByName(const QString& name) 
     return CompletionCategory{name, 999};
 }
 
-void CompletionListModel::AddCompletionItem(const QString& word, const QString& category_name, const QString& complete_content)
+void CompletionListModel::AddCompletionItem(const QString& word, const QString& category_name, const QString& complete_content, CompletionItemType type)
 {
     auto key = qMakePair(word, category_name);
     
@@ -159,8 +163,12 @@ void CompletionListModel::AddCompletionItem(const QString& word, const QString& 
         if (idx >= 0 && idx < items_.size())
         {
             items_[idx].complete_content = complete_content;
+            items_[idx].type = type;
             QModelIndex modelIdx = index(idx);
             emit dataChanged(modelIdx, modelIdx);
+            
+            // 类型变化可能影响排序，需要重新排序
+            ResortItems();
         }
         return;
     }
@@ -169,6 +177,7 @@ void CompletionListModel::AddCompletionItem(const QString& word, const QString& 
     item.word = word;
     item.category = FindCategoryByName(category_name);
     item.complete_content = complete_content;
+    item.type = type;
     if(category_name == "Function" || category_name == "Class")
     {
         item.complete_content += "()";
@@ -197,6 +206,11 @@ void CompletionListModel::AddCompletionItem(const QString& word, const QString& 
     }
 }
 
+void CompletionListModel::AddCompletionItem(const QString& word, const QString& category_name, const QString& complete_content)
+{
+    AddCompletionItem(word, category_name, complete_content, CompletionItemType::Local);
+}
+
 void CompletionListModel::RemoveCompletionItem(const QString& word, const QString& category_name)
 {
     auto key = qMakePair(word, category_name);
@@ -217,6 +231,28 @@ void CompletionListModel::RemoveCompletionItem(const QString& word, const QStrin
     items_.removeAt(idx);
     endRemoveRows();
     
+    item_index_map_.clear();
+    for (int i = 0; i < items_.size(); ++i)
+    {
+        auto k = qMakePair(items_[i].word, items_[i].category.name);
+        item_index_map_[k] = i;
+    }
+}
+
+void CompletionListModel::RemoveCompletionItemsByType(CompletionItemType type)
+{
+    // 从后向前遍历删除，避免索引变化问题
+    for (int i = items_.size() - 1; i >= 0; --i)
+    {
+        if (items_[i].type == type)
+        {
+            beginRemoveRows(QModelIndex(), i, i);
+            items_.removeAt(i);
+            endRemoveRows();
+        }
+    }
+    
+    // 重建索引
     item_index_map_.clear();
     for (int i = 0; i < items_.size(); ++i)
     {

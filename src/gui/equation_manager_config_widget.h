@@ -58,8 +58,8 @@ private:
     QCheckBox* auto_update_checkbox_;
     QPushButton* ok_button_;
     QPushButton* cancel_button_;
-    EquationCompletionModel* completion_model_;
-    CodeHighlighter* editor_highlighter_{nullptr};
+    EquationCompletionModel* completion_model_{};
+    CodeHighlighter* editor_highlighter_{};
 };
 } // namespace gui
 } // namespace xequation
