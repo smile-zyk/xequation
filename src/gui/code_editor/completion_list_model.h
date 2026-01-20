@@ -11,9 +11,9 @@ namespace gui
 
 enum class CompletionItemType
 {
-    Tmp = 0,      // 最高优先级
-    Local = 1,    // 中等优先级
-    Builtin = 2   // 最低优先级
+    Tmp = 0,
+    Local = 1,
+    Builtin = 2
 };
 
 inline uint qHash(CompletionItemType type, uint seed = 0) noexcept
@@ -46,17 +46,14 @@ struct CompletionItem
 
     bool operator<(const CompletionItem &other) const
     {
-        // 先按 type 排序 (tmp, local, builtin)
         if (type != other.type)
         {
             return type < other.type;
         }
-        // 再按 category priority 排序
         if (category.priority != other.category.priority)
         {
             return category.priority < other.category.priority;
         }
-        // 最后按 word 排序
         return word < other.word;
     }
 };
@@ -82,7 +79,6 @@ class CompletionListModel : public QAbstractListModel
 
     void AddCompletionItem(const QString &word, const QString &category_name, const QString &complete_content, CompletionItemType type);
     
-    // 保留原接口，默认加到 Local
     void AddCompletionItem(const QString &word, const QString &category_name, const QString &complete_content);
 
     void RemoveCompletionItem(const QString &word, const QString &category_name);

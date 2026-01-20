@@ -63,7 +63,7 @@ void CompletionListModel::InitWithLanguageDefinition()
         auto names = language.names(key);
         for (auto &&name : names)
         {
-            AddCompletionItem(name, key, name);
+            AddCompletionItem(name, key, name, CompletionItemType::Builtin);
         }
     }
 }
@@ -159,17 +159,6 @@ void CompletionListModel::AddCompletionItem(const QString& word, const QString& 
     
     if (item_index_map_.contains(key))
     {
-        int idx = item_index_map_[key];
-        if (idx >= 0 && idx < items_.size())
-        {
-            items_[idx].complete_content = complete_content;
-            items_[idx].type = type;
-            QModelIndex modelIdx = index(idx);
-            emit dataChanged(modelIdx, modelIdx);
-            
-            // 类型变化可能影响排序，需要重新排序
-            ResortItems();
-        }
         return;
     }
     
@@ -241,7 +230,6 @@ void CompletionListModel::RemoveCompletionItem(const QString& word, const QStrin
 
 void CompletionListModel::RemoveCompletionItemsByType(CompletionItemType type)
 {
-    // 从后向前遍历删除，避免索引变化问题
     for (int i = items_.size() - 1; i >= 0; --i)
     {
         if (items_[i].type == type)
@@ -252,7 +240,6 @@ void CompletionListModel::RemoveCompletionItemsByType(CompletionItemType type)
         }
     }
     
-    // 重建索引
     item_index_map_.clear();
     for (int i = 0; i < items_.size(); ++i)
     {

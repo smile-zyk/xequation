@@ -147,7 +147,6 @@ bool EquationCompletionFilterModel::filterAcceptsRow(int source_row, const QMode
 		return false;
 	}
 
-	// Type filter: 如果 visible_types_ 不为空，只显示指定类型
 	if (!visible_types_.isEmpty())
 	{
 		int type_value = src->data(idx, CompletionListModel::kTypeRole).toInt();

@@ -307,7 +307,7 @@ void DemoWidget::InitCompletionModel()
         for (const auto &name : all_builtin_names)
         {
             QString word = QString::fromStdString(name);
-            equation_completion_model_->AddCompletionItem(word, "Builtin", word);
+            equation_completion_model_->AddCompletionItem(word, "Builtin", word, gui::CompletionItemType::Builtin);
         }
     }
 }

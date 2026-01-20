@@ -2,7 +2,6 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
-#include <qchar.h>
 #include "code_editor/code_highlighter.h"
 
 namespace xequation
@@ -11,8 +10,11 @@ namespace gui
 {
 
 EquationManagerConfigWidget::EquationManagerConfigWidget(EquationCompletionModel* completion_model, QWidget *parent)
-    : QWidget(parent), completion_model_(completion_model)
+    : QWidget(parent)
 {
+    completion_model_ = new EquationCompletionFilterModel(completion_model, this);
+    completion_model_->SetVisibleTypes({CompletionItemType::Builtin});
+    language_name_ = completion_model->language_name();
     SetupUI();
     SetupConnections();
 }
@@ -31,8 +33,8 @@ void EquationManagerConfigWidget::SetupUI()
     // Startup Script Group
     startup_script_groupbox_ = new QGroupBox("Startup Script", this);
     auto *startup_layout = new QVBoxLayout(startup_script_groupbox_);
-    startup_script_editor_ = new CodeEditor(completion_model_->language_name(), startup_script_groupbox_);
-    editor_highlighter_ = CodeHighlighter::Create(completion_model_->language_name(), startup_script_editor_->document());
+    startup_script_editor_ = new CodeEditor(language_name_, startup_script_groupbox_);
+    editor_highlighter_ = CodeHighlighter::Create(language_name_, startup_script_editor_->document());
     editor_highlighter_->SetModel(completion_model_);
     startup_script_editor_->setHighlighter(editor_highlighter_);
     startup_script_editor_->completer()->setModel(completion_model_);

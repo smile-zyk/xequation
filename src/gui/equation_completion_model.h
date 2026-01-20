@@ -51,7 +51,7 @@ class EquationCompletionFilterModel : public QSortFilterProxyModel
     QString filter_text_;
     QString category_;
     bool display_only_word_{false};
-    QSet<CompletionItemType> visible_types_; // 空集合表示显示所有类型
+    QSet<CompletionItemType> visible_types_;
     bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override;
 };
 
