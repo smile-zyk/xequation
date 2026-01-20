@@ -14,7 +14,7 @@ namespace gui
 {
 void EquationManagerTask::Execute()
 {
-    if (equation_manager_->language() == "Python")
+    if (equation_manager_->engine_info().name == "Python")
     {
         pybind11::gil_scoped_acquire acquire;
         PyThreadState *py_thread_state = PyThreadState_Get();
@@ -25,7 +25,7 @@ void EquationManagerTask::Execute()
 void EquationManagerTask::RequestCancel()
 {
     Task::RequestCancel();
-    if (equation_manager_->language() == "Python" && internal_data_)
+    if (equation_manager_->engine_info().name == "Python" && internal_data_)
     {
         pybind11::gil_scoped_acquire acquire;
         void *data = internal_data_;
@@ -36,7 +36,7 @@ void EquationManagerTask::RequestCancel()
 
 void EquationManagerTask::Cleanup()
 {
-    if (equation_manager_->language() == "Python")
+    if (equation_manager_->engine_info().name == "Python")
     {
         internal_data_ = nullptr;
     }

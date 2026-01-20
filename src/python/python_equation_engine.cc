@@ -14,6 +14,8 @@ static PyThreadState* g_main_thread_state = nullptr;
 
 PythonEquationEngine::PythonEquationEngine()
 {
+    engine_info_.name = "Python";
+    
     if (Py_IsInitialized())
     {
         manage_python_context_ = false;
@@ -61,7 +63,7 @@ ParseResult PythonEquationEngine::Parse(const std::string &code, ParseMode mode)
 
 std::unique_ptr<EquationContext> PythonEquationEngine::CreateContext()
 {
-    return std::unique_ptr<EquationContext>(new PythonEquationContext());
+    return std::unique_ptr<EquationContext>(new PythonEquationContext(engine_info_));
 }
 
 void PythonEquationEngine::InitializePyEnv()

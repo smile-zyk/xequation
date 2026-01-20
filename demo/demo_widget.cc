@@ -51,7 +51,7 @@ DemoWidget::DemoWidget(QWidget *parent)
     variable_inspect_widget_ = new xequation::gui::VariableInspectWidget(this);
 
     equation_completion_model_ =
-        new xequation::gui::EquationCompletionModel(QString::fromStdString(equation_manager_->language()), this);
+        new xequation::gui::EquationCompletionModel(&equation_manager_->context(), this);
 
     expression_watch_widget_ = new xequation::gui::ExpressionWatchWidget(equation_completion_model_, this);
 
@@ -301,9 +301,9 @@ void DemoWidget::InitCompletionModel()
     {
         return;
     }
-    if (equation_completion_model_->language_name() == "Python")
+    if (QString::fromStdString(equation_manager_->engine_info().name) == "Python")
     {
-        std::set<std::string> all_builtin_names = equation_manager_->context().GetBuiltinNames();
+        std::vector<std::string> all_builtin_names = equation_manager_->context().GetBuiltinNames();
         for (const auto &name : all_builtin_names)
         {
             QString word = QString::fromStdString(name);

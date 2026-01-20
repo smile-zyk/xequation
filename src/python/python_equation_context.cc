@@ -4,8 +4,9 @@
 using namespace xequation;
 using namespace xequation::python;
 
-PythonEquationContext::PythonEquationContext()
+PythonEquationContext::PythonEquationContext(const EquationEngineInfo& engine_info)
 {
+    engine_info_ = engine_info;
     pybind11::gil_scoped_acquire acquire;
     dict_.reset(new pybind11::dict());
     (*dict_)["__builtins__"] = pybind11::module_::import("builtins");
@@ -82,36 +83,67 @@ bool PythonEquationContext::empty() const
     return dict_->empty();
 }
 
-pybind11::dict PythonEquationContext::builtin_dict() const
+std::vector<std::string> PythonEquationContext::GetBuiltinNames() const
 {
     pybind11::gil_scoped_acquire acquire;
 
-    pybind11::object builtins = (*dict_)["__builtins__"];
-    if (pybind11::isinstance<pybind11::module>(builtins))
+    std::vector<std::string> names;
+    
+    if (dict_->contains("__builtins__"))
     {
-        return builtins.attr("__dict__").cast<pybind11::dict>();
+        pybind11::object builtins_module = (*dict_)["__builtins__"];
+        pybind11::dict builtins_dict = builtins_module.attr("__dict__");
+        
+        for (auto item : builtins_dict)
+        {
+            names.push_back(item.first.cast<std::string>());
+        }
     }
-    else
-    {
-        return builtins.cast<pybind11::dict>();
-    }
+    
+    return names;
 }
 
-std::set<std::string> PythonEquationContext::GetBuiltinNames() const
+std::vector<std::string> PythonEquationContext::GetSymbolNames() const
 {
-    if (!builtin_names_cache_.empty())
-    {
-        return builtin_names_cache_;
-    }
-
     pybind11::gil_scoped_acquire acquire;
 
-    pybind11::dict builtins_dict = builtin_dict();
-    std::set<std::string> names;
-    for (auto key : builtins_dict.attr("keys")())
+    std::vector<std::string> names;
+    
+    for (auto item : *dict_)
     {
-        names.insert(key.cast<std::string>());
+        names.push_back(item.first.cast<std::string>());
     }
-    builtin_names_cache_ = names;
+    
     return names;
+}
+
+std::string PythonEquationContext::GetSymbolType(const std::string &symbol_name) const
+{
+    pybind11::gil_scoped_acquire acquire;
+
+    // First check in the main dict
+    if (dict_->contains(symbol_name))
+    {
+        pybind11::object obj = (*dict_)[symbol_name.c_str()];
+        pybind11::object type_obj = obj.attr("__class__");
+        pybind11::object type_name = type_obj.attr("__name__");
+        return type_name.cast<std::string>();
+    }
+    
+    // If not found, check in __builtins__
+    if (dict_->contains("__builtins__"))
+    {
+        pybind11::object builtins_module = (*dict_)["__builtins__"];
+        pybind11::dict builtins_dict = builtins_module.attr("__dict__");
+        
+        if (builtins_dict.contains(symbol_name))
+        {
+            pybind11::object obj = builtins_dict[symbol_name.c_str()];
+            pybind11::object type_obj = obj.attr("__class__");
+            pybind11::object type_name = type_obj.attr("__name__");
+            return type_name.cast<std::string>();
+        }
+    }
+    
+    return "";
 }

@@ -12,6 +12,21 @@ namespace xequation
 {
 class EquationContext;
 
+struct EquationEngineInfo
+{
+    std::string name;  // Engine name, e.g., "Python"
+    
+    bool operator==(const EquationEngineInfo &other) const
+    {
+        return name == other.name;
+    }
+    
+    bool operator!=(const EquationEngineInfo &other) const
+    {
+        return !(*this == other);
+    }
+};
+
 enum class ResultStatus
 {
     kPending,

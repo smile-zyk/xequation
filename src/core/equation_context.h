@@ -3,6 +3,7 @@
 #include <unordered_set>
 
 #include "value.h"
+#include "equation_common.h"
 
 namespace xequation
 {
@@ -30,15 +31,36 @@ class EquationContext
     // Returns the number of entries.
     virtual size_t size() const
     {
-      return keys().size();
+        return keys().size();
     }
 
     // Checks if the dictionary is empty.
     virtual bool empty() const
     {
-      return keys().size() == 0;
+        return keys().size() == 0;
     }
 
-    virtual std::set<std::string> GetBuiltinNames() const { return {}; }
+    virtual std::vector<std::string> GetBuiltinNames() const
+    {
+        return {};
+    }
+
+    virtual std::vector<std::string> GetSymbolNames() const
+    {
+        return {};
+    }
+
+    virtual std::string GetSymbolType(const std::string &symbol_name) const
+    {
+        return "";
+    }
+
+    const EquationEngineInfo& engine_info() const
+    {
+        return engine_info_;
+    }
+
+  protected:
+    EquationEngineInfo engine_info_;
 };
 } // namespace xequation

@@ -7,14 +7,14 @@
 namespace xequation
 {
 EquationManager::EquationManager(
-    std::unique_ptr<EquationContext> context, InterpretHandler interpret_handler, ParseHandler parse_handler, const std::string &language
+    std::unique_ptr<EquationContext> context, InterpretHandler interpret_handler, ParseHandler parse_handler, const EquationEngineInfo &engine_info
 ) noexcept
     : graph_(std::unique_ptr<DependencyGraph>(new DependencyGraph())),
       signals_manager_(std::unique_ptr<EquationSignalsManager>(new EquationSignalsManager())),
       context_(std::move(context)),
       interpret_handler_(interpret_handler),
       parse_handler_(parse_handler),
-      language_(language)
+      engine_info_(engine_info)
 {
 }
 
@@ -103,7 +103,8 @@ EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_st
 {
     auto res = Parse(equation_statement, ParseMode::kStatement);
 
-    std::set<std::string> builtin_names = context_->GetBuiltinNames();
+    std::vector<std::string> builtin_names_vec = context_->GetBuiltinNames();
+    std::set<std::string> builtin_names(builtin_names_vec.begin(), builtin_names_vec.end());
     for (const auto &item : res.items)
     {
         if (builtin_names.count(item.name) > 0)
@@ -158,7 +159,8 @@ EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_st
 
 EquationGroupId EquationManager::AddEquation(const std::string& equation_name, const std::string& equation_content)
 {
-    std::set<std::string> builtin_names = context_->GetBuiltinNames();
+    std::vector<std::string> builtin_names_vec = context_->GetBuiltinNames();
+    std::set<std::string> builtin_names(builtin_names_vec.begin(), builtin_names_vec.end());
     if (builtin_names.count(equation_name) > 0)
     {
         throw EquationException::EquationConflictsWithBuiltin(equation_name);
@@ -211,7 +213,8 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
         new_name_item_map.insert({item.name, item});
     }
 
-    std::set<std::string> builtin_names = context_->GetBuiltinNames();
+    std::vector<std::string> builtin_names_vec = context_->GetBuiltinNames();
+    std::set<std::string> builtin_names(builtin_names_vec.begin(), builtin_names_vec.end());
     for (const auto &new_item : new_result.items)
     {
         if (builtin_names.count(new_item.name) > 0 && !group->IsEquationExist(new_item.name))
@@ -422,7 +425,8 @@ ParseResult EquationManager::Parse(const std::string &expression, ParseMode mode
 {
     auto res = parse_handler_(expression, mode);
     // remove dependencies in builtin names
-    std::set<std::string> builtin_names = context_->GetBuiltinNames();
+    std::vector<std::string> builtin_names_vec = context_->GetBuiltinNames();
+    std::set<std::string> builtin_names(builtin_names_vec.begin(), builtin_names_vec.end());
     for (auto &item : res.items)
     {
         std::vector<std::string> filtered_dependencies;

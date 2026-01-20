@@ -52,7 +52,8 @@ private:
 
     CodeEditor *editor_{};
     CodeHighlighter* editor_highlighter_{};
-    QString language_name_{};
+    xequation::EquationEngineInfo engine_info_{};
+    EquationCompletionModel* equation_completion_model_{};
     EquationCompletionFilterModel* equation_completion_filter_model_{};
     
     const EquationGroup* group_{};  // Store group for edit mode

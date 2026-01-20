@@ -60,7 +60,7 @@ private:
     QPushButton* cancel_button_;
     EquationCompletionFilterModel* completion_model_{};
     CodeHighlighter* editor_highlighter_{};
-    QString language_name_;
+    xequation::EquationEngineInfo engine_info_{};
 };
 } // namespace gui
 } // namespace xequation

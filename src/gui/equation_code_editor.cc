@@ -20,7 +20,9 @@ namespace gui
 {
 
 EquationCodeEditor::EquationCodeEditor(EquationCompletionModel* model, QWidget *parent)
-    : QDialog(parent), language_name_(model->language_name())
+    : QDialog(parent), 
+      engine_info_(model->context()->engine_info()),
+      equation_completion_model_(model)
 {
     equation_completion_filter_model_ = new EquationCompletionFilterModel(model, this);
 
@@ -98,8 +100,8 @@ void EquationCodeEditor::SetupUI()
     tool_bar_->addAction(switch_mode_action_);
 
     // Central editor
-    editor_ = new xequation::gui::CodeEditor(language_name_, this);
-    editor_highlighter_ = CodeHighlighter::Create(language_name_, editor_->document());
+    editor_ = new xequation::gui::CodeEditor(QString::fromStdString(engine_info_.name), this);
+    editor_highlighter_ = CodeHighlighter::Create(QString::fromStdString(engine_info_.name), editor_->document());
 
     equation_completion_filter_model_->sort(0);
     editor_->completer()->setModel(equation_completion_filter_model_);

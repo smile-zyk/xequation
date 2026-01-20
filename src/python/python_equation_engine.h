@@ -24,7 +24,7 @@ class PythonEquationEngine : public EquationEngine<PythonEquationEngine>
     ParseResult Parse(const std::string &expr, ParseMode mode = ParseMode::kExpression) override;
 
     std::unique_ptr<EquationContext> CreateContext() override;
-    std::string GetLanguage() const override { return "Python"; }
+    
   private:
     friend class EquationEngine<PythonEquationEngine>;
 

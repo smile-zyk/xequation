@@ -3,12 +3,52 @@
 #include "core/equation_common.h"
 #include <QString>
 #include <QSet>
+#include <QFile>
+#include <QLanguage>
 #include <algorithm>
 
 namespace xequation
 {
 namespace gui
 {
+
+static QMap<QString, QString> kLanguageDefineFileMap = {
+    {"Python", ":/code_editor/languages/python.xml"},
+};
+
+void EquationCompletionModel::InitWithLanguageDefinition(const xequation::EquationEngineInfo &engine_info)
+{
+    auto it = kLanguageDefineFileMap.find(QString::fromStdString(engine_info.name));
+    if (it == kLanguageDefineFileMap.end())
+    {
+        return;
+    }
+
+    QString define_file = it.value();
+    QFile fl(define_file);
+
+    if (!fl.open(QIODevice::ReadOnly))
+    {
+        return;
+    }
+
+    QLanguage language(&fl);
+
+    if (!language.isLoaded())
+    {
+        return;
+    }
+
+    auto keys = language.keys();
+    for (auto &&key : keys)
+    {
+        auto names = language.names(key);
+        for (auto &&name : names)
+        {
+            AddCompletionItem(name, key, name, CompletionItemType::Builtin);
+        }
+    }
+}
 
 void EquationCompletionModel::OnEquationAdded(const Equation *equation)
 {
@@ -18,11 +58,8 @@ void EquationCompletionModel::OnEquationAdded(const Equation *equation)
 	}
 
 	QString word = QString::fromStdString(equation->name());
-    QString type = QString::fromStdString(ItemTypeConverter::ToString(equation->type()));
-	if(type == "Import" || type == "ImportFrom")
-    {
-        type = "Module";
-    }
+	QString type = QString::fromStdString(context_->GetSymbolType(word.toStdString()));
+
     AddCompletionItem(word, type, word);
 }
 
@@ -34,11 +71,7 @@ void EquationCompletionModel::OnEquationRemoving(const Equation *equation)
 	}
 
 	const QString word = QString::fromStdString(equation->name());
-    QString type = QString::fromStdString(ItemTypeConverter::ToString(equation->type()));
-	if(type == "Import" || type == "ImportFrom")
-    {
-        type = "Module";
-    }
+    QString type = QString::fromStdString(context_->GetSymbolType(word.toStdString()));
 	RemoveCompletionItem(word, type);
 }
 
@@ -89,9 +122,9 @@ void EquationCompletionFilterModel::SetVisibleTypes(const QSet<CompletionItemTyp
 	invalidateFilter();
 }
 
-QList<CompletionCategory> EquationCompletionFilterModel::GetAllCategories()
+QList<QString> EquationCompletionFilterModel::GetAllCategories()
 {
-	QList<CompletionCategory> categories;
+	QList<QString> categories;
 	if (!model_)
 	{
 		return categories;
@@ -111,7 +144,6 @@ QList<CompletionCategory> EquationCompletionFilterModel::GetAllCategories()
 		}
 
 		QString name = model_->data(idx, CompletionListModel::kCategoryRole).toString();
-		int priority = model_->data(idx, CompletionListModel::kPriorityRole).toInt();
 
 		if (names.contains(name))
 		{
@@ -119,7 +151,7 @@ QList<CompletionCategory> EquationCompletionFilterModel::GetAllCategories()
 		}
 
 		names.insert(name);
-		categories.append(CompletionCategory{name, priority});
+		categories.append(name);
 	}
 
 	std::sort(categories.begin(), categories.end());

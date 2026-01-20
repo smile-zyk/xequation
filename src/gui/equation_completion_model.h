@@ -4,6 +4,7 @@
 
 #include "code_editor/completion_list_model.h"
 #include "core/equation.h"
+#include "core/equation_context.h"
 #include "core/equation_group.h"
 
 namespace xequation
@@ -14,17 +15,25 @@ class EquationCompletionModel : public CompletionListModel
 {
     Q_OBJECT
   public:
-    explicit EquationCompletionModel(const QString &language_name, QObject *parent = nullptr)
-        : CompletionListModel(language_name, parent)
+    explicit EquationCompletionModel(const EquationContext *context, QObject *parent = nullptr)
+        : CompletionListModel(context->engine_info(), parent), context_(context)
     {
+        InitWithLanguageDefinition(context->engine_info());
     }
     ~EquationCompletionModel() override = default;
 
     void OnEquationAdded(const Equation *equation);
     void OnEquationRemoving(const Equation *equation);
 
+    const EquationContext* context() const
+    {
+        return context_;
+    }
+
   private:
-    QString language_name_;
+    void InitWithLanguageDefinition(const xequation::EquationEngineInfo &engine_info);
+
+    const EquationContext* context_{};
 };
 
 class EquationCompletionFilterModel : public QSortFilterProxyModel
@@ -34,12 +43,14 @@ class EquationCompletionFilterModel : public QSortFilterProxyModel
     explicit EquationCompletionFilterModel(EquationCompletionModel *model, QObject *parent = nullptr);
     ~EquationCompletionFilterModel() override = default;
 
+    void OnEquationAdded(const Equation *equation);
+    void OnEquationRemoving(const Equation *equation);
+
     void SetDisplayOnlyWord(bool display_only_word);
     void SetEquationGroup(const EquationGroup *group);
     void SetFilterText(const QString &filter_text);
     void SetCategory(const QString &category);
-    void SetVisibleTypes(const QSet<CompletionItemType> &types);
-    QList<CompletionCategory> GetAllCategories();
+    QList<QString> GetAllCategories();
 
   protected:
     void setSourceModel(QAbstractItemModel *sourceModel) override;

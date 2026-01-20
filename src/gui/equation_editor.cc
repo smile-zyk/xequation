@@ -32,7 +32,7 @@ void ContextSelectionWidget::SetupUI()
     auto categories = model_->GetAllCategories();
     for( const auto &category : categories)
     {
-        context_combo_box_->addItem(category.name);
+        context_combo_box_->addItem(category);
     }
 
     context_filter_edit_ = new QLineEdit(this);
@@ -119,7 +119,7 @@ void ContextSelectionWidget::RefreshCategories()
             auto categories = model_->GetAllCategories();
             for (const auto &category : categories)
             {
-                context_combo_box_->addItem(category.name);
+                context_combo_box_->addItem(category);
             }
         }
         

@@ -1,6 +1,6 @@
 #include "code_highlighter.h"
 #include "python/python_highlighter.h"
-#include "completion_list_model.h"
+#include "completion_model.h"
 
 #include <QSyntaxStyle>
 
@@ -47,8 +47,8 @@ void CodeHighlighter::highlightBlock(const QString& text)
     for(int i = 0; i < row; ++i)
     {
         auto index = model_->index(i, 0);
-        QString word = model_->data(index, CompletionListModel::kWordRole).toString();
-        QString category = model_->data(index, CompletionListModel::kCategoryRole).toString();
+        QString word = model_->data(index, CompletionModel::kWordRole).toString();
+        QString category = model_->data(index, CompletionModel::kHighlightCategoryRole).toString();
         QRegularExpression pattern("\\b" + QRegularExpression::escape(word) + "\\b");
         auto matchIterator = pattern.globalMatch(text);
 

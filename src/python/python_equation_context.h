@@ -43,13 +43,15 @@ class PythonEquationContext : public EquationContext
         return *dict_;
     }
 
-    pybind11::dict builtin_dict() const;
+    std::vector<std::string> GetBuiltinNames() const override;
 
-    std::set<std::string> GetBuiltinNames() const override;
+    std::vector<std::string> GetSymbolNames() const override;
+
+    std::string GetSymbolType(const std::string &symbol_name) const override;
 
   private:
     friend class PythonEquationEngine;
-    PythonEquationContext();
+    PythonEquationContext(const EquationEngineInfo& engine_info);
     ~PythonEquationContext() noexcept = default;
     PythonEquationContext(const PythonEquationContext &) = delete;
     PythonEquationContext &operator=(const PythonEquationContext &) = delete;
@@ -57,7 +59,6 @@ class PythonEquationContext : public EquationContext
     PythonEquationContext(PythonEquationContext &&) noexcept = delete;
     PythonEquationContext &operator=(PythonEquationContext &&) noexcept = delete;
     std::unique_ptr<pybind11::dict> dict_;
-    mutable std::set<std::string> builtin_names_cache_;
 };
 } // namespace python
 } // namespace xequation
