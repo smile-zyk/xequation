@@ -1,53 +1,25 @@
 #include "equation_completion_model.h"
 #include "core/equation.h"
 #include "core/equation_common.h"
+#include "python/python_completion_model.h"
 #include <QString>
 #include <QSet>
 #include <QFile>
 #include <QLanguage>
-#include <algorithm>
 
 namespace xequation
 {
 namespace gui
 {
 
-static QMap<QString, QString> kLanguageDefineFileMap = {
-    {"Python", ":/code_editor/languages/python.xml"},
-};
-
-void EquationCompletionModel::InitWithLanguageDefinition(const xequation::EquationEngineInfo &engine_info)
+EquationCompletionModel::EquationCompletionModel(const EquationContext* context, QObject *parent)
+	: QSortFilterProxyModel(parent), context_(context)
 {
-    auto it = kLanguageDefineFileMap.find(QString::fromStdString(engine_info.name));
-    if (it == kLanguageDefineFileMap.end())
-    {
-        return;
-    }
-
-    QString define_file = it.value();
-    QFile fl(define_file);
-
-    if (!fl.open(QIODevice::ReadOnly))
-    {
-        return;
-    }
-
-    QLanguage language(&fl);
-
-    if (!language.isLoaded())
-    {
-        return;
-    }
-
-    auto keys = language.keys();
-    for (auto &&key : keys)
-    {
-        auto names = language.names(key);
-        for (auto &&name : names)
-        {
-            AddCompletionItem(name, key, name, CompletionItemType::Builtin);
-        }
-    }
+	if(context->engine_info().name == "Python")
+	{
+		model_ = new PythonCompletionModel(this);
+		setSourceModel(model_);
+	}
 }
 
 void EquationCompletionModel::OnEquationAdded(const Equation *equation)
@@ -59,8 +31,9 @@ void EquationCompletionModel::OnEquationAdded(const Equation *equation)
 
 	QString word = QString::fromStdString(equation->name());
 	QString type = QString::fromStdString(context_->GetSymbolType(word.toStdString()));
-
-    AddCompletionItem(word, type, word);
+	QString category = QString::fromStdString(context_->GetTypeCategory(type.toStdString()));
+	
+    model_->AddCompletionItem(word, type, category);
 }
 
 void EquationCompletionModel::OnEquationRemoving(const Equation *equation)
@@ -72,23 +45,10 @@ void EquationCompletionModel::OnEquationRemoving(const Equation *equation)
 
 	const QString word = QString::fromStdString(equation->name());
     QString type = QString::fromStdString(context_->GetSymbolType(word.toStdString()));
-	RemoveCompletionItem(word, type);
+	model_->RemoveCompletionItem(word, type);
 }
 
-EquationCompletionFilterModel::EquationCompletionFilterModel(EquationCompletionModel *model, QObject *parent)
-	: QSortFilterProxyModel(parent), model_(model)
-{
-	setSourceModel(model);
-}
-
-void EquationCompletionFilterModel::setSourceModel(QAbstractItemModel *sourceModel)
-{
-	QSortFilterProxyModel::setSourceModel(sourceModel);
-
-	model_ = qobject_cast<EquationCompletionModel *>(sourceModel);
-}
-
-void EquationCompletionFilterModel::SetDisplayOnlyWord(bool display_only_word)
+void EquationCompletionModel::SetDisplayOnlyWord(bool display_only_word)
 {
 	display_only_word_ = display_only_word;
 	// Refresh displayed data for all rows
@@ -98,31 +58,25 @@ void EquationCompletionFilterModel::SetDisplayOnlyWord(bool display_only_word)
 	}
 }
 
-void EquationCompletionFilterModel::SetEquationGroup(const EquationGroup* group)
+void EquationCompletionModel::SetEquationGroup(const EquationGroup* group)
 {
 	group_ = group;
 	invalidateFilter();
 }
 
-void EquationCompletionFilterModel::SetFilterText(const QString &filter_text)
+void EquationCompletionModel::SetFilterText(const QString &filter_text)
 {
 	filter_text_ = filter_text;
 	invalidateFilter();
 }
 
-void EquationCompletionFilterModel::SetCategory(const QString &category)
+void EquationCompletionModel::SetCategory(const QString &category)
 {
-	category_ = category;
+	filter_category_ = category;
 	invalidateFilter();
 }
 
-void EquationCompletionFilterModel::SetVisibleTypes(const QSet<CompletionItemType> &types)
-{
-	visible_types_ = types;
-	invalidateFilter();
-}
-
-QList<QString> EquationCompletionFilterModel::GetAllCategories()
+QList<QString> EquationCompletionModel::GetAllCategories()
 {
 	QList<QString> categories;
 	if (!model_)
@@ -135,7 +89,7 @@ QList<QString> EquationCompletionFilterModel::GetAllCategories()
 	for (int i = 0; i < row_count; ++i)
 	{
 		QModelIndex idx = model_->index(i, 0);
-		QString word = model_->data(idx, CompletionListModel::kWordRole).toString();
+		QString word = model_->data(idx, CompletionModel::kWordRole).toString();
 
 		// Group filter: skip words existing in the equation group
 		if (group_ && group_->IsEquationExist(word.toStdString()))
@@ -143,7 +97,7 @@ QList<QString> EquationCompletionFilterModel::GetAllCategories()
 			continue;
 		}
 
-		QString name = model_->data(idx, CompletionListModel::kCategoryRole).toString();
+		QString name = model_->data(idx, CompletionModel::kCategoryRole).toString();
 
 		if (names.contains(name))
 		{
@@ -158,7 +112,7 @@ QList<QString> EquationCompletionFilterModel::GetAllCategories()
 	return categories;
 }
 
-bool EquationCompletionFilterModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
+bool EquationCompletionModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
 {
 	auto *src = sourceModel();
 	if (!src)
@@ -167,7 +121,7 @@ bool EquationCompletionFilterModel::filterAcceptsRow(int source_row, const QMode
 	}
 
 	QModelIndex idx = src->index(source_row, 0, source_parent);
-	QString word = src->data(idx, CompletionListModel::kWordRole).toString();
+	QString word = src->data(idx, CompletionModel::kWordRole).toString();
 	if (word.isEmpty())
 	{
 		return true;
@@ -179,20 +133,10 @@ bool EquationCompletionFilterModel::filterAcceptsRow(int source_row, const QMode
 		return false;
 	}
 
-	if (!visible_types_.isEmpty())
+	if (!filter_category_.isEmpty())
 	{
-		int type_value = src->data(idx, CompletionListModel::kTypeRole).toInt();
-		CompletionItemType item_type = static_cast<CompletionItemType>(type_value);
-		if (!visible_types_.contains(item_type))
-		{
-			return false;
-		}
-	}
-
-	if (!category_.isEmpty())
-	{
-		QString category = src->data(idx, CompletionListModel::kCategoryRole).toString();
-		if (category != category_)
+		QString category = src->data(idx, CompletionModel::kCategoryRole).toString();
+		if (category != filter_category_)
 		{
 			return false;
 		}
@@ -209,12 +153,12 @@ bool EquationCompletionFilterModel::filterAcceptsRow(int source_row, const QMode
 	return true;
 }
 
-QVariant EquationCompletionFilterModel::data(const QModelIndex &index, int role) const
+QVariant EquationCompletionModel::data(const QModelIndex &index, int role) const
 {
 	if (display_only_word_ && role == Qt::DisplayRole)
 	{
 		QModelIndex srcIdx = mapToSource(index);
-		return sourceModel()->data(srcIdx, CompletionListModel::kWordRole);
+		return sourceModel()->data(srcIdx, CompletionModel::kWordRole);
 	}
 
 	return QSortFilterProxyModel::data(index, role);

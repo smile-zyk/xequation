@@ -12,15 +12,15 @@ namespace gui
 struct CompletionItem
 {
     QString word;
+    QString type;
     QString category;
-    QString highlight_category;
     QString complete_content;
 
     bool operator<(const CompletionItem &other) const
     {
-        if (category != other.category)
+        if (type != other.type)
         {
-            return category < other.category;
+            return type < other.type;
         }
         return word < other.word;
     }
@@ -30,9 +30,9 @@ class CompletionModel : public QAbstractListModel
 {
   public:
     static constexpr int kWordRole = Qt::UserRole + 1;
-    static constexpr int kCategoryRole = Qt::UserRole + 2;
-    static constexpr int kCompleteContentRole = Qt::UserRole + 3;
-    static constexpr int kHighlightCategoryRole = Qt::UserRole + 4;
+    static constexpr int kTypeRole = Qt::UserRole + 2;
+    static constexpr int kCategoryRole = Qt::UserRole + 3;
+    static constexpr int kCompleteContentRole = Qt::UserRole + 4;
 
     explicit CompletionModel(QObject *parent = nullptr);
     ~CompletionModel() override;
@@ -42,9 +42,9 @@ class CompletionModel : public QAbstractListModel
 
     QList<QString> GetAllCategories() const;
 
-    void AddCompletionItem(const QString &word, const QString &category, const QString &highlight_category = QString(), const QString &complete_content = QString());
+    void AddCompletionItem(const QString &word, const QString &type, const QString &category = QString(), const QString &complete_content = QString());
 
-    void RemoveCompletionItem(const QString &word, const QString &category);
+    void RemoveCompletionItem(const QString &word, const QString &type);
 
     void Clear();
 

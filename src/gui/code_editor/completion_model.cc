@@ -35,7 +35,7 @@ QVariant CompletionModel::data(const QModelIndex &index, int role) const
     // DisplayRole: "word    category"
     if (role == Qt::DisplayRole)
     {
-        return item.word + "    " + item.category;
+        return item.word + "    " + item.type;
     }
     // EditRole: complete_content
     else if (role == Qt::EditRole)
@@ -46,6 +46,10 @@ QVariant CompletionModel::data(const QModelIndex &index, int role) const
     {
         return item.word;
     }
+    else if (role == kTypeRole)
+    {
+        return item.type;
+    }
     else if (role == kCategoryRole)
     {
         return item.category;
@@ -53,10 +57,6 @@ QVariant CompletionModel::data(const QModelIndex &index, int role) const
     else if (role == kCompleteContentRole)
     {
         return item.complete_content;
-    }
-    else if (role == kHighlightCategoryRole)
-    {
-        return item.highlight_category;
     }
 
     return QVariant();
@@ -81,26 +81,28 @@ QList<QString> CompletionModel::GetAllCategories() const
     return categories;
 }
 
-void CompletionModel::AddCompletionItem(const QString& word, const QString& category, const QString& highlight_category, const QString& complete_content)
+void CompletionModel::AddCompletionItem(const QString& word, const QString& type, const QString& category, const QString& complete_content)
 {
-    auto key = qMakePair(word, category);
+    auto key = qMakePair(word, type);
     
     if (item_index_map_.contains(key))
     {
-        RemoveCompletionItem(word, category);
+        RemoveCompletionItem(word, type);
     }
     
     CompletionItem item;
     item.word = word;
-    item.category = category;
-    if(highlight_category.isEmpty())
+    item.type = type;
+
+    if(category.isEmpty())
     {
-        item.highlight_category = category;
+        item.category = type;
     }
     else
     {
-        item.highlight_category = highlight_category;
+        item.category = category;
     }
+
     if(complete_content.isEmpty())
     {
         item.complete_content = word;
@@ -115,9 +117,9 @@ void CompletionModel::AddCompletionItem(const QString& word, const QString& cate
     ResortItems();
 }
 
-void CompletionModel::RemoveCompletionItem(const QString& word, const QString& category_name)
+void CompletionModel::RemoveCompletionItem(const QString& word, const QString& type)
 {
-    auto key = qMakePair(word, category_name);
+    auto key = qMakePair(word, type);
     
     if (!item_index_map_.contains(key))
     {
@@ -138,7 +140,7 @@ void CompletionModel::RemoveCompletionItem(const QString& word, const QString& c
     item_index_map_.clear();
     for (int i = 0; i < items_.size(); ++i)
     {
-        auto k = qMakePair(items_[i].word, items_[i].category);
+        auto k = qMakePair(items_[i].word, items_[i].type);
         item_index_map_[k] = i;
     }
 }
@@ -159,7 +161,7 @@ void CompletionModel::ResortItems()
     item_index_map_.clear();
     for (int i = 0; i < items_.size(); ++i)
     {
-        auto k = qMakePair(items_[i].word, items_[i].category);
+        auto k = qMakePair(items_[i].word, items_[i].type);
         item_index_map_[k] = i;
     }
     endResetModel();

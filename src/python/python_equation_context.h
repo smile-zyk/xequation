@@ -49,6 +49,8 @@ class PythonEquationContext : public EquationContext
 
     std::string GetSymbolType(const std::string &symbol_name) const override;
 
+    std::string GetTypeCategory(const std::string &type_name) const override;
+
   private:
     friend class PythonEquationEngine;
     PythonEquationContext(const EquationEngineInfo& engine_info);

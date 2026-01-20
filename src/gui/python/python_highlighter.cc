@@ -6,6 +6,12 @@ namespace xequation
 {
 namespace gui
 {
+
+CodeHighlighter* PythonHighlighter::Create(QTextDocument *document)
+{
+    return new PythonHighlighter(document);
+}
+
 PythonHighlighter::PythonHighlighter(QTextDocument *document) : CodeHighlighter(document)
 {
     // Initialize pre-model rules

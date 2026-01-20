@@ -1,6 +1,7 @@
 #include "equation_code_editor.h"
 #include "core/equation_group.h"
 #include "equation_completion_model.h"
+#include "python/python_highlighter.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -19,13 +20,9 @@ namespace xequation
 namespace gui
 {
 
-EquationCodeEditor::EquationCodeEditor(EquationCompletionModel* model, QWidget *parent)
-    : QDialog(parent), 
-      engine_info_(model->context()->engine_info()),
-      equation_completion_model_(model)
+EquationCodeEditor::EquationCodeEditor(QWidget *parent)
+    : QDialog(parent)
 {
-    equation_completion_filter_model_ = new EquationCompletionFilterModel(model, this);
-
     setWindowTitle("Insert Equation");
     setMinimumSize(800, 600);
 
@@ -37,6 +34,21 @@ EquationCodeEditor::~EquationCodeEditor()
 {
 }
 
+void EquationCodeEditor::SetCompletionModel(EquationCompletionModel* model)
+{
+    equation_completion_model_ = model;
+    if (editor_ && equation_completion_model_)
+    {
+        editor_->completer()->setModel(equation_completion_model_);
+        if(equation_completion_model_->context()->engine_info().name == "Python")
+        {
+            editor_highlighter_ = PythonHighlighter::Create(editor_->document());
+            editor_highlighter_->SetModel(equation_completion_model_);
+        }
+        editor_->setHighlighter(editor_highlighter_);
+    }
+}
+
 void EquationCodeEditor::SetEquationGroup(const EquationGroup* group)
 {
     group_ = group;
@@ -46,7 +58,7 @@ void EquationCodeEditor::SetEquationGroup(const EquationGroup* group)
         return;
     }
     setWindowTitle("Edit Equation");
-    equation_completion_filter_model_->SetEquationGroup(group);
+    equation_completion_model_->SetEquationGroup(group);
     SetText(QString::fromStdString(group->statement()));
 }
 
@@ -101,12 +113,6 @@ void EquationCodeEditor::SetupUI()
 
     // Central editor
     editor_ = new xequation::gui::CodeEditor(QString::fromStdString(engine_info_.name), this);
-    editor_highlighter_ = CodeHighlighter::Create(QString::fromStdString(engine_info_.name), editor_->document());
-
-    equation_completion_filter_model_->sort(0);
-    editor_->completer()->setModel(equation_completion_filter_model_);
-    editor_highlighter_->SetModel(equation_completion_filter_model_);
-    editor_->setHighlighter(editor_highlighter_);
 
     // Bottom-right buttons
     ok_button_ = new QPushButton("Ok", this);

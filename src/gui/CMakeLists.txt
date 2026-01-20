@@ -35,8 +35,8 @@ code_editor/completion_line_edit.h
 code_editor/completion_line_edit.cc
 code_editor/completion_line_edit_delegate.h
 code_editor/completion_line_edit_delegate.cc
-code_editor/completion_list_model.h
-code_editor/completion_list_model.cc
+code_editor/completion_model.h
+code_editor/completion_model.cc
 code_editor/code_editor.h
 code_editor/code_editor.cc
 code_editor/code_highlighter.h
@@ -56,6 +56,8 @@ python/python_item_builder.h
 python/python_item_builder.cc
 python/python_highlighter.h
 python/python_highlighter.cc
+python/python_completion_model.h
+python/python_completion_model.cc
 )
 
 qt5_add_resources(xequation_gui_SRC resources/gui_resource.qrc)

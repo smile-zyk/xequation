@@ -16,9 +16,10 @@ class EquationCodeEditor : public QDialog
 {
     Q_OBJECT
 public:
-    explicit EquationCodeEditor(EquationCompletionModel* language_model, QWidget *parent = nullptr);
+    explicit EquationCodeEditor(QWidget *parent = nullptr);
     ~EquationCodeEditor();
 
+    void SetCompletionModel(EquationCompletionModel* model);
     void SetEquationGroup(const EquationGroup* group);
     QString GetText() const;
     void SetText(const QString &text);
@@ -31,6 +32,7 @@ signals:
     void EditEquationRequest(const EquationGroupId& group_id, const QString &statement);
     void StyleModeChanged(CodeEditor::StyleMode mode);
     void ZoomChanged(double zoom_factor);
+
 protected:
     void SetupUI();
     void SetupConnections();
@@ -54,7 +56,6 @@ private:
     CodeHighlighter* editor_highlighter_{};
     xequation::EquationEngineInfo engine_info_{};
     EquationCompletionModel* equation_completion_model_{};
-    EquationCompletionFilterModel* equation_completion_filter_model_{};
     
     const EquationGroup* group_{};  // Store group for edit mode
 

@@ -11,7 +11,6 @@ class CodeHighlighter : public QStyleSyntaxHighlighter
 {
     Q_OBJECT
   public:
-    static CodeHighlighter* Create(const QString& language_name, QTextDocument* document = nullptr);
     ~CodeHighlighter() override;
     void SetModel(QAbstractItemModel* model);
   protected:

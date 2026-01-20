@@ -2,7 +2,7 @@
 
 #include <QSortFilterProxyModel>
 
-#include "code_editor/completion_list_model.h"
+#include "code_editor/completion_model.h"
 #include "core/equation.h"
 #include "core/equation_context.h"
 #include "core/equation_group.h"
@@ -11,37 +11,12 @@ namespace xequation
 {
 namespace gui
 {
-class EquationCompletionModel : public CompletionListModel
+class EquationCompletionModel : public QSortFilterProxyModel
 {
     Q_OBJECT
   public:
-    explicit EquationCompletionModel(const EquationContext *context, QObject *parent = nullptr)
-        : CompletionListModel(context->engine_info(), parent), context_(context)
-    {
-        InitWithLanguageDefinition(context->engine_info());
-    }
+    explicit EquationCompletionModel(const EquationContext* context, QObject *parent = nullptr);
     ~EquationCompletionModel() override = default;
-
-    void OnEquationAdded(const Equation *equation);
-    void OnEquationRemoving(const Equation *equation);
-
-    const EquationContext* context() const
-    {
-        return context_;
-    }
-
-  private:
-    void InitWithLanguageDefinition(const xequation::EquationEngineInfo &engine_info);
-
-    const EquationContext* context_{};
-};
-
-class EquationCompletionFilterModel : public QSortFilterProxyModel
-{
-    Q_OBJECT
-  public:
-    explicit EquationCompletionFilterModel(EquationCompletionModel *model, QObject *parent = nullptr);
-    ~EquationCompletionFilterModel() override = default;
 
     void OnEquationAdded(const Equation *equation);
     void OnEquationRemoving(const Equation *equation);
@@ -52,17 +27,25 @@ class EquationCompletionFilterModel : public QSortFilterProxyModel
     void SetCategory(const QString &category);
     QList<QString> GetAllCategories();
 
+    const EquationContext* context() const { return context_; }
+
   protected:
-    void setSourceModel(QAbstractItemModel *sourceModel) override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
   protected:
-    EquationCompletionModel *model_;
+    CompletionModel *model_{};
+    const EquationContext* context_{};
+
+    // editing group
     const EquationGroup *group_{};
+
+    // filter text
     QString filter_text_;
-    QString category_;
+
+    // filter category
+    QString filter_category_;
+    
     bool display_only_word_{false};
-    QSet<CompletionItemType> visible_types_;
     bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override;
 };
 

@@ -55,6 +55,11 @@ class EquationContext
         return "";
     }
 
+    virtual std::string GetTypeCategory(const std::string &type_name) const
+    {
+        return type_name;
+    }
+
     const EquationEngineInfo& engine_info() const
     {
         return engine_info_;

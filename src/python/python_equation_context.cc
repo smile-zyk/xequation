@@ -147,3 +147,23 @@ std::string PythonEquationContext::GetSymbolType(const std::string &symbol_name)
     
     return "";
 }
+
+std::string PythonEquationContext::GetTypeCategory(const std::string &type_name) const
+{
+    // Classify Python type names into one of: Function, Module, Variable
+    if (type_name == "module")
+    {
+        return "Module";
+    }
+
+    // Common function-like type names
+    if (type_name == "function" || type_name == "builtin_function_or_method" ||
+        type_name == "method" || type_name == "builtin_method" ||
+        type_name == "staticmethod" || type_name == "classmethod")
+    {
+        return "Function";
+    }
+
+    // Everything else treated as a variable (includes int, float, str, custom classes, etc.)
+    return "Variable";
+}

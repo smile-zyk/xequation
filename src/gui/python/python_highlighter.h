@@ -10,8 +10,9 @@ class PythonHighlighter : public CodeHighlighter
 {
     Q_OBJECT
 public:
-    explicit PythonHighlighter(QTextDocument* document = nullptr);
+    static CodeHighlighter* Create(QTextDocument* document = nullptr);
 protected:
+    explicit PythonHighlighter(QTextDocument* document = nullptr);
     void highlightBlock(const QString& text) override;
     void ApplyRules(const QString& text, const QVector<QHighlightRule>& rules);
 protected:
