@@ -6,6 +6,8 @@ namespace xequation
 namespace gui
 {
 
+static int g_insert_order_counter = 0;
+
 CompletionModel::CompletionModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -93,6 +95,7 @@ void CompletionModel::AddCompletionItem(const QString& word, const QString& type
     CompletionItem item;
     item.word = word;
     item.type = type;
+    item.insert_order = ++g_insert_order_counter;
 
     if(category.isEmpty())
     {

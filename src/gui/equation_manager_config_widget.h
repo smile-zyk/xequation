@@ -10,7 +10,8 @@
 
 #include "code_editor/code_editor.h"
 #include "code_editor/code_highlighter.h"
-#include "equation_completion_model.h"
+#include "code_editor/completion_model.h"
+#include "core/equation_common.h"
 
 namespace xequation
 {
@@ -29,7 +30,7 @@ class EquationManagerConfigWidget : public QWidget
     Q_OBJECT
 
   public:
-    explicit EquationManagerConfigWidget(EquationCompletionModel* completion_model, QWidget *parent = nullptr);
+    explicit EquationManagerConfigWidget(EquationEngineInfo engine_info, QWidget *parent = nullptr);
     ~EquationManagerConfigWidget() override;
     
     EquationManagerConfigOption GetConfigOption() const;
@@ -49,6 +50,8 @@ private slots:
 private:
     QGroupBox* startup_script_groupbox_;
     CodeEditor* startup_script_editor_;
+    CompletionModel* startup_script_completion_model_{};
+    CodeHighlighter* startup_script_highlighter_{};
     QGroupBox* code_editor_groupbox_;
     QLabel* style_model_label_;
     QComboBox* style_model_combobox_;
@@ -58,8 +61,7 @@ private:
     QCheckBox* auto_update_checkbox_;
     QPushButton* ok_button_;
     QPushButton* cancel_button_;
-    EquationCompletionFilterModel* completion_model_{};
-    CodeHighlighter* editor_highlighter_{};
+
     xequation::EquationEngineInfo engine_info_{};
 };
 } // namespace gui

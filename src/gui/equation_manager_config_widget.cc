@@ -2,14 +2,15 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
-#include "code_editor/code_highlighter.h"
+#include "python/python_highlighter.h"
+#include "python/python_completion_model.h"
 
 namespace xequation
 {
 namespace gui
 {
 
-EquationManagerConfigWidget::EquationManagerConfigWidget(const xequation::EquationEngineInfo& engine_info, QWidget *parent)
+EquationManagerConfigWidget::EquationManagerConfigWidget(xequation::EquationEngineInfo engine_info, QWidget *parent)
     : QWidget(parent), engine_info_(engine_info)
 {
     SetupUI();
@@ -31,10 +32,17 @@ void EquationManagerConfigWidget::SetupUI()
     startup_script_groupbox_ = new QGroupBox("Startup Script", this);
     auto *startup_layout = new QVBoxLayout(startup_script_groupbox_);
     startup_script_editor_ = new CodeEditor(QString::fromStdString(engine_info_.name), startup_script_groupbox_);
-    editor_highlighter_ = CodeHighlighter::Create(QString::fromStdString(engine_info_.name), startup_script_editor_->document());
-    startup_script_editor_->setHighlighter(editor_highlighter_);
     startup_layout->addWidget(startup_script_editor_);
     main_layout->addWidget(startup_script_groupbox_);
+
+    if(engine_info_.name == "Python")
+    {
+        startup_script_completion_model_ = new PythonCompletionModel(this);
+        startup_script_editor_->completer()->setModel(startup_script_completion_model_);
+        startup_script_highlighter_ = PythonHighlighter::Create(startup_script_editor_->document());
+        startup_script_highlighter_->SetModel(startup_script_completion_model_);
+        startup_script_editor_->setHighlighter(startup_script_highlighter_);
+    }
 
     // Code Editor Group
     code_editor_groupbox_ = new QGroupBox("Code Editor", this);

@@ -4,7 +4,7 @@
 using namespace xequation;
 using namespace xequation::python;
 
-PythonEquationContext::PythonEquationContext(const EquationEngineInfo& engine_info)
+PythonEquationContext::PythonEquationContext(const EquationEngineInfo &engine_info)
 {
     engine_info_ = engine_info;
     pybind11::gil_scoped_acquire acquire;
@@ -62,17 +62,18 @@ bool PythonEquationContext::Remove(const std::string &var_name)
     return false;
 }
 
-void PythonEquationContext::Clear() 
+void PythonEquationContext::Clear()
 {
     pybind11::gil_scoped_acquire acquire;
-    
-    dict_->clear();
+
+    dict_.reset(new pybind11::dict());
+    (*dict_)["__builtins__"] = pybind11::module_::import("builtins");
 }
 
 size_t PythonEquationContext::size() const
 {
     pybind11::gil_scoped_acquire acquire;
-    
+
     return dict_->size();
 }
 
@@ -88,18 +89,18 @@ std::vector<std::string> PythonEquationContext::GetBuiltinNames() const
     pybind11::gil_scoped_acquire acquire;
 
     std::vector<std::string> names;
-    
+
     if (dict_->contains("__builtins__"))
     {
         pybind11::object builtins_module = (*dict_)["__builtins__"];
         pybind11::dict builtins_dict = builtins_module.attr("__dict__");
-        
+
         for (auto item : builtins_dict)
         {
             names.push_back(item.first.cast<std::string>());
         }
     }
-    
+
     return names;
 }
 
@@ -108,12 +109,12 @@ std::vector<std::string> PythonEquationContext::GetSymbolNames() const
     pybind11::gil_scoped_acquire acquire;
 
     std::vector<std::string> names;
-    
+
     for (auto item : *dict_)
     {
         names.push_back(item.first.cast<std::string>());
     }
-    
+
     return names;
 }
 
@@ -121,45 +122,55 @@ std::string PythonEquationContext::GetSymbolType(const std::string &symbol_name)
 {
     pybind11::gil_scoped_acquire acquire;
 
+    std::string type;
+
     // First check in the main dict
     if (dict_->contains(symbol_name))
     {
         pybind11::object obj = (*dict_)[symbol_name.c_str()];
         pybind11::object type_obj = obj.attr("__class__");
         pybind11::object type_name = type_obj.attr("__name__");
-        return type_name.cast<std::string>();
+        type = type_name.cast<std::string>();
     }
-    
-    // If not found, check in __builtins__
-    if (dict_->contains("__builtins__"))
+    else if (dict_->contains("__builtins__"))
     {
         pybind11::object builtins_module = (*dict_)["__builtins__"];
         pybind11::dict builtins_dict = builtins_module.attr("__dict__");
-        
+
         if (builtins_dict.contains(symbol_name))
         {
             pybind11::object obj = builtins_dict[symbol_name.c_str()];
             pybind11::object type_obj = obj.attr("__class__");
             pybind11::object type_name = type_obj.attr("__name__");
-            return type_name.cast<std::string>();
+            type = type_name.cast<std::string>();
         }
     }
-    
-    return "";
+
+    if (type == "builtin_function_or_method" || type == "builtin_method")
+    {
+        type = "function";
+    }
+
+    return type;
 }
 
 std::string PythonEquationContext::GetTypeCategory(const std::string &type_name) const
 {
-    // Classify Python type names into one of: Function, Module, Variable
+    // Classify Python type names into one of: Function, Module, Class, Variable
     if (type_name == "module")
     {
         return "Module";
     }
 
+    // Check if it's a class/type
+    if (type_name == "type")
+    {
+        return "Class";
+    }
+
     // Common function-like type names
-    if (type_name == "function" || type_name == "builtin_function_or_method" ||
-        type_name == "method" || type_name == "builtin_method" ||
-        type_name == "staticmethod" || type_name == "classmethod")
+    if (type_name == "function" || type_name == "builtin_function_or_method" || type_name == "method" ||
+        type_name == "builtin_method" || type_name == "staticmethod" || type_name == "classmethod")
     {
         return "Function";
     }

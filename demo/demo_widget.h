@@ -112,11 +112,9 @@ private:
     xequation::gui::EquationCompletionModel* equation_completion_model_;
     xequation::gui::EquationDependencyGraphViewer* dependency_graph_viewer_;
     
-    // Persistent editors - created once and reused
     xequation::gui::EquationEditor* equation_editor_;
     xequation::gui::EquationCodeEditor* equation_code_editor_;
     xequation::gui::EquationManagerConfigWidget* equation_manager_config_widget_;
     
-    // Configuration option
     xequation::gui::EquationManagerConfigOption config_option_;
 };

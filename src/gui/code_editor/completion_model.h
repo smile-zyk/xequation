@@ -15,14 +15,12 @@ struct CompletionItem
     QString type;
     QString category;
     QString complete_content;
+    int insert_order = 0;  // Track insertion order
 
     bool operator<(const CompletionItem &other) const
     {
-        if (type != other.type)
-        {
-            return type < other.type;
-        }
-        return word < other.word;
+        // Sort by insertion order in reverse (newest first)
+        return insert_order > other.insert_order;
     }
 };
 

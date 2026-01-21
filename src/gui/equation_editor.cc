@@ -1,5 +1,6 @@
 #include "equation_editor.h"
 #include "code_editor/completion_line_edit.h"
+#include "code_editor/completion_model.h"
 #include "core/equation.h"
 #include "equation_completion_model.h"
 
@@ -17,8 +18,8 @@ namespace xequation
 {
 namespace gui
 {
-ContextSelectionWidget::ContextSelectionWidget(EquationCompletionFilterModel* model, QWidget *parent)
-    : QWidget(parent), model_(model)
+ContextSelectionWidget::ContextSelectionWidget(EquationCompletionModel* model, QWidget *parent)
+    : QWidget(parent), model_(model), proxy_model_(new ContextFilterProxyModel(model, this))
 {
     SetupUI();
     SetupConnections();
@@ -29,8 +30,8 @@ void ContextSelectionWidget::SetupUI()
     QVBoxLayout *main_layout = new QVBoxLayout(this);
 
     context_combo_box_ = new QComboBox(this);
-    auto categories = model_->GetAllCategories();
-    for( const auto &category : categories)
+    auto categories = proxy_model_->GetAllCategories();
+    for(const auto &category : categories)
     {
         context_combo_box_->addItem(category);
     }
@@ -39,7 +40,7 @@ void ContextSelectionWidget::SetupUI()
     context_filter_edit_->setPlaceholderText("Filter variables...");
 
     context_list_view_ = new QListView(this);
-    context_list_view_->setModel(model_);
+    context_list_view_->setModel(proxy_model_);
 
     main_layout->addWidget(context_combo_box_);
     main_layout->addWidget(context_filter_edit_);
@@ -70,12 +71,14 @@ QString ContextSelectionWidget::GetSelectedVariable() const
 
 void ContextSelectionWidget::OnComboBoxChanged(const QString &text)
 {
-    model_->SetCategory(text);
+    proxy_model_->SetFilterCategory(text);
+    proxy_model_->invalidate();
 }
 
 void ContextSelectionWidget::OnFilterTextChanged(const QString &text)
 {
-    model_->SetFilterText(text);
+    proxy_model_->SetFilterText(text);
+    proxy_model_->invalidate();
 }
 
 void ContextSelectionWidget::OnListViewDoubleClicked(const QModelIndex &index)
@@ -114,9 +117,9 @@ void ContextSelectionWidget::RefreshCategories()
         context_combo_box_->blockSignals(true);
         context_combo_box_->clear();
         
-        if (model_)
+        if (proxy_model_)
         {
-            auto categories = model_->GetAllCategories();
+            auto categories = proxy_model_->GetAllCategories();
             for (const auto &category : categories)
             {
                 context_combo_box_->addItem(category);
@@ -133,11 +136,8 @@ void ContextSelectionWidget::RefreshCategories()
 }
 
 EquationEditor::EquationEditor(EquationCompletionModel* language_model, QWidget *parent)
-    : QDialog(parent), group_(nullptr)
+    : QDialog(parent), group_(nullptr), completion_model_(language_model)
 {
-    context_selection_filter_model_ = new EquationCompletionFilterModel(language_model, this);
-    context_selection_filter_model_->SetDisplayOnlyWord(true);
-    completion_filter_model_ = new EquationCompletionFilterModel(language_model, this);
     SetupUI();
     SetupConnections();
 }
@@ -145,8 +145,6 @@ EquationEditor::EquationEditor(EquationCompletionModel* language_model, QWidget 
 void EquationEditor::SetEquationGroup(const EquationGroup* group)
 {
     group_ = group;
-    context_selection_filter_model_->SetEquationGroup(group);
-    completion_filter_model_->SetEquationGroup(group);
     
     // Refresh categories when group changes
     if (context_selection_widget_)
@@ -189,12 +187,12 @@ void EquationEditor::SetupUI()
 
     context_button_ = new QPushButton("Context>>", this);
 
-    context_selection_widget_ = new ContextSelectionWidget(context_selection_filter_model_, this);
+    context_selection_widget_ = new ContextSelectionWidget(completion_model_, this);
     context_selection_widget_->setVisible(false);
     insert_button_->setVisible(false);
     equation_name_edit_->setPlaceholderText("Enter equation name...");
     expression_edit_->setPlaceholderText("Enter equation expression...");
-    expression_edit_->SetCompletionModel(completion_filter_model_);
+    expression_edit_->SetCompletionModel(completion_model_);
 
     QVBoxLayout *main_layout = new QVBoxLayout();
     QGridLayout *equation_layout = new QGridLayout();
@@ -332,8 +330,6 @@ void EquationEditor::ResetState()
 {
     // Reset all state except text fields
     group_ = nullptr;
-    if (context_selection_filter_model_) context_selection_filter_model_->SetEquationGroup(nullptr);
-    if (completion_filter_model_) completion_filter_model_->SetEquationGroup(nullptr);
     
     // Reset context selection widget to initial state (hide and clear filters)
     if (context_selection_widget_)
@@ -372,5 +368,86 @@ void EquationEditor::keyPressEvent(QKeyEvent *event)
     }
     QDialog::keyPressEvent(event);
 }
+
+// ContextFilterProxyModel implementation
+ContextSelectionWidget::ContextFilterProxyModel::ContextFilterProxyModel(EquationCompletionModel *model, QObject *parent)
+    : QSortFilterProxyModel(parent)
+{
+    setSourceModel(model);
+    setFilterCaseSensitivity(Qt::CaseInsensitive);
+}
+
+QVector<QString> ContextSelectionWidget::ContextFilterProxyModel::GetAllCategories() const
+{
+    QVector<QString> categories;
+    if (sourceModel() == nullptr)
+        return categories;
+
+    auto source_model = dynamic_cast<EquationCompletionModel *>(sourceModel());
+    if (source_model == nullptr)
+        return categories;
+
+    int row_count = source_model->rowCount();
+    for (int row = 0; row < row_count; ++row)
+    {
+        QModelIndex index = source_model->index(row, 0);
+        QString category = index.data(CompletionModel::kCategoryRole).toString();
+        if (!category.isEmpty() && !categories.contains(category))
+        {
+            categories.push_back(category);
+        }
+    }
+    return categories;
+}
+
+void ContextSelectionWidget::ContextFilterProxyModel::SetFilterCategory(const QString &category)
+{
+    filter_category_ = category;
+    invalidateFilter();
+}
+
+void ContextSelectionWidget::ContextFilterProxyModel::SetFilterText(const QString &text)
+{
+    filter_text_ = text;
+    invalidateFilter();
+}
+
+QVariant ContextSelectionWidget::ContextFilterProxyModel::data(const QModelIndex &index, int role) const
+{
+    if(role == Qt::DisplayRole)
+    {
+        QModelIndex source_index = mapToSource(index);
+        return sourceModel()->data(source_index, CompletionModel::kWordRole);
+    }
+
+    return QSortFilterProxyModel::data(index, role);
+}
+
+bool ContextSelectionWidget::ContextFilterProxyModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
+{
+    if (sourceModel() == nullptr)
+        return false;
+
+    QModelIndex index = sourceModel()->index(source_row, 0, source_parent);
+    
+    // Filter by category
+    if (!filter_category_.isEmpty())
+    {
+        QString category = index.data(CompletionModel::kCategoryRole).toString();
+        if (category != filter_category_)
+            return false;
+    }
+
+    // Filter by text
+    if (!filter_text_.isEmpty())
+    {
+        QString text = index.data(CompletionModel::kWordRole).toString();
+        if (!text.contains(filter_text_, Qt::CaseInsensitive))
+            return false;
+    }
+
+    return true;
+}
+
 } // namespace gui
 } // namespace xequation

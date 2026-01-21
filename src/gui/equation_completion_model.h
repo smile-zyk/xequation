@@ -18,19 +18,15 @@ class EquationCompletionModel : public QSortFilterProxyModel
     explicit EquationCompletionModel(const EquationContext* context, QObject *parent = nullptr);
     ~EquationCompletionModel() override = default;
 
-    void OnEquationAdded(const Equation *equation);
+    void OnEquationUpdated(const Equation *equation, bitmask::bitmask<EquationUpdateFlag> update_flags);
     void OnEquationRemoving(const Equation *equation);
 
-    void SetDisplayOnlyWord(bool display_only_word);
     void SetEquationGroup(const EquationGroup *group);
-    void SetFilterText(const QString &filter_text);
-    void SetCategory(const QString &category);
-    QList<QString> GetAllCategories();
+
+    void AddCompletionItem(const QString &word, const QString &type, const QString &category = "", const QString &complete_content = "");
+    void RemoveCompletionItem(const QString &word, const QString &type);
 
     const EquationContext* context() const { return context_; }
-
-  protected:
-    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
   protected:
     CompletionModel *model_{};
@@ -39,13 +35,6 @@ class EquationCompletionModel : public QSortFilterProxyModel
     // editing group
     const EquationGroup *group_{};
 
-    // filter text
-    QString filter_text_;
-
-    // filter category
-    QString filter_category_;
-    
-    bool display_only_word_{false};
     bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override;
 };
 

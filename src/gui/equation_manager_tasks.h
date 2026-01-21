@@ -90,6 +90,23 @@ class EvalExpressionTask : public EquationManagerTask
     InterpretResult result_;
 };
 
+class ExecStatementTask : public EquationManagerTask
+{
+    Q_OBJECT
+  public:
+    ExecStatementTask(const QString &title, EquationManager *manager, const std::string &statement);
+    ~ExecStatementTask() override = default;
+
+    void Execute() override;
+
+  signals:
+    void ExecCompleted(InterpretResult result);
+
+  private:
+    std::string statement_;
+    InterpretResult result_;
+};
+
 class EquationDependencyGraphGenerationTask : public EquationManagerTask
 {
     Q_OBJECT

@@ -162,12 +162,11 @@ void CodeEditor::ApplyZoom()
     if (newSize < 6)
         newSize = 6;
 
-    int scrollValue = verticalScrollBar()->value();
-
     QFont font = this->font();
     font.setPointSizeF(newSize);
     setFont(font);
 
+    int scrollValue = verticalScrollBar()->value();
     verticalScrollBar()->setValue(scrollValue);
 
     UpdateCompleterPopupView();

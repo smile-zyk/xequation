@@ -152,6 +152,27 @@ void EvalExpressionTask::Execute()
     SetProgress(100, "Evaluation completed.");
 }
 
+ExecStatementTask::ExecStatementTask(const QString &title, EquationManager *manager, const std::string &statement)
+    : EquationManagerTask(title, manager), statement_(statement)
+{
+    connect(this, &Task::Finished, this, [this](QUuid id) { emit ExecCompleted(result_); });
+}
+
+void ExecStatementTask::Execute()
+{
+    EquationManagerTask::Execute();
+    SetProgress(5, "Starting execution of statement...");
+    auto manager = equation_manager();
+
+    SetProgress(10, "Executing statement...");
+    result_ = manager->Exec(statement_);
+    if (cancel_requested_.load())
+    {
+        return;
+    }
+    SetProgress(100, "Execution completed.");
+}
+
 EquationDependencyGraphGenerationTask::EquationDependencyGraphGenerationTask(
     const QString &title, EquationManager *manager
 )

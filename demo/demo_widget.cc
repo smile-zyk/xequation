@@ -22,6 +22,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QtConcurrent/QtConcurrent>
+#include <memory>
 
 #include "equation_code_editor.h"
 #include "equation_editor.h"
@@ -50,8 +51,7 @@ DemoWidget::DemoWidget(QWidget *parent)
     equation_browser_widget_ = new xequation::gui::EquationBrowserWidget(this);
     variable_inspect_widget_ = new xequation::gui::VariableInspectWidget(this);
 
-    equation_completion_model_ =
-        new xequation::gui::EquationCompletionModel(&equation_manager_->context(), this);
+    equation_completion_model_ = new xequation::gui::EquationCompletionModel(&equation_manager_->context(), this);
 
     expression_watch_widget_ = new xequation::gui::ExpressionWatchWidget(equation_completion_model_, this);
 
@@ -61,8 +61,10 @@ DemoWidget::DemoWidget(QWidget *parent)
 
     // Create persistent editors and connect signals once
     equation_editor_ = new xequation::gui::EquationEditor(equation_completion_model_, this);
-    equation_code_editor_ = new xequation::gui::EquationCodeEditor(equation_completion_model_, this);
-    equation_manager_config_widget_ = new xequation::gui::EquationManagerConfigWidget(equation_completion_model_, this);
+    equation_code_editor_ = new xequation::gui::EquationCodeEditor(this);
+    equation_code_editor_->SetCompletionModel(equation_completion_model_);
+    equation_manager_config_widget_ =
+        new xequation::gui::EquationManagerConfigWidget(equation_manager_->engine_info(), this);
 
     // Connect editor signals once
     connect(
@@ -234,9 +236,9 @@ void DemoWidget::SetupConnections()
         &xequation::gui::ExpressionWatchWidget::OnEquationUpdated
     );
 
-    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationAdded>(
+    xequation::gui::ConnectEquationSignal<EquationEvent::kEquationUpdated>(
         &equation_manager_->signals_manager(), equation_completion_model_,
-        &xequation::gui::EquationCompletionModel::OnEquationAdded
+        &xequation::gui::EquationCompletionModel::OnEquationUpdated
     );
 
     xequation::gui::ConnectEquationSignalDirect<EquationEvent::kEquationRemoving>(
@@ -307,7 +309,9 @@ void DemoWidget::InitCompletionModel()
         for (const auto &name : all_builtin_names)
         {
             QString word = QString::fromStdString(name);
-            equation_completion_model_->AddCompletionItem(word, "Builtin", word, gui::CompletionItemType::Builtin);
+            QString type = QString::fromStdString(equation_manager_->context().GetSymbolType(name));
+            QString category = QString::fromStdString(equation_manager_->context().GetTypeCategory(type.toStdString()));
+            equation_completion_model_->AddCompletionItem(word, type, category);
         }
     }
 }
@@ -681,17 +685,52 @@ void DemoWidget::OnShowEquationManagerConfig()
 
 void DemoWidget::OnEquationManagerConfigAccepted(const xequation::gui::EquationManagerConfigOption &option)
 {
-    config_option_ = option;
     // Apply configuration to global code editor
     if (equation_code_editor_)
     {
-        double zoom_factor = config_option_.scale_factor / 100.0;
-        xequation::gui::CodeEditor::StyleMode style_mode = (config_option_.style_model == "Dark")
+        double zoom_factor = option.scale_factor / 100.0;
+        xequation::gui::CodeEditor::StyleMode style_mode = (option.style_model == "Dark")
                                                                ? xequation::gui::CodeEditor::StyleMode::kDark
                                                                : xequation::gui::CodeEditor::StyleMode::kLight;
         equation_code_editor_->SetEditorZoomFactor(zoom_factor);
         equation_code_editor_->SetEditorStyleMode(style_mode);
     }
+
+    if (option.startup_script != config_option_.startup_script)
+    {
+        equation_manager_->ResetContext();
+
+        auto startup_task = std::unique_ptr<gui::ExecStatementTask>(new gui::ExecStatementTask(
+            "Execute Startup Script", equation_manager_.get(), option.startup_script.toStdString()
+        ));
+        new gui::ExecStatementTask(
+            "Execute Startup Script", equation_manager_.get(), option.startup_script.toStdString()
+        );
+
+        auto update_task = std::unique_ptr<gui::UpdateManagerTask>(
+            new gui::UpdateManagerTask("Update All Equation Groups", equation_manager_.get())
+        );
+
+        connect(startup_task.get(), &gui::ExecStatementTask::ExecCompleted, this, [this](InterpretResult result) {
+            if (result.status == ResultStatus::kSuccess)
+            {
+                auto symbol_names = equation_manager_->context().GetSymbolNames();
+                for (const auto &name : symbol_names)
+                {
+                    QString word = QString::fromStdString(name);
+                    QString type = QString::fromStdString(equation_manager_->context().GetSymbolType(name));
+                    QString category =
+                        QString::fromStdString(equation_manager_->context().GetTypeCategory(type.toStdString()));
+                    equation_completion_model_->AddCompletionItem(word, type, category);
+                }
+            }
+        });
+
+        task_manager_->EnqueueTask(std::move(startup_task));
+        task_manager_->EnqueueTask(std::move(update_task));
+    }
+
+    config_option_ = option;
 }
 
 void DemoWidget::OnCodeEditorZoomChanged(double zoom_factor)
@@ -702,7 +741,9 @@ void DemoWidget::OnCodeEditorZoomChanged(double zoom_factor)
     // Also apply to global code editor to keep them in sync
     if (equation_code_editor_)
     {
+        equation_code_editor_->blockSignals(true);
         equation_code_editor_->SetEditorZoomFactor(zoom_factor);
+        equation_code_editor_->blockSignals(false);
     }
 }
 
@@ -725,27 +766,34 @@ void DemoWidget::OnParseResultRequested(const QString &expression, xequation::Pa
 
 void DemoWidget::OnEvalResultAsyncRequested(const QUuid &id, const QString &expression)
 {
-    gui::EvalExpressionTask *task =
-        new gui::EvalExpressionTask("Evaluate Expression", equation_manager_.get(), expression.toStdString());
+    auto task = std::unique_ptr<gui::EvalExpressionTask>(
+        new gui::EvalExpressionTask("Evaluate Expression", equation_manager_.get(), expression.toStdString())
+    );
 
-    connect(task, &gui::EvalExpressionTask::EvalCompleted, this, [this, id](InterpretResult result) {
+    connect(task.get(), &gui::EvalExpressionTask::EvalCompleted, this, [this, id](InterpretResult result) {
         expression_watch_widget_->OnEvalResultSubmitted(id, result);
     });
 
-    task_manager_->EnqueueTask(std::unique_ptr<gui::EvalExpressionTask>(task));
+    task_manager_->EnqueueTask(std::move(task));
 }
 
 void DemoWidget::OnEquationDependencyGraphImageRequested()
 {
-    gui::EquationDependencyGraphGenerationTask *task =
-        new gui::EquationDependencyGraphGenerationTask("Generate Dependency Graph", equation_manager_.get());
+    if (config_option_.auto_update == false)
+    {
+        return;
+    }
+
+    auto task = std::unique_ptr<gui::EquationDependencyGraphGenerationTask>(
+        new gui::EquationDependencyGraphGenerationTask("Generate Dependency Graph", equation_manager_.get())
+    );
 
     connect(
-        task, &gui::EquationDependencyGraphGenerationTask::DependencyGraphImageGenerated, this,
+        task.get(), &gui::EquationDependencyGraphGenerationTask::DependencyGraphImageGenerated, this,
         [this](const QString &image_path) { dependency_graph_viewer_->OnDependencyGraphImageGenerated(image_path); }
     );
 
-    task_manager_->EnqueueTask(std::unique_ptr<gui::EquationDependencyGraphGenerationTask>(task));
+    task_manager_->EnqueueTask(std::move(task));
 }
 
 void DemoWidget::OnEquationEditorAddEquationRequest(const QString &equation_name, const QString &expression)
