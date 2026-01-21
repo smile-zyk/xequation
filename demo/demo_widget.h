@@ -6,6 +6,7 @@
 #include <QWidget>
 #include <QMainWindow>
 #include <memory>
+#include <vector>
 #include <quuid.h>
 
 #include "equation_browser_widget.h"
@@ -49,6 +50,7 @@ private:
     void OnUpdateEquationGroupRequest(const xequation::EquationGroupId& id);
     void OnAddEquationGroupToExpressionWatchRequest(const xequation::EquationGroupId& id);
     void OnEquationGroupSelected(const xequation::EquationGroupId& id);
+    void OnEquationGroupsSelected(const std::vector<xequation::EquationGroupId>& ids);
     void OnEquationSelected(const xequation::Equation* equation);
     void OnShowDependencyGraph();
     void OnShowEquationManager();

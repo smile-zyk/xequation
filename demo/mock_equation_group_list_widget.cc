@@ -44,6 +44,24 @@ const xequation::EquationGroupId &MockEquationGroupListWidget::GetCurrentEquatio
     return empty_id;
 }
 
+std::vector<xequation::EquationGroupId> MockEquationGroupListWidget::GetSelectedEquationGroupIds() const
+{
+    std::vector<xequation::EquationGroupId> ids;
+    const auto selected_items = selectedItems();
+    ids.reserve(selected_items.size());
+
+    for (QListWidgetItem *item : selected_items)
+    {
+        auto it = item_to_id_map_.find(item);
+        if (it != item_to_id_map_.end())
+        {
+            ids.push_back(it.value());
+        }
+    }
+
+    return ids;
+}
+
 void MockEquationGroupListWidget::SetupUI()
 {
     std::vector<EquationGroupId> ids = manager_->GetEquationGroupIds();
@@ -55,6 +73,7 @@ void MockEquationGroupListWidget::SetupUI()
     }
 
     setContextMenuPolicy(Qt::CustomContextMenu);
+    setSelectionMode(QAbstractItemView::ExtendedSelection);
 }
 
 void MockEquationGroupListWidget::SetupConnections()
@@ -77,6 +96,7 @@ void MockEquationGroupListWidget::SetupConnections()
     );
 
     connect(this, &QListWidget::currentItemChanged, this, &MockEquationGroupListWidget::OnCurrentItemChanged);
+    connect(this, &QListWidget::itemSelectionChanged, this, &MockEquationGroupListWidget::OnSelectionChanged);
 }
 
 void MockEquationGroupListWidget::OnEquationGroupAdded(const xequation::EquationGroup *group)
@@ -199,4 +219,9 @@ void MockEquationGroupListWidget::OnCurrentItemChanged(QListWidgetItem *current,
     }
 
     emit EquationGroupSelected(item_to_id_map_.value(current));
+}
+
+void MockEquationGroupListWidget::OnSelectionChanged()
+{
+    emit EquationGroupsSelected(GetSelectedEquationGroupIds());
 }

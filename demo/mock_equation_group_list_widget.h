@@ -5,6 +5,7 @@
 #include "core/equation_manager.h"
 
 #include <QListWidget>
+#include <vector>
 
 class MockEquationGroupListWidget : public QListWidget
 {
@@ -15,6 +16,7 @@ public:
 
     void SetCurrentEquationGroup(const xequation::EquationGroupId& id);
     const xequation::EquationGroupId& GetCurrentEquationGroupId() const;
+    std::vector<xequation::EquationGroupId> GetSelectedEquationGroupIds() const;
 
 signals:
     void EditEquationGroupRequested(const xequation::EquationGroupId& id);
@@ -23,6 +25,7 @@ signals:
     void UpdateEquationGroupRequested(const xequation::EquationGroupId& id);
     void AddEquationGroupToExpressionWatchRequested(const xequation::EquationGroupId& id);
     void EquationGroupSelected(const xequation::EquationGroupId& id);
+    void EquationGroupsSelected(const std::vector<xequation::EquationGroupId>& ids);
 
 private:
     void SetupUI();
@@ -34,6 +37,7 @@ private:
 
     void OnCustomContextMenuRequested(const QPoint& pos);
     void OnCurrentItemChanged(QListWidgetItem* current, QListWidgetItem* previous);
+    void OnSelectionChanged();
 
 private:
     xequation::EquationManager* manager_;

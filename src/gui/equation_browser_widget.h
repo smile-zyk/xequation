@@ -9,6 +9,7 @@
 #include <QtVariantPropertyManager>
 #include <string>
 #include <tsl/ordered_set.h>
+#include <vector>
 
 namespace xequation
 {
@@ -24,7 +25,8 @@ class EquationBrowserWidget : public QWidget
     EquationBrowserWidget(QWidget *parent);
     ~EquationBrowserWidget() = default;
 
-    void SetCurrentEquation(const Equation *equation, bool expand = true);
+    void SetCurrentEquation(const Equation *equation);
+    void SetCurrentEquations(const std::vector<const Equation*>& equations);
     const Equation *GetCurrentEquation() const;
     void OnEquationAdded(const Equation *equation);
     void OnEquationRemoving(const Equation *equation);

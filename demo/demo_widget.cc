@@ -23,6 +23,8 @@
 #include <QWidget>
 #include <QtConcurrent/QtConcurrent>
 #include <memory>
+#include <vector>
+#include <unordered_set>
 
 #include "equation_code_editor.h"
 #include "equation_editor.h"
@@ -182,8 +184,8 @@ void DemoWidget::SetupConnections()
     );
 
     connect(
-        mock_equation_list_widget_, &MockEquationGroupListWidget::EquationGroupSelected, this,
-        &DemoWidget::OnEquationGroupSelected
+        mock_equation_list_widget_, &MockEquationGroupListWidget::EquationGroupsSelected, this,
+        &DemoWidget::OnEquationGroupsSelected
     );
 
     connect(
@@ -612,23 +614,46 @@ void DemoWidget::AsyncUpdateEquationsAfterRemoveGroup(const std::vector<std::str
 
 void DemoWidget::OnEquationGroupSelected(const xequation::EquationGroupId &id)
 {
+    OnEquationGroupsSelected({id});
+}
+
+void DemoWidget::OnEquationGroupsSelected(const std::vector<xequation::EquationGroupId> &ids)
+{
     equation_browser_widget_->blockSignals(true);
     variable_inspect_widget_->blockSignals(true);
 
-    if (equation_manager_->IsEquationGroupExist(id))
+    std::vector<const xequation::Equation *> equations;
+    std::unordered_set<const xequation::Equation *> unique_equations;
+
+    for (const auto &id : ids)
     {
+        if (!equation_manager_->IsEquationGroupExist(id))
+        {
+            continue;
+        }
+
         const auto &group = equation_manager_->GetEquationGroup(id);
         auto equation_names = group->GetEquationNames();
-        if (equation_names.size() >= 1)
+        for (const auto &name : equation_names)
         {
-            const auto &equation = group->GetEquation(equation_names.back());
-            variable_inspect_widget_->SetCurrentEquation(equation);
-            equation_browser_widget_->SetCurrentEquation(equation, false);
+            const xequation::Equation *equation = group->GetEquation(name);
+            if (!equation)
+            {
+                continue;
+            }
+            if (unique_equations.insert(equation).second)
+            {
+                equations.push_back(equation);
+            }
         }
     }
 
+    variable_inspect_widget_->SetCurrentEquations(equations);
+    equation_browser_widget_->SetCurrentEquations(equations);
+
     equation_browser_widget_->blockSignals(false);
     variable_inspect_widget_->blockSignals(false);
+
 }
 
 void DemoWidget::OnEquationSelected(const xequation::Equation *equation)
@@ -638,7 +663,7 @@ void DemoWidget::OnEquationSelected(const xequation::Equation *equation)
 
     if (equation_manager_->IsEquationExist(equation->name()))
     {
-        variable_inspect_widget_->SetCurrentEquation(equation);
+        variable_inspect_widget_->SetCurrentEquations({equation});
         const auto &group_id = equation->group_id();
         mock_equation_list_widget_->SetCurrentEquationGroup(group_id);
     }

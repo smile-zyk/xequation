@@ -5,6 +5,7 @@
 #include <QVariant>
 #include <string>
 #include <tsl/ordered_set.h>
+#include <unordered_set>
 
 namespace xequation
 {
@@ -127,17 +128,43 @@ void EquationBrowserWidget::OnBrowserItemChanged(QtBrowserItem *item)
     }
 }
 
-void EquationBrowserWidget::SetCurrentEquation(const Equation *equation, bool expand)
+void EquationBrowserWidget::SetCurrentEquation(const Equation *equation)
 {
-    if (!equation_property_item_map_.contains(equation))
+    SetCurrentEquations(equation ? std::vector<const Equation*>{equation} : std::vector<const Equation*>{});
+}
+
+void EquationBrowserWidget::SetCurrentEquations(const std::vector<const Equation *> &equations)
+{
+    std::unordered_set<const Equation *> selected_set(equations.begin(), equations.end());
+    QtBrowserItem *last_item = nullptr;
+
+    for (auto it = equation_property_item_map_.begin(); it != equation_property_item_map_.end(); ++it)
     {
-        return;
+        const Equation *equation = it.key();
+        EquationPropertyItem &item = it.value();
+        auto browser_item = property_browser_->topLevelItem(item.name_property);
+        if (!browser_item)
+        {
+            continue;
+        }
+
+        bool is_selected = selected_set.count(equation) > 0;
+        property_browser_->setExpanded(browser_item, is_selected);
+
+        if (is_selected)
+        {
+            last_item = browser_item;
+        }
     }
 
-    EquationPropertyItem &item = equation_property_item_map_[equation];
-    auto browser_item = property_browser_->topLevelItem(item.name_property);
-    property_browser_->setExpanded(browser_item, expand);
-    property_browser_->setCurrentItem(browser_item);
+    if (last_item)
+    {
+        property_browser_->setCurrentItem(last_item);
+    }
+    else
+    {
+        property_browser_->setCurrentItem(nullptr);
+    }
 }
 
 void EquationBrowserWidget::UpdateDependencies(EquationPropertyItem &item, const Equation *equation)

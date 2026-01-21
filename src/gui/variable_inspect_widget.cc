@@ -9,6 +9,7 @@
 #include <QKeyEvent>
 #include <QMenu>
 #include <QVBoxLayout>
+#include <algorithm>
 #include <core/equation_manager.h>
 #include <core/equation_signals_manager.h>
 
@@ -78,42 +79,72 @@ void VariableInspectWidget::OnCurrentEquationChanged(const Equation *equation)
 
 void VariableInspectWidget::SetCurrentEquation(const Equation *equation)
 {
-    if (current_equation_ == equation)
+    if (!equation)
     {
+        SetCurrentEquations({});
         return;
     }
-    current_equation_ = equation;
-    model_->Clear();
-    if (current_equation_)
+
+    SetCurrentEquations(std::vector<const Equation *>{equation});
+}
+
+void VariableInspectWidget::SetCurrentEquations(const std::vector<const Equation *> &equations)
+{
+    std::vector<const Equation *> unique_equations;
+    unique_equations.reserve(equations.size());
+
+    for (const Equation *equation : equations)
     {
-        QString name = QString::fromStdString(current_equation_->name());
-        if (current_equation_->status() != ResultStatus::kSuccess)
+        if (!equation)
         {
-            current_variable_item_ = ValueItem::Create(
-                name, QString::fromStdString(current_equation_->message()),
-                QString::fromStdString(ResultStatusConverter::ToString((current_equation_->status())))
-            );
+            continue;
         }
-        else
+
+        if (std::find(unique_equations.begin(), unique_equations.end(), equation) != unique_equations.end())
         {
-            current_variable_item_ = gui::BuilderUtils::CreateValueItem(name, current_equation_->GetValue());
+            continue;
         }
-        model_->AddRootItem(current_variable_item_.get());
+
+        unique_equations.push_back(equation);
     }
+
+    current_equations_ = unique_equations;
+    equation_variable_items_.clear();
+    equation_variable_items_.reserve(current_equations_.size());
+
+    for (const Equation *equation : current_equations_)
+    {
+        equation_variable_items_[equation] = BuildRootItemFromEquation(equation);
+    }
+
+    RefreshModel();
 }
 
 void VariableInspectWidget::OnEquationRemoving(const Equation *equation)
 {
-    if (equation == current_equation_)
+    auto item_iterator = equation_variable_items_.find(equation);
+    if (item_iterator == equation_variable_items_.end())
     {
-        SetCurrentEquation(nullptr);
+        return;
     }
+
+    equation_variable_items_.erase(item_iterator);
+    current_equations_.erase(
+        std::remove(current_equations_.begin(), current_equations_.end(), equation), current_equations_.end()
+    );
+
+    RefreshModel();
 }
 
 void VariableInspectWidget::OnEquationUpdated(
     const Equation *equation, bitmask::bitmask<EquationUpdateFlag> change_type
 )
 {
+    if (equation_variable_items_.find(equation) == equation_variable_items_.end())
+    {
+        return;
+    }
+
     bool should_update = false;
     if (equation->status() != ResultStatus::kSuccess)
     {
@@ -131,11 +162,13 @@ void VariableInspectWidget::OnEquationUpdated(
         }
     }
 
-    if (equation == current_equation_ && should_update)
+    if (!should_update)
     {
-        current_equation_ = nullptr;
-        SetCurrentEquation(equation);
+        return;
     }
+
+    equation_variable_items_[equation] = BuildRootItemFromEquation(equation);
+    RefreshModel();
 }
 
 bool VariableInspectWidget::eventFilter(QObject *obj, QEvent *event)
@@ -264,6 +297,43 @@ void VariableInspectWidget::OnAddVariableToWatch()
 
         emit AddExpressionToWatch(expression);
     }
+}
+
+void VariableInspectWidget::RefreshModel()
+{
+    QVector<ValueItem *> root_items;
+    root_items.reserve(static_cast<int>(current_equations_.size()));
+
+    for (const Equation *equation : current_equations_)
+    {
+        auto iter = equation_variable_items_.find(equation);
+        if (iter == equation_variable_items_.end())
+        {
+            continue;
+        }
+        root_items.push_back(iter->second.get());
+    }
+
+    model_->SetRootItems(root_items);
+}
+
+ValueItem::UniquePtr VariableInspectWidget::BuildRootItemFromEquation(const Equation *equation) const
+{
+    if (!equation)
+    {
+        return nullptr;
+    }
+
+    QString name = QString::fromStdString(equation->name());
+    if (equation->status() != ResultStatus::kSuccess)
+    {
+        return ValueItem::Create(
+            name, QString::fromStdString(equation->message()),
+            QString::fromStdString(ResultStatusConverter::ToString((equation->status())))
+        );
+    }
+
+    return gui::BuilderUtils::CreateValueItem(name, equation->GetValue());
 }
 
 } // namespace gui
