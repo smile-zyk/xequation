@@ -25,6 +25,9 @@ class PythonEquationEngine : public EquationEngine<PythonEquationEngine>
 
     std::unique_ptr<EquationContext> CreateContext() override;
     
+    // 实现基类的输出处理接口
+    void SetOutputHandler(OutputHandler handler) override;
+    
   private:
     friend class EquationEngine<PythonEquationEngine>;
 

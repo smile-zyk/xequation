@@ -19,6 +19,7 @@
 #include "equation_code_editor.h"
 #include "equation_manager_config_widget.h"
 #include "task/toast_task_manager.h"
+#include "message_widget.h"
 
 namespace {
 enum class EditorType
@@ -40,6 +41,9 @@ class DemoWidget : public QMainWindow
 public:
     explicit DemoWidget(QWidget *parent = nullptr);
     ~DemoWidget() override;
+    
+    // 为Python执行器设置输出处理函数
+    void SetPythonOutputHandler();
 
 private:
     void OnOpen();
@@ -117,6 +121,8 @@ private:
     xequation::gui::EquationEditor* equation_editor_;
     xequation::gui::EquationCodeEditor* equation_code_editor_;
     xequation::gui::EquationManagerConfigWidget* equation_manager_config_widget_;
+    
+    MessageWidget* message_widget_;
     
     xequation::gui::EquationManagerConfigOption config_option_;
 };

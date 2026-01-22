@@ -138,3 +138,11 @@ PythonEquationEngine::~PythonEquationEngine()
         code_executor.reset();
     }
 }
+
+void PythonEquationEngine::SetOutputHandler(OutputHandler handler)
+{
+    if (code_executor)
+    {
+        code_executor->SetOutputHandler(handler);
+    }
+}

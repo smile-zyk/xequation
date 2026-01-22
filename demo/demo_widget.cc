@@ -21,6 +21,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QSplitter>
+#include <QMetaObject>
 #include <QtConcurrent/QtConcurrent>
 #include <memory>
 #include <vector>
@@ -31,6 +33,7 @@
 #include "equation_manager_tasks.h"
 #include "equation_signals_qt_utils.h"
 #include "python/python_qt_wrapper.h"
+#include "python/python_equation_engine.h"
 
 using namespace xequation;
 
@@ -41,7 +44,8 @@ DemoWidget::DemoWidget(QWidget *parent)
       expression_watch_widget_(nullptr),
       equation_editor_(nullptr),
       equation_code_editor_(nullptr),
-      equation_manager_config_widget_(nullptr)
+      equation_manager_config_widget_(nullptr),
+      message_widget_(nullptr)
 {
     // Initialize config option with default values
     config_option_.scale_factor = 100;
@@ -114,8 +118,12 @@ DemoWidget::DemoWidget(QWidget *parent)
     // Load config to config widget as well
     equation_manager_config_widget_->SetConfigOption(config_option_);
 
+    // 创建消息窗口
+    message_widget_ = new MessageWidget(this);
+
     SetupUI();
     SetupConnections();
+    SetPythonOutputHandler();
 }
 
 DemoWidget::~DemoWidget()
@@ -128,9 +136,16 @@ DemoWidget::~DemoWidget()
 void DemoWidget::SetupUI()
 {
     setWindowTitle("xequation demo");
-    setFixedSize(800, 600);
+    setFixedSize(1200, 800);
 
-    setCentralWidget(mock_equation_list_widget_);
+    // 创建中央窗口（分割窗口）
+    auto splitter = new QSplitter(Qt::Vertical, this);
+    splitter->addWidget(mock_equation_list_widget_);
+    splitter->addWidget(message_widget_);
+    splitter->setStretchFactor(0, 3);
+    splitter->setStretchFactor(1, 1);
+    
+    setCentralWidget(splitter);
 
     CreateActions();
     CreateMenus();
@@ -868,5 +883,25 @@ void DemoWidget::OnCodeEditorEditEquationRequest(const xequation::EquationGroupI
     if (EditEquationGroup(group_id, statement.toStdString()))
     {
         equation_code_editor_->accept();
+    }
+}
+
+void DemoWidget::SetPythonOutputHandler()
+{
+    // 获取Python引擎并设置输出处理函数
+    auto& engine = xequation::python::PythonEquationEngine::GetInstance();
+    
+    if (message_widget_)
+    {
+        engine.SetOutputHandler([this](const std::string& output) {
+            // Python output may come from other threads, use QMetaObject::invokeMethod for thread safety
+            QMetaObject::invokeMethod(
+                message_widget_,
+                [this, output]() {
+                    message_widget_->AddMessage(QString::fromStdString(output));
+                },
+                Qt::QueuedConnection
+            );
+        });
     }
 }

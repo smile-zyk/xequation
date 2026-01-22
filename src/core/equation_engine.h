@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <string>
+#include <functional>
 
 #include "equation_manager.h"
 #include "equation_common.h"
@@ -8,6 +9,9 @@
 
 namespace xequation
 {
+// 输出处理回调类型
+using OutputHandler = std::function<void(const std::string&)>;
+
 template <typename T>
 class EquationEngine
 {
@@ -22,6 +26,9 @@ class EquationEngine
     virtual ParseResult Parse(const std::string & code, ParseMode mode = ParseMode::kExpression) = 0;
     
     const EquationEngineInfo& GetEngineInfo() const { return engine_info_; }
+    
+    // 设置输出处理函数（用于捕获Python输出等）
+    virtual void SetOutputHandler(OutputHandler handler) {}
     
     virtual std::unique_ptr<EquationManager> CreateEquationManager()
     {

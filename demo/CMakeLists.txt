@@ -7,6 +7,8 @@ demo_widget.h
 demo_widget.cc
 mock_equation_group_list_widget.h
 mock_equation_group_list_widget.cc
+message_widget.h
+message_widget.cc
 main.cc
 )
 
