@@ -20,6 +20,32 @@ set(xequation_python_SRC
 
 add_library(xequation_python STATIC ${xequation_python_SRC})
 
+# ---- Inject the discovered Python layout into the code ----------------------
+# The embedded CPython must not be left to guess where its stdlib lives:
+# a stale PYTHONHOME/PYTHONPATH (or a wrong inferred prefix) fails with
+# "Python initialization error: failed to get the Python codec of the
+# filesystem encoding".  Pin the layout discovered by FindPython instead.
+execute_process(
+    COMMAND "${Python_EXECUTABLE}" -c "import sys; print(sys.base_prefix)"
+    OUTPUT_VARIABLE REL_PYTHON_HOME
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET)
+if(REL_PYTHON_HOME STREQUAL "")
+    # Fallback: <prefix>/lib/pythonX.Y -> <prefix>
+    get_filename_component(REL_PYTHON_HOME "${Python_STDLIB}/../.." ABSOLUTE)
+endif()
+# Normalize to forward slashes so the paths are safe inside C string literals
+# (a backslash would start an escape sequence).
+string(REPLACE "\\" "/" REL_PYTHON_HOME "${REL_PYTHON_HOME}")
+string(REPLACE "\\" "/" REL_PYTHON_STDLIB "${Python_STDLIB}")
+string(REPLACE "\\" "/" REL_PYTHON_SITE_PACKAGES "${Python_SITELIB}")
+
+target_compile_definitions(xequation_python PRIVATE
+    REL_PYTHON_HOME="${REL_PYTHON_HOME}"
+    REL_PYTHON_STDLIB="${REL_PYTHON_STDLIB}"
+    REL_PYTHON_LIB_DYNLOAD="${REL_PYTHON_STDLIB}/lib-dynload"
+    REL_PYTHON_SITE_PACKAGES="${REL_PYTHON_SITE_PACKAGES}")
+
 add_custom_target(generate_python_parser ALL
     COMMAND ${Python_EXECUTABLE} ${BIN2C_SCRIPT} ${PYTHON_PARSER_INPUT} 
             -o ${PYTHON_PARSER_OUTPUT_DIR} -v python_parser -n xequation

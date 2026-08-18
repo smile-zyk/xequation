@@ -1,6 +1,7 @@
 #include "core/equation.h"
 #include "core/equation_common.h"
 #include "python/python_parser.h"
+#include "python/python_equation_engine.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <pybind11/embed.h>
@@ -36,6 +37,7 @@ class PythonParserTest : public ::testing::Test
   protected:
     virtual void SetUp()
     {
+        PythonEquationEngine::SetDefaultPyEnvConfig();
         parser_.reset(new PythonParser());
     }
 

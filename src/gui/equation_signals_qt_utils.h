@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <type_traits>
 #include <QMetaObject>
 #include <QMetaMethod>
@@ -26,7 +27,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationAdded, T, Qt::DirectConnec
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Equation *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const Equation* equation) {
             (receiver->*slot)(equation);
@@ -46,7 +47,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationAdded, T, Qt::QueuedConnec
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Equation *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const Equation* equation) {
             QMetaObject::invokeMethod(
@@ -70,7 +71,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationAdded, T, Connection>
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Equation *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const Equation* equation) {
             QMetaObject::invokeMethod(
@@ -94,7 +95,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationRemoving, T, Qt::DirectCon
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Equation *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const Equation* equation) {
             (receiver->*slot)(equation);
@@ -114,7 +115,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationRemoving, T, Qt::QueuedCon
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Equation *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const Equation* equation) {
             QMetaObject::invokeMethod(
@@ -138,7 +139,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationRemoving, T, Connection>
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Equation *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const Equation* equation) {
             QMetaObject::invokeMethod(
@@ -162,7 +163,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationRemoved, T, Qt::DirectConn
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const std::string&)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const std::string& equation_name) {
             (receiver->*slot)(equation_name);
@@ -182,7 +183,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationRemoved, T, Qt::QueuedConn
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const std::string&)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const std::string& equation_name) {
             QMetaObject::invokeMethod(
@@ -206,7 +207,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationRemoved, T, Connection>
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const std::string&)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const std::string& equation_name) {
             QMetaObject::invokeMethod(
@@ -230,7 +231,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationUpdated, T, Qt::DirectConn
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Equation *, bitmask::bitmask<EquationUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const Equation* equation, bitmask::bitmask<EquationUpdateFlag> flags) {
             (receiver->*slot)(equation, flags);
@@ -250,7 +251,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationUpdated, T, Qt::QueuedConn
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Equation *, bitmask::bitmask<EquationUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const Equation* equation, bitmask::bitmask<EquationUpdateFlag> flags) {
             QMetaObject::invokeMethod(
@@ -274,7 +275,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationUpdated, T, Connection>
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Equation *, bitmask::bitmask<EquationUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const Equation* equation, bitmask::bitmask<EquationUpdateFlag> flags) {
             QMetaObject::invokeMethod(
@@ -298,7 +299,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupAdded, T, Qt::DirectC
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const EquationGroup* group) {
             (receiver->*slot)(group);
@@ -318,7 +319,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupAdded, T, Qt::QueuedC
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const EquationGroup* group) {
             QMetaObject::invokeMethod(
@@ -342,7 +343,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupAdded, T, Connection>
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const EquationGroup* group) {
             QMetaObject::invokeMethod(
@@ -366,7 +367,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupRemoving, T, Qt::Dire
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const EquationGroup* group) {
             (receiver->*slot)(group);
@@ -386,7 +387,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupRemoving, T, Qt::Queu
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const EquationGroup* group) {
             QMetaObject::invokeMethod(
@@ -410,7 +411,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupRemoving, T, Connecti
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const EquationGroup* group) {
             QMetaObject::invokeMethod(
@@ -434,7 +435,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupUpdated, T, Qt::Direc
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const EquationGroup* group, bitmask::bitmask<EquationGroupUpdateFlag> flags) {
             (receiver->*slot)(group, flags);
@@ -454,7 +455,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupUpdated, T, Qt::Queue
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const EquationGroup* group, bitmask::bitmask<EquationGroupUpdateFlag> flags) {
             QMetaObject::invokeMethod(
@@ -478,7 +479,7 @@ struct EquationQtSignalTraits<EquationEvent::kEquationGroupUpdated, T, Connectio
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static auto MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
     {
         return [receiver, slot](const EquationGroup* group, bitmask::bitmask<EquationGroupUpdateFlag> flags) {
             QMetaObject::invokeMethod(

@@ -10,7 +10,7 @@ class EquationSignalsManagerTest : public ::testing::Test
 protected:
     void SetUp() override
     {
-        manager = std::make_unique<EquationSignalsManager>();
+        manager = std::unique_ptr<EquationSignalsManager>(new EquationSignalsManager());
     }
 
     std::unique_ptr<Equation> CreateMockEquation(const std::string& name)

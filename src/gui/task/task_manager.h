@@ -51,8 +51,13 @@ class TaskManager : public QObject
     {
         QUuid task_id;
         int priority;
-        std::size_t enqueue_order{0};
-        
+        std::size_t enqueue_order;
+
+        QueuedItem(const QUuid &id, int prio, std::size_t order)
+            : task_id(id), priority(prio), enqueue_order(order)
+        {
+        }
+
         bool operator<(const QueuedItem &other) const
         {
             if (priority == other.priority)

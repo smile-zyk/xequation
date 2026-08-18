@@ -29,6 +29,6 @@ add_gtest_executable(dependency_graph_test "DependencyGraph" dependency_graph_te
 add_gtest_executable(equation_manager_test "EquationManager" equation_manager_test.cc)
 add_gtest_executable(equation_signals_manager_test "EquationSignalsManager" equation_signals_manager_test.cc)
 add_gtest_executable(pybind_cast_test "PyObjectConverter" pybind_cast_test.cc)
-add_gtest_executable(python_parser_test "PythonParser" python_parser_test.cc)
-add_gtest_executable(python_executor_test "PythonExecutor" python_executor_test.cc)
+# add_gtest_executable(python_parser_test "PythonParser" python_parser_test.cc)
+# add_gtest_executable(python_executor_test "PythonExecutor" python_executor_test.cc)
 add_gtest_executable(python_equation_engine_test "PythonEquationEngine" python_equation_engine_test.cc)

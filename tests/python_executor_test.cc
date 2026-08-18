@@ -1,4 +1,5 @@
 #include "core/equation_common.h"
+#include "python/python_equation_engine.h"
 #include "python/python_executor.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -13,6 +14,7 @@ class PythonExecutorTest : public ::testing::Test
   protected:
     virtual void SetUp()
     {
+        PythonEquationEngine::SetDefaultPyEnvConfig();
         executor_.reset(new PythonExecutor());
     }
 

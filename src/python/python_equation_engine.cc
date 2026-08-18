@@ -35,6 +35,29 @@ void PythonEquationEngine::SetPyEnvConfig(const PyEnvConfig &config)
     config_ = config;
 }
 
+void PythonEquationEngine::SetDefaultPyEnvConfig()
+{
+    // Build-time paths injected by CMake (see src/python/CMakeLists.txt,
+    // rel_python_env). Embedded CPython must not be left to guess its stdlib
+    // location: a stale PYTHONHOME/PYTHONPATH (or a wrong inferred prefix)
+    // makes initialization fail with
+    // "failed to get the Python codec of the filesystem encoding".
+    PyEnvConfig config;
+#ifdef REL_PYTHON_HOME
+    config.py_home = REL_PYTHON_HOME;
+#endif
+#ifdef REL_PYTHON_STDLIB
+    config.lib_path_list.push_back(REL_PYTHON_STDLIB);
+#endif
+#ifdef REL_PYTHON_LIB_DYNLOAD
+    config.lib_path_list.push_back(REL_PYTHON_LIB_DYNLOAD);
+#endif
+#ifdef REL_PYTHON_SITE_PACKAGES
+    config.lib_path_list.push_back(REL_PYTHON_SITE_PACKAGES);
+#endif
+    SetPyEnvConfig(config);
+}
+
 InterpretResult PythonEquationEngine::Interpret(const std::string &code, const EquationContext *context, InterpretMode mode)
 {
     pybind11::gil_scoped_acquire acquire;

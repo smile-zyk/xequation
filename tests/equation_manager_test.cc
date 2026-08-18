@@ -329,7 +329,8 @@ class EquationManagerTest : public testing::Test
   protected:
     EquationManagerTest()
         : manager_(
-              std::unique_ptr<MockExprContext>(new MockExprContext()), Interpret, Parse
+              std::unique_ptr<MockExprContext>(new MockExprContext()), Interpret, Parse,
+              EquationEngineInfo{"Mock"}
           )
     {
     }

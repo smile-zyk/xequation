@@ -9,6 +9,12 @@
 #include <QSyntaxStyle>
 #include <QWheelEvent>
 #include <qcompleter.h>
+
+static void InitGuiResource()
+{
+    Q_INIT_RESOURCE(gui_resource);
+}
+
 namespace xequation
 {
 namespace gui
@@ -20,7 +26,7 @@ QMap<CodeEditor::StyleMode, QString> CodeEditor::language_style_file_map_ = {
 
 CodeEditor::CodeEditor(const QString &language, QWidget *parent) : QCodeEditor(parent), style_mode_(StyleMode::kLight)
 {
-    Q_INIT_RESOURCE(gui_resource);
+    InitGuiResource();
     completer_popup_view_ = new QListView(this);
     completer_popup_view_->hide();
     completer_popup_view_->setUniformItemSizes(true);

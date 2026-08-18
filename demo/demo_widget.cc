@@ -51,7 +51,7 @@ DemoWidget::DemoWidget(QWidget *parent)
     config_option_.scale_factor = 100;
     config_option_.style_model = "Light";
     config_option_.auto_update = true;
-
+    xequation::python::PythonEquationEngine::SetDefaultPyEnvConfig();
     equation_manager_ = xequation::python::PythonEquationEngine::GetInstance().CreateEquationManager();
     mock_equation_list_widget_ = new MockEquationGroupListWidget(equation_manager_.get(), this);
     equation_browser_widget_ = new xequation::gui::EquationBrowserWidget(this);

@@ -48,7 +48,7 @@ void TaskManager::EnqueueTask(std::unique_ptr<Task> task, int priority)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         all_tasks_[task_id] = std::move(task);
-        pending_queue_.push(QueuedItem{task_id, priority, enqueue_counter_++});
+        pending_queue_.push(QueuedItem(task_id, priority, enqueue_counter_++));
     }
 
 	connect(task_ptr, &Task::Completed, this, &TaskManager::TaskFinished);
@@ -70,7 +70,8 @@ void TaskManager::CancelTask(const QUuid &task_id)
         if (task_it != all_tasks_.end() && task_it->second)
         {
             task_it->second->state_ = Task::State::kCanceling;
-            QtConcurrent::run(thread_pool_, [task_ptr = task_it->second.get()]() {
+            Task *task_ptr = task_it->second.get();
+            QtConcurrent::run(thread_pool_, [task_ptr]() {
                 task_ptr->RequestCancel();
             });
         }
@@ -131,7 +132,8 @@ void TaskManager::Shutdown()
         if (task_it != all_tasks_.end() && task_it->second)
         {
             task_it->second->state_ = Task::State::kCanceling;
-            QtConcurrent::run(thread_pool_, [task_ptr = task_it->second.get()]() {
+            Task *task_ptr = task_it->second.get();
+            QtConcurrent::run(thread_pool_, [task_ptr]() {
                 task_ptr->RequestCancel();
             });
         }
@@ -266,7 +268,7 @@ void TaskManager::MaybeDispatchNext()
             task_ptr->id_ = QUuid::createUuid();
         }
 
-        auto watcher = std::make_unique<QFutureWatcher<void>>();
+        auto watcher = std::unique_ptr<QFutureWatcher<void>>(new QFutureWatcher<void>());
         auto watcher_ptr = watcher.get();
 
         QObject::connect(watcher_ptr, &QFutureWatcher<QVariant>::finished, this,
