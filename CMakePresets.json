@@ -8,14 +8,18 @@
             "cacheVariables": {
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": true,
-                "CMAKE_TOOLCHAIN_FILE": {
-                    "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                    "type": "FILEPATH"
-                },
-                "ENABLE_GUI_SUPPORT" : true,
-                "Qt5_DIR" : "$env{Qt5_PREFIX_PATH}/lib/cmake/Qt5"
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
             },
             "binaryDir": "build"
+        },
+        {
+            "name": "base-clang",
+            "hidden": true,
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_C_COMPILER": "clang"
+            }
         },
         {
             "name": "msvc-config",
@@ -28,6 +32,11 @@
             },
             "toolset": {
                 "value": "v143"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
             }
         },
         {
@@ -37,96 +46,208 @@
                 "CMAKE_CXX_COMPILER": "g++",
                 "CMAKE_C_COMPILER": "gcc",
                 "VCPKG_TARGET_TRIPLET" : "x64-mingw-dynamic",
-                "VCPKG_HOST_TRIPLET" : "x64-mingw-dynamic"
+                "VCPKG_HOST_TRIPLET" : "x64-mingw-dynamic",
+                "HDF5_ROOT": "C:/msys64/mingw64",
+                "EIGEN3_ROOT": "C:/msys64/mingw64/include/eigen3"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "macos-arm64-config",
+            "inherits": "base-clang",
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET" : "arm64-osx",
+                "VCPKG_HOST_TRIPLET" : "arm64-osx",
+                "HDF5_ROOT": "/opt/homebrew/opt/hdf5"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            }
+        },
+        {
+            "name": "macos-x64-config",
+            "inherits": "base-clang",
+            "cacheVariables": {
+                "VCPKG_TARGET_TRIPLET" : "x64-osx",
+                "VCPKG_HOST_TRIPLET" : "x64-osx"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
             }
         }
     ],
     "buildPresets": [
         {
-            "name": "msvc-debug-build",
-            "configurePreset": "msvc-config",
+            "name": "build-debug",
+            "hidden": true,
             "configuration": "Debug"
+        },
+        {
+            "name": "build-release",
+            "hidden": true,
+            "configuration": "Release"
+        },
+        {
+            "name": "build-relwithdebinfo",
+            "hidden": true,
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "msvc-debug-build",
+            "inherits": "build-debug",
+            "configurePreset": "msvc-config"
         },
         {
             "name": "msvc-release-build",
-            "configurePreset": "msvc-config",
-            "configuration": "Release"
+            "inherits": "build-release",
+            "configurePreset": "msvc-config"
         },
         {
             "name": "msvc-relwithdebinfo-build",
-            "configurePreset": "msvc-config",
-            "configuration": "RelWithDebInfo"
+            "inherits": "build-relwithdebinfo",
+            "configurePreset": "msvc-config"
         },
         {
             "name": "mingw-debug-build",
-            "configurePreset": "mingw-config",
-            "configuration": "Debug"
+            "inherits": "build-debug",
+            "configurePreset": "mingw-config"
         },
         {
             "name": "mingw-release-build",
-            "configurePreset": "mingw-config",
-            "configuration": "Release"
+            "inherits": "build-release",
+            "configurePreset": "mingw-config"
         },
         {
             "name": "mingw-relwithdebinfo-build",
-            "configurePreset": "mingw-config",
-            "configuration": "RelWithDebInfo"
+            "inherits": "build-relwithdebinfo",
+            "configurePreset": "mingw-config"
+        },
+        {
+            "name": "macos-arm64-debug-build",
+            "inherits": "build-debug",
+            "configurePreset": "macos-arm64-config"
+        },
+        {
+            "name": "macos-arm64-release-build",
+            "inherits": "build-release",
+            "configurePreset": "macos-arm64-config"
+        },
+        {
+            "name": "macos-arm64-relwithdebinfo-build",
+            "inherits": "build-relwithdebinfo",
+            "configurePreset": "macos-arm64-config"
+        },
+        {
+            "name": "macos-x64-debug-build",
+            "inherits": "build-debug",
+            "configurePreset": "macos-x64-config"
+        },
+        {
+            "name": "macos-x64-release-build",
+            "inherits": "build-release",
+            "configurePreset": "macos-x64-config"
+        },
+        {
+            "name": "macos-x64-relwithdebinfo-build",
+            "inherits": "build-relwithdebinfo",
+            "configurePreset": "macos-x64-config"
         }
     ],
     "testPresets": [
         {
-            "name": "msvc-debug-test",
-            "configurePreset": "msvc-config",
+            "name": "test-debug",
+            "hidden": true,
             "configuration": "Debug",
             "execution": 
             {
                 "stopOnFailure": true
             }
+        },
+        {
+            "name": "test-release",
+            "hidden": true,
+            "configuration": "Release",
+            "execution": 
+            {
+                "stopOnFailure": true
+            }
+        },
+        {
+            "name": "test-relwithdebinfo",
+            "hidden": true,
+            "configuration": "RelWithDebInfo",
+            "execution": 
+            {
+                "stopOnFailure": true
+            }
+        },
+        {
+            "name": "msvc-debug-test",
+            "inherits": "test-debug",
+            "configurePreset": "msvc-config"
         },
         {
             "name": "msvc-release-test",
-            "configurePreset": "msvc-config",
-            "configuration": "Release",
-            "execution": 
-            {
-                "stopOnFailure": true
-            }
+            "inherits": "test-release",
+            "configurePreset": "msvc-config"
         },
         {
             "name": "msvc-relwithdebinfo-test",
-            "configurePreset": "msvc-config",
-            "configuration": "RelWithDebInfo",
-            "execution": 
-            {
-                "stopOnFailure": true
-            }
+            "inherits": "test-relwithdebinfo",
+            "configurePreset": "msvc-config"
         },
         {
             "name": "mingw-debug-test",
-            "configurePreset": "mingw-config",
-            "configuration": "Debug",
-            "execution": 
-            {
-                "stopOnFailure": true
-            }
+            "inherits": "test-debug",
+            "configurePreset": "mingw-config"
         },
         {
             "name": "mingw-release-test",
-            "configurePreset": "mingw-config",
-            "configuration": "Release",
-            "execution": 
-            {
-                "stopOnFailure": true
-            }
+            "inherits": "test-release",
+            "configurePreset": "mingw-config"
         },
         {
             "name": "mingw-relwithdebinfo-test",
-            "configurePreset": "mingw-config",
-            "configuration": "RelWithDebInfo",
-            "execution": 
-            {
-                "stopOnFailure": true
-            }
+            "inherits": "test-relwithdebinfo",
+            "configurePreset": "mingw-config"
+        },
+        {
+            "name": "macos-arm64-debug-test",
+            "inherits": "test-debug",
+            "configurePreset": "macos-arm64-config"
+        },
+        {
+            "name": "macos-arm64-release-test",
+            "inherits": "test-release",
+            "configurePreset": "macos-arm64-config"
+        },
+        {
+            "name": "macos-arm64-relwithdebinfo-test",
+            "inherits": "test-relwithdebinfo",
+            "configurePreset": "macos-arm64-config"
+        },
+        {
+            "name": "macos-x64-debug-test",
+            "inherits": "test-debug",
+            "configurePreset": "macos-x64-config"
+        },
+        {
+            "name": "macos-x64-release-test",
+            "inherits": "test-release",
+            "configurePreset": "macos-x64-config"
+        },
+        {
+            "name": "macos-x64-relwithdebinfo-test",
+            "inherits": "test-relwithdebinfo",
+            "configurePreset": "macos-x64-config"
         }
     ]
 }
