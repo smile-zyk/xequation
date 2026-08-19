@@ -12,9 +12,9 @@ class PythonDefaultItemBuilder : public ValueItemBuilder
     PythonDefaultItemBuilder();
     ~PythonDefaultItemBuilder() override;
 
-    virtual bool CanBuild(const Value &value) override;
+    virtual bool CanBuild(const EquationValue &value) override;
 
-    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const Value &value, ValueItem *parent = nullptr) override;
+    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent = nullptr) override;
 
     virtual void LoadChildren(ValueItem *item, int begin, int end) override {}
   protected:
@@ -25,40 +25,40 @@ class PythonDefaultItemBuilder : public ValueItemBuilder
 class PythonListItemBuilder : public PythonDefaultItemBuilder
 {
   public:
-    virtual bool CanBuild(const Value &value) override;
-    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const Value &value, ValueItem *parent = nullptr) override;
+    virtual bool CanBuild(const EquationValue &value) override;
+    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent = nullptr) override;
     virtual void LoadChildren(ValueItem *item, int begin, int end) override;
 };
 
 class PythonTupleItemBuilder : public PythonDefaultItemBuilder
 {
   public:
-    virtual bool CanBuild(const Value &value) override;
-    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const Value &value, ValueItem *parent = nullptr) override;
+    virtual bool CanBuild(const EquationValue &value) override;
+    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent = nullptr) override;
     virtual void LoadChildren(ValueItem *item, int begin, int end) override;
 };
 
 class PythonSetItemBuilder : public PythonDefaultItemBuilder
 {
   public:
-    virtual bool CanBuild(const Value &value) override;
-    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const Value &value, ValueItem *parent = nullptr) override;
+    virtual bool CanBuild(const EquationValue &value) override;
+    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent = nullptr) override;
     virtual void LoadChildren(ValueItem *item, int begin, int end) override;
 };
 
 class PythonDictItemBuilder : public PythonDefaultItemBuilder
 {
   public:
-    virtual bool CanBuild(const Value &value) override;
-    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const Value &value, ValueItem *parent = nullptr) override;
+    virtual bool CanBuild(const EquationValue &value) override;
+    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent = nullptr) override;
     virtual void LoadChildren(ValueItem *item, int begin, int end) override;
 };
 
 class PythonClassItemBuilder : public PythonDefaultItemBuilder
 {
   public:
-    virtual bool CanBuild(const Value &value) override;
-    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const Value &value, ValueItem *parent = nullptr) override;
+    virtual bool CanBuild(const EquationValue &value) override;
+    virtual ValueItem::UniquePtr CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent = nullptr) override;
     virtual void LoadChildren(ValueItem *item, int begin, int end) override;
 };
 

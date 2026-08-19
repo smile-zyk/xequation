@@ -14,10 +14,10 @@ class PythonEquationContext : public EquationContext
     bool Contains(const std::string &key) const override;
 
     // Gets value for the given key.
-    Value Get(const std::string &key) const override;
+    EquationValue Get(const std::string &key) const override;
 
     // Sets value for the given key.
-    void Set(const std::string &key, const Value &value) override;
+    void Set(const std::string &key, const EquationValue &value) override;
 
     // Removes the given key.
     bool Remove(const std::string &key) override;

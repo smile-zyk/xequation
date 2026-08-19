@@ -1,5 +1,5 @@
 #include "python_equation_context.h"
-#include "core/value.h"
+#include "core/equation_value.h"
 
 using namespace xequation;
 using namespace xequation::python;
@@ -12,15 +12,15 @@ PythonEquationContext::PythonEquationContext(const EquationEngineInfo &engine_in
     (*dict_)["__builtins__"] = pybind11::module_::import("builtins");
 }
 
-Value PythonEquationContext::Get(const std::string &var_name) const
+EquationValue PythonEquationContext::Get(const std::string &var_name) const
 {
     pybind11::gil_scoped_acquire acquire;
     if (dict_->contains(var_name))
     {
-        Value value = pybind11::cast<Value>((*dict_)[var_name.c_str()]);
+        EquationValue value = pybind11::cast<EquationValue>((*dict_)[var_name.c_str()]);
         return value;
     }
-    return Value::Null();
+    return EquationValue::Null();
 }
 
 bool PythonEquationContext::Contains(const std::string &var_name) const
@@ -43,7 +43,7 @@ std::unordered_set<std::string> PythonEquationContext::keys() const
     return keys;
 }
 
-void PythonEquationContext::Set(const std::string &var_name, const Value &value)
+void PythonEquationContext::Set(const std::string &var_name, const EquationValue &value)
 {
     pybind11::gil_scoped_acquire acquire;
 

@@ -1,0 +1,78 @@
+# clang-format configuration for the REL project.
+# Base: Microsoft style (Allman braces, 4-space indent, namespace contents
+# indented), with a few project-specific tweaks to match the existing code in
+# src/scanner/. Tested against clang-format >= 14.
+
+---
+BasedOnStyle: Microsoft
+Language: Cpp
+Standard: c++17
+
+# --- Indentation -------------------------------------------------------------
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+NamespaceIndentation: All
+AccessModifierOffset: -4
+IndentCaseLabels: true
+IndentPPDirectives: None
+
+# --- Line width --------------------------------------------------------------
+ColumnLimit: 100
+ReflowComments: true
+
+# --- Braces (Allman, per Microsoft style) ------------------------------------
+BreakBeforeBraces: Allman
+Cpp11BracedListStyle: true
+
+# --- Spacing -----------------------------------------------------------------
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: false
+SpaceInEmptyParentheses: false
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceBeforeAssignmentOperators: true
+SpaceAfterTemplateKeyword: true
+
+# --- Pointer/reference alignment ---------------------------------------------
+# `int* p` rather than `int *p`, matches the C++ Core Guidelines and the
+# existing code in src/.
+PointerAlignment: Left
+DerivePointerAlignment: false
+
+# --- Wrapping & line breaks --------------------------------------------------
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: true   # keep `case X: return "X";` on one line
+AllowShortBlocksOnASingleLine: Empty
+AlwaysBreakTemplateDeclarations: Yes
+BinPackArguments: false
+BinPackParameters: false
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList: BeforeColon
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+# --- Alignment ---------------------------------------------------------------
+# Aligning consecutive case-label return strings keeps to_string() readable.
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: true
+AlignOperands: Align
+
+# --- Includes ----------------------------------------------------------------
+# Sort within groups, but preserve the explicit ordering between groups.
+SortIncludes: CaseInsensitive
+IncludeBlocks: Preserve
+
+# --- Misc --------------------------------------------------------------------
+FixNamespaceComments: true
+CompactNamespaces: false
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1

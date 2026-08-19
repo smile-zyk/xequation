@@ -35,6 +35,20 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 enable_testing()
 
+# ---- REL runtime (rel::Value) -------------------------------------------
+# 集成 smile-zyk/REL 的 rel_runtime（含其依赖 xdataset，位于
+# 3rd/REL/third_party/xdataset）：xequation 只需要 rel::Value。
+# BUILD_PYTHON=OFF 避免 REL 自带的嵌入式解释器与 xequation 的 Python 桥
+# 冲突；rel_core / rel / rel_test 等目标由 EXCLUDE_FROM_ALL 排除出默认构建。
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL/CMakeLists.txt")
+    message(FATAL_ERROR
+        "REL project not found at ${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL. "
+        "Expected the REL source tree (with third_party/xdataset) under 3rd/REL.")
+endif()
+set(BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+set(BUILD_XDATASET_TEST OFF CACHE BOOL "" FORCE)
+add_subdirectory(3rd/REL REL EXCLUDE_FROM_ALL)
+
 add_subdirectory(3rd/qtpropertybrowser)
 add_subdirectory(3rd/qcodeeditor)
 

@@ -27,7 +27,9 @@ PythonEquationEngine::PythonEquationEngine()
     }
     code_parser = std::unique_ptr<PythonParser>(new PythonParser());
     code_executor = std::unique_ptr<PythonExecutor>(new PythonExecutor());
-    value_convert::RegisterPybindValueCallbacksOnce();
+
+    // 把 PyObject 生命周期操作注入 core（PyObjectRef 延迟 DECREF 依赖它）
+    value_convert::InstallPyObjectOps();
 }
 
 void PythonEquationEngine::SetPyEnvConfig(const PyEnvConfig &config)
@@ -61,6 +63,7 @@ void PythonEquationEngine::SetDefaultPyEnvConfig()
 InterpretResult PythonEquationEngine::Interpret(const std::string &code, const EquationContext *context, InterpretMode mode)
 {
     pybind11::gil_scoped_acquire acquire;
+    value_convert::FlushPendingDecrefs();
     const PythonEquationContext* py_context = dynamic_cast<const PythonEquationContext*>(context);
     if (mode == InterpretMode::kEval)
     {
@@ -75,6 +78,7 @@ InterpretResult PythonEquationEngine::Interpret(const std::string &code, const E
 ParseResult PythonEquationEngine::Parse(const std::string &code, ParseMode mode)
 {
     pybind11::gil_scoped_acquire acquire;
+    value_convert::FlushPendingDecrefs();
     if (mode == ParseMode::kExpression)
     {
         return code_parser->ParseExpression(code);

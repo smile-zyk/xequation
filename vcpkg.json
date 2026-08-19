@@ -7,6 +7,15 @@
     "boost-compute",
     "boost-bimap",
     "boost-graph",
+    "boost-variant",
+    "eigen3",
+    "rapidjson",
     "tsl-ordered-map"
+  ],
+  "overrides": [
+    {
+      "name": "eigen3",
+      "version-string": "3.3.7"
+    }
   ]
 }

@@ -1,0 +1,19 @@
+{
+    "datasets":  [
+                     {
+                         "name":  "LNA",
+                         "format":  "hdf5",
+                         "path":  "LNA.h5"
+                     },
+                     {
+                         "name":  "LQ",
+                         "format":  "touchstone",
+                         "path":  "LQ.s2p"
+                     }
+                 ],
+    "default_dataset":  "LQ",
+    "python_plugins":  [
+                           "plugins/snr.py",
+                           "plugins/rf.py"
+                       ]
+}

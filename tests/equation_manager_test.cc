@@ -124,8 +124,8 @@ InterpretResult EvalExpr(const std::string &expr, EquationContext *context)
         }
         else if (context->Contains(var1))
         {
-            Value v1 = context->Get(var1);
-            if (v1.Type() == typeid(int))
+            EquationValue v1 = context->Get(var1);
+            if (v1.IsInteger())
             {
                 val1 = v1.Cast<int>();
             }
@@ -160,8 +160,8 @@ InterpretResult EvalExpr(const std::string &expr, EquationContext *context)
         }
         else if (context->Contains(var2))
         {
-            Value v2 = context->Get(var2);
-            if (v2.Type() == typeid(int))
+            EquationValue v2 = context->Get(var2);
+            if (v2.IsInteger())
             {
                 val2 = v2.Cast<int>();
             }
@@ -276,16 +276,16 @@ ParseResult Parse(const std::string &code, ParseMode mode)
 class MockExprContext : public EquationContext
 {
   public:
-    virtual Value Get(const std::string &var_name) const override
+    virtual EquationValue Get(const std::string &var_name) const override
     {
         if (Contains(var_name))
         {
             return manager_.at(var_name);
         }
-        return Value::Null();
+        return EquationValue::Null();
     }
 
-    virtual void Set(const std::string &var_name, const Value &value) override
+    virtual void Set(const std::string &var_name, const EquationValue &value) override
     {
         manager_[var_name] = value;
     }
@@ -321,7 +321,7 @@ class MockExprContext : public EquationContext
     }
 
   private:
-    std::unordered_map<std::string, Value> manager_;
+    std::unordered_map<std::string, EquationValue> manager_;
 };
 
 class EquationManagerTest : public testing::Test

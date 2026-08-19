@@ -969,7 +969,15 @@ TEST_F(PythonParserTest, CacheIndependentOfWhitespace)
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
-    pybind11::scoped_interpreter guard{};
+    // 不能用 scoped_interpreter：它会用默认配置初始化嵌入的 CPython，
+    // 而该 Python DLL 内置的 prefix 是旧路径（D:\M\msys64\mingw64），
+    // 找不到 stdlib 会直接 terminate。
+    // 这里通过引擎用构建期注入的 REL_PYTHON_* 路径初始化解释器。
+    PythonEquationEngine::SetDefaultPyEnvConfig();
+    PythonEquationEngine::GetInstance();
+    // 引擎初始化后释放了主线程 GIL，测试体内会直接操作 pybind11 对象，
+    // 所以需要在主线程重新持有 GIL。
+    pybind11::gil_scoped_acquire acquire;
     int ret = RUN_ALL_TESTS();
     return ret;
 }

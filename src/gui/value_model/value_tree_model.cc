@@ -127,7 +127,7 @@ QVariant ValueTreeModel::headerData(int section, Qt::Orientation orientation, in
     case 0:
         return "Name";
     case 1:
-        return "Value";
+        return "EquationValue";
     case 2:
         return "Type";
     default:

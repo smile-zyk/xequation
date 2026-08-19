@@ -285,7 +285,7 @@ void ExpressionWatchWidget::OnEvalResultSubmitted(const QUuid& id, const Interpr
     }
     else
     {
-        Value value = result.value;
+        EquationValue value = result.value;
         new_item = BuilderUtils::CreateValueItem(expression, value);
     }
 

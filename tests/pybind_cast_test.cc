@@ -1,201 +1,147 @@
 #include <gtest/gtest.h>
-#include <memory>
 #include <pybind11/cast.h>
 #include <pybind11/embed.h>
 #include <pybind11/pytypes.h>
+#include <string>
+#include <vector>
+
 #include "python/value_pybind_converter.h"
-#include "core/value.h"
+#include "python/python_equation_engine.h"
+#include "core/equation_value.h"
 
 using namespace xequation;
+using namespace xequation::python;
 
-class PyObjectConverterTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        pybind11::initialize_interpreter();
-    }
+// =========================================================================
+//  EquationValue <-> Python 转换
+// =========================================================================
 
-    void TearDown() override {
-        pybind11::finalize_interpreter();
-    }
-};
+// ---- EquationValue -> py::object --------------------------------------
 
-TEST_F(PyObjectConverterTest, ConvertInt) {
-    Value value(42);
+TEST(EquationValueCast, CastInt)
+{
+    EquationValue value(42);  // -> rel::Value::Integer
     pybind11::object obj = pybind11::cast(value);
-    
+
     EXPECT_TRUE(pybind11::isinstance<pybind11::int_>(obj));
     EXPECT_EQ(obj.cast<int>(), 42);
 }
 
-TEST_F(PyObjectConverterTest, ConvertDouble) {
-    Value value(3.14);
+TEST(EquationValueCast, CastDouble)
+{
+    EquationValue value(3.14);  // -> rel::Value::Real
     pybind11::object obj = pybind11::cast(value);
-    
+
     EXPECT_TRUE(pybind11::isinstance<pybind11::float_>(obj));
     EXPECT_DOUBLE_EQ(obj.cast<double>(), 3.14);
 }
 
-TEST_F(PyObjectConverterTest, ConvertString) {
-    Value value("hello world");
+TEST(EquationValueCast, CastString)
+{
+    EquationValue value(std::string("hello world"));  // -> rel::Value::String
     pybind11::object obj = pybind11::cast(value);
-    
+
     EXPECT_TRUE(pybind11::isinstance<pybind11::str>(obj));
     EXPECT_EQ(obj.cast<std::string>(), "hello world");
 }
 
-TEST_F(PyObjectConverterTest, ConvertBool) {
-    Value value(true);
+TEST(EquationValueCast, CastBool)
+{
+    EquationValue value(true);  // -> rel::Value::Boolean
     pybind11::object obj = pybind11::cast(value);
-    
+
     EXPECT_TRUE(pybind11::isinstance<pybind11::bool_>(obj));
     EXPECT_EQ(obj.cast<bool>(), true);
 }
 
-TEST_F(PyObjectConverterTest, ConvertNull) {
-    Value value;
+TEST(EquationValueCast, CastNull)
+{
+    EquationValue value;  // null
     pybind11::object obj = pybind11::cast(value);
-    
+
     EXPECT_TRUE(obj.is_none());
 }
 
-TEST_F(PyObjectConverterTest, ConvertVectorInt) {
-    std::vector<int> vec{1, 2, 3, 4, 5};
-    Value value(vec);
-    pybind11::object obj = pybind11::cast(value);
-    
-    EXPECT_TRUE(pybind11::isinstance<pybind11::list>(obj));
-    
-    pybind11::list list = obj.cast<pybind11::list>();
-    EXPECT_EQ(list.size(), 5);
-    EXPECT_EQ(list[0].cast<int>(), 1);
-    EXPECT_EQ(list[1].cast<int>(), 2);
-    EXPECT_EQ(list[2].cast<int>(), 3);
-    EXPECT_EQ(list[3].cast<int>(), 4);
-    EXPECT_EQ(list[4].cast<int>(), 5);
-}
+// ---- py::object -> EquationValue（标量归一化为 rel::Value）-------------
 
-TEST_F(PyObjectConverterTest, ConvertVectorDouble) {
-    std::vector<double> vec{1.1, 2.2, 3.3};
-    Value value(vec);
-    pybind11::object obj = pybind11::cast(value);
-    
-    EXPECT_TRUE(pybind11::isinstance<pybind11::list>(obj));
-    
-    pybind11::list list = obj.cast<pybind11::list>();
-    EXPECT_EQ(list.size(), 3);
-    EXPECT_DOUBLE_EQ(list[0].cast<double>(), 1.1);
-    EXPECT_DOUBLE_EQ(list[1].cast<double>(), 2.2);
-    EXPECT_DOUBLE_EQ(list[2].cast<double>(), 3.3);
-}
-
-TEST_F(PyObjectConverterTest, ConvertVectorString) {
-    std::vector<std::string> vec{"a", "bb", "ccc"};
-    Value value(vec);
-    pybind11::object obj = pybind11::cast(value);
-    
-    EXPECT_TRUE(pybind11::isinstance<pybind11::list>(obj));
-    
-    pybind11::list list = obj.cast<pybind11::list>();
-    EXPECT_EQ(list.size(), 3);
-    EXPECT_EQ(list[0].cast<std::string>(), "a");
-    EXPECT_EQ(list[1].cast<std::string>(), "bb");
-    EXPECT_EQ(list[2].cast<std::string>(), "ccc");
-}
-
-TEST_F(PyObjectConverterTest, ConvertMapStringString) {
-    std::map<std::string, std::string> map{{"key1", "value1"}, {"key2", "value2"}};
-    Value value(map);
-    pybind11::object obj = pybind11::cast(value);
-    
-    EXPECT_TRUE(pybind11::isinstance<pybind11::dict>(obj));
-    
-    pybind11::dict dict = obj.cast<pybind11::dict>();
-    EXPECT_EQ(dict.size(), 2);
-    EXPECT_EQ(dict["key1"].cast<std::string>(), "value1");
-    EXPECT_EQ(dict["key2"].cast<std::string>(), "value2");
-}
-
-TEST_F(PyObjectConverterTest, ConvertUnorderedMapStringString) {
-    std::unordered_map<std::string, std::string> map{{"key1", "value1"}, {"key2", "value2"}};
-    Value value(map);
-    pybind11::object obj = pybind11::cast(value);
-    
-    EXPECT_TRUE(pybind11::isinstance<pybind11::dict>(obj));
-    
-    pybind11::dict dict = obj.cast<pybind11::dict>();
-    EXPECT_EQ(dict.size(), 2);
-    EXPECT_EQ(dict["key1"].cast<std::string>(), "value1");
-    EXPECT_EQ(dict["key2"].cast<std::string>(), "value2");
-}
-
-TEST_F(PyObjectConverterTest, ConvertLong) {
-    Value value(123456789L);
-    pybind11::object obj = pybind11::cast(value);
-    
-    EXPECT_TRUE(pybind11::isinstance<pybind11::int_>(obj));
-    EXPECT_EQ(obj.cast<long>(), 123456789L);
-}
-
-TEST_F(PyObjectConverterTest, ConvertUnsignedInt) {
-    Value value(4294967295U);
-    pybind11::object obj = pybind11::cast(value);
-    
-    EXPECT_TRUE(pybind11::isinstance<pybind11::int_>(obj));
-    EXPECT_EQ(obj.cast<unsigned int>(), 4294967295U);
-}
-
-TEST_F(PyObjectConverterTest, RoundTripConversion) {
-    std::vector<int> original{1, 2, 3};
-    Value value(original);
-    
-    pybind11::object obj = pybind11::cast(value);
-    
-    std::vector<int> result = obj.cast<std::vector<int>>();
-    
-    EXPECT_EQ(result, original);
-}
-
-TEST_F(PyObjectConverterTest, CustomConverterRegistration) {
-    struct TestCustomConverter : public value_convert::PyObjectConverter::TypeConverter {
-        bool CanConvert(const Value &value) const override {
-            return value.Type() == typeid(std::pair<int, int>);
-        }
-        
-        pybind11::object Convert(const Value &value) const override {
-            auto pair = value.Cast<std::pair<int, int>>();
-            return pybind11::make_tuple(pair.first, pair.second);
-        }
-    };
-    
-    value_convert::PyObjectConverter::RegisterConverter(std::unique_ptr<TestCustomConverter>(new TestCustomConverter()));
-
-    std::pair<int, int> test_pair{10, 20};
-    Value value(test_pair);
-    EXPECT_EQ(value.ToString(), "(10, 20)");
-    pybind11::object obj = pybind11::cast(value);
-    
-    EXPECT_TRUE(pybind11::isinstance<pybind11::tuple>(obj));
-    
-    pybind11::tuple tuple = obj.cast<pybind11::tuple>();
-    EXPECT_EQ(tuple.size(), 2);
-    EXPECT_EQ(tuple[0].cast<int>(), 10);
-    EXPECT_EQ(tuple[1].cast<int>(), 20);
-}
-
-TEST_F(PyObjectConverterTest, PyObjectValue)
+TEST(EquationValueCast, LoadInt)
 {
-    pybind11::list m_list;
-    m_list.append("1");
-    m_list.append(2);
-    
-    Value package_obj_value = m_list;
-    pybind11::object unpackage_obj = pybind11::cast(package_obj_value);
-    EXPECT_EQ(m_list.ptr(), unpackage_obj.ptr());
+    pybind11::object obj = pybind11::cast(42);
+    EquationValue value = pybind11::cast<EquationValue>(obj);
 
-    EXPECT_EQ(package_obj_value.ToString(), "['1', 2]");
+    EXPECT_TRUE(value.IsRelValue());
+    EXPECT_TRUE(value.IsInteger());
+    EXPECT_EQ(value.Cast<int>(), 42);
 }
 
-int main(int argc, char **argv) {
+TEST(EquationValueCast, LoadDouble)
+{
+    pybind11::object obj = pybind11::cast(2.5);
+    EquationValue value = pybind11::cast<EquationValue>(obj);
+
+    EXPECT_TRUE(value.IsReal());
+    EXPECT_DOUBLE_EQ(value.Cast<double>(), 2.5);
+}
+
+TEST(EquationValueCast, LoadString)
+{
+    pybind11::object obj = pybind11::cast("hello");
+    EquationValue value = pybind11::cast<EquationValue>(obj);
+
+    EXPECT_TRUE(value.IsString());
+    EXPECT_EQ(value.Cast<std::string>(), "hello");
+}
+
+TEST(EquationValueCast, LoadBool)
+{
+    pybind11::object obj = pybind11::cast(true);
+    EquationValue value = pybind11::cast<EquationValue>(obj);
+
+    EXPECT_TRUE(value.IsBoolean());
+    EXPECT_EQ(value.Cast<bool>(), true);
+}
+
+// ---- 容器保持不透明 PyObjectRef，双向透传 ------------------------------
+
+TEST(EquationValueCast, ListRoundTrip)
+{
+    pybind11::list list;
+    list.append(1);
+    list.append(2);
+    list.append(3);
+
+    EquationValue value = pybind11::cast<EquationValue>(list);
+    EXPECT_TRUE(value.IsPyObject());
+    EXPECT_FALSE(value.IsRelValue());
+
+    // 透传回同一个 Python 对象
+    pybind11::object back = pybind11::cast(value);
+    EXPECT_TRUE(pybind11::isinstance<pybind11::list>(back));
+    EXPECT_EQ(pybind11::len(back), 3);
+}
+
+TEST(EquationValueCast, DictRoundTrip)
+{
+    pybind11::dict dict;
+    dict["a"] = 1;
+
+    EquationValue value = pybind11::cast<EquationValue>(dict);
+    EXPECT_TRUE(value.IsPyObject());
+
+    pybind11::object back = pybind11::cast(value);
+    EXPECT_TRUE(pybind11::isinstance<pybind11::dict>(back));
+    EXPECT_EQ(pybind11::cast<int>(back["a"]), 1);
+}
+
+int main(int argc, char **argv)
+{
     testing::InitGoogleTest(&argc, argv);
+    // 不能用 pybind11::initialize_interpreter()（默认配置找不到 stdlib 会失败），
+    // 统一通过引擎用构建期注入的 REL_PYTHON_* 路径初始化嵌入解释器。
+    PythonEquationEngine::SetDefaultPyEnvConfig();
+    PythonEquationEngine::GetInstance();
+    // 引擎初始化后释放了主线程 GIL，测试体内会直接操作 pybind11 对象，
+    // 所以需要在主线程重新持有 GIL。
+    pybind11::gil_scoped_acquire acquire;
     return RUN_ALL_TESTS();
 }

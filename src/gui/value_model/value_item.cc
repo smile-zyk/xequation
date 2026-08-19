@@ -6,7 +6,7 @@ namespace xequation
 namespace gui
 {
 
-ValueItem::ValueItem(const QString &name, const Value &value, ValueItem *parent)
+ValueItem::ValueItem(const QString &name, const EquationValue &value, ValueItem *parent)
     : name_(name), value_(value), parent_(parent), id_(QUuid::createUuid())
 {
 }
@@ -16,7 +16,7 @@ ValueItem::ValueItem(const QString &name, const QString &display_value, const QS
 {
 }
 
-ValueItem::UniquePtr ValueItem::Create(const QString &name, const Value &value, ValueItem *parent)
+ValueItem::UniquePtr ValueItem::Create(const QString &name, const EquationValue &value, ValueItem *parent)
 {
     return std::unique_ptr<ValueItem>(new ValueItem(name, value, parent));
 }

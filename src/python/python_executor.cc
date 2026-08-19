@@ -147,13 +147,13 @@ InterpretResult PythonExecutor::Eval(const std::string &expression, const pybind
     try
     {
         pybind11::object result = pybind11::eval(expression.c_str(), local_dict);
-        res.value = result;
+        res.value = pybind11::cast<EquationValue>(result);
         res.status = ResultStatus::kSuccess;
     }
     catch (const pybind11::error_already_set &e)
     {
         ResultStatus status = MapPythonExceptionToStatus(e);
-        res.value = Value::Null();
+        res.value = EquationValue::Null();
         res.status = status;
         pybind11::object pv = e.value();
         pybind11::object str_func = pybind11::module_::import("builtins").attr("str");

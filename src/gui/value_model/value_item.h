@@ -2,7 +2,7 @@
 
 #include <QString>
 #include <QUuid>
-#include <core/value.h>
+#include <core/equation_value.h>
 #include <quuid.h>
 
 namespace xequation
@@ -14,7 +14,7 @@ class ValueItem
 public:
     using UniquePtr = std::unique_ptr<ValueItem>;
     ~ValueItem() = default;
-    static UniquePtr Create(const QString &name, const Value &value, ValueItem* parent = nullptr);
+    static UniquePtr Create(const QString &name, const EquationValue &value, ValueItem* parent = nullptr);
     static UniquePtr Create(const QString &name, const QString& display_value, const QString& type, ValueItem* parent = nullptr);
     void LoadChildren(int begin, int end);
     void UnLoadChildren();
@@ -32,7 +32,7 @@ public:
 
     const QString& name() const { return name_; }
     const QUuid& id() const { return id_; }
-    const Value& value() const { return value_; }
+    const EquationValue& value() const { return value_; }
     const QString& type() const { return type_; }
     const QString& display_value() const { return display_value_; }
     ValueItem* parent() const { return parent_; }
@@ -41,12 +41,12 @@ public:
     const QString& value_item_type() const { return value_item_type_; }
 
 protected:
-    ValueItem(const QString &name, const Value &value, ValueItem* parent = nullptr);
+    ValueItem(const QString &name, const EquationValue &value, ValueItem* parent = nullptr);
     ValueItem(const QString &name, const QString& display_value, const QString& type, ValueItem* parent = nullptr);
 private:
     QUuid id_;
     QString name_;
-    Value value_;
+    EquationValue value_;
     QString type_;
     QString display_value_;
     ValueItem* parent_ = nullptr;

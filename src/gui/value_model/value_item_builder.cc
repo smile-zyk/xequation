@@ -41,7 +41,7 @@ void ValueItemBuilderRegistry::UnRegisterBuilder(ValueItemBuilder *builder)
     );
 }
 
-ValueItemBuilder *ValueItemBuilderRegistry::FindBuilder(const Value &value) const
+ValueItemBuilder *ValueItemBuilderRegistry::FindBuilder(const EquationValue &value) const
 {
     for (const auto &entry : builders_)
     {
@@ -54,7 +54,7 @@ ValueItemBuilder *ValueItemBuilderRegistry::FindBuilder(const Value &value) cons
 }
 
 ValueItem::UniquePtr
-ValueItemBuilderRegistry::CreateValueItem(const QString &name, const Value &value, ValueItem *parent) const
+ValueItemBuilderRegistry::CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent) const
 {
     auto builder = FindBuilder(value);
     if (builder)

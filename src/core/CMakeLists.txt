@@ -1,6 +1,7 @@
 set(xequation_core_SRC
-    value.h
-    value.cc
+    equation_value.h
+    equation_value.cc
+    py_object_ref.h
     dependency_graph.h
     dependency_graph.cc
     equation.h
@@ -20,6 +21,8 @@ add_library(xequation_core STATIC ${xequation_core_SRC})
 target_link_libraries(xequation_core PUBLIC Boost::multi_index)
 target_link_libraries(xequation_core PUBLIC Boost::uuid)
 target_link_libraries(xequation_core PUBLIC Boost::compute)
+target_link_libraries(xequation_core PUBLIC Boost::variant)
+target_link_libraries(xequation_core PUBLIC rel_runtime)
 
 target_include_directories(xequation_core PUBLIC ../)
 target_include_directories(xequation_core PUBLIC ${TSL_ORDERED_MAP_INCLUDE_DIRS})

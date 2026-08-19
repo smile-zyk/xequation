@@ -40,7 +40,7 @@ bool Equation::operator!=(const Equation &other) const
     return !(*this == other);
 }
 
-Value Equation::GetValue() const
+EquationValue Equation::GetValue() const
 {
     return manager_->context().Get(name_);
 }

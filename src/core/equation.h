@@ -83,7 +83,7 @@ class Equation
         return group_id_;
     }
 
-    Value GetValue() const;
+    EquationValue GetValue() const;
     const tsl::ordered_set<std::string> & GetDependencies() const;
     const tsl::ordered_set<std::string> & GetDependents() const;
 

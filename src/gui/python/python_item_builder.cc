@@ -12,19 +12,13 @@ namespace gui
 PythonDefaultItemBuilder::PythonDefaultItemBuilder() = default;
 PythonDefaultItemBuilder::~PythonDefaultItemBuilder() = default;
 
-bool PythonDefaultItemBuilder::CanBuild(const Value &value)
+bool PythonDefaultItemBuilder::CanBuild(const EquationValue &value)
 {
-    py::gil_scoped_acquire acquire;
-
-    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
-    {
-        return true;
-    }
-    return false;
+    return value.IsPyObject();
 }
 
 ValueItem::UniquePtr
-PythonDefaultItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
+PythonDefaultItemBuilder::CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent)
 {
     py::gil_scoped_acquire acquire;
 
@@ -101,23 +95,19 @@ QString PythonDefaultItemBuilder::GetObjectRepr(py::handle obj)
 }
 
 // PythonListItemBuilder implementation
-bool PythonListItemBuilder::CanBuild(const Value &value)
+bool PythonListItemBuilder::CanBuild(const EquationValue &value)
 {
     py::gil_scoped_acquire acquire;
 
-    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (!value.IsPyObject())
     {
-        auto obj = py::cast(value);
-        return py::isinstance<py::list>(obj);
+        return false;
     }
-    if (value.Type() == typeid(py::list))
-    {
-        return true;
-    }
-    return false;
+    auto obj = py::cast(value);
+    return py::isinstance<py::list>(obj);
 }
 
-ValueItem::UniquePtr PythonListItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
+ValueItem::UniquePtr PythonListItemBuilder::CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent)
 {
     py::gil_scoped_acquire acquire;
 
@@ -148,7 +138,7 @@ void PythonListItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
     for (size_t i = begin; i <= end; ++i)
     {
         QString key = QString("[%1]").arg(i);
-        Value child_value(py::cast<py::object>(list[i]));
+        EquationValue child_value = py::cast<EquationValue>(list[i]);
         auto child_item = BuilderUtils::CreateValueItem(key, child_value, item);
         if (child_item)
         {
@@ -158,23 +148,19 @@ void PythonListItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
 }
 
 // PythonTupleItemBuilder implementation
-bool PythonTupleItemBuilder::CanBuild(const Value &value)
+bool PythonTupleItemBuilder::CanBuild(const EquationValue &value)
 {
     py::gil_scoped_acquire acquire;
 
-    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (!value.IsPyObject())
     {
-        auto obj = py::cast(value);
-        return py::isinstance<py::tuple>(obj);
+        return false;
     }
-    if (value.Type() == typeid(py::tuple))
-    {
-        return true;
-    }
-    return false;
+    auto obj = py::cast(value);
+    return py::isinstance<py::tuple>(obj);
 }
 
-ValueItem::UniquePtr PythonTupleItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
+ValueItem::UniquePtr PythonTupleItemBuilder::CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent)
 {
     py::gil_scoped_acquire acquire;
 
@@ -204,7 +190,7 @@ void PythonTupleItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
     for (size_t i = begin; i <= end; ++i)
     {
         QString key = QString("[%1]").arg(i);
-        Value child_value(py::cast<py::object>(tuple[i]));
+        EquationValue child_value = py::cast<EquationValue>(tuple[i]);
         auto child_item = BuilderUtils::CreateValueItem(key, child_value, item);
         if (child_item)
         {
@@ -214,23 +200,19 @@ void PythonTupleItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
 }
 
 // PythonSetItemBuilder implementation
-bool PythonSetItemBuilder::CanBuild(const Value &value)
+bool PythonSetItemBuilder::CanBuild(const EquationValue &value)
 {
     py::gil_scoped_acquire acquire;
 
-    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (!value.IsPyObject())
     {
-        auto obj = py::cast(value);
-        return py::isinstance<py::set>(obj);
+        return false;
     }
-    if (value.Type() == typeid(py::set))
-    {
-        return true;
-    }
-    return false;
+    auto obj = py::cast(value);
+    return py::isinstance<py::set>(obj);
 }
 
-ValueItem::UniquePtr PythonSetItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
+ValueItem::UniquePtr PythonSetItemBuilder::CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent)
 {
     py::gil_scoped_acquire acquire;
 
@@ -261,7 +243,7 @@ void PythonSetItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
     {
         auto it = set.begin();
         std::advance(it, i);
-        Value child_value = *it;
+        EquationValue child_value = py::cast<EquationValue>(*it);
         QString item_name = QString("[%1]").arg(i);
         ValueItem::UniquePtr child_item = BuilderUtils::CreateValueItem(item_name, child_value, item);
         item->AddChild(std::move(child_item));
@@ -269,23 +251,19 @@ void PythonSetItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
 }
 
 // PythonDictItemBuilder implementation
-bool PythonDictItemBuilder::CanBuild(const Value &value)
+bool PythonDictItemBuilder::CanBuild(const EquationValue &value)
 {
     py::gil_scoped_acquire acquire;
 
-    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (!value.IsPyObject())
     {
-        auto obj = py::cast(value);
-        return py::isinstance<py::dict>(obj);
+        return false;
     }
-    if (value.Type() == typeid(py::dict))
-    {
-        return true;
-    }
-    return false;
+    auto obj = py::cast(value);
+    return py::isinstance<py::dict>(obj);
 }
 
-ValueItem::UniquePtr PythonDictItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
+ValueItem::UniquePtr PythonDictItemBuilder::CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent)
 {
     py::gil_scoped_acquire acquire;
 
@@ -319,24 +297,24 @@ void PythonDictItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
         py::object key = py::reinterpret_borrow<py::object>(it->first);
         py::object value = py::reinterpret_borrow<py::object>(it->second);
         QString key_str = PythonDefaultItemBuilder::GetObjectRepr(key);
-        ValueItem::UniquePtr child_item = BuilderUtils::CreateValueItem(key_str, value, item);
+        ValueItem::UniquePtr child_item = BuilderUtils::CreateValueItem(key_str, py::cast<EquationValue>(value), item);
         item->AddChild(std::move(child_item));
     }
 }
 
-bool PythonClassItemBuilder::CanBuild(const Value &value)
+bool PythonClassItemBuilder::CanBuild(const EquationValue &value)
 {
     py::gil_scoped_acquire acquire;
 
-    if (value.Type() == typeid(py::object) || value.Type() == typeid(py::handle))
+    if (!value.IsPyObject())
     {
-        auto obj = py::cast(value);
-        return py::hasattr(obj, "__class__") && py::hasattr(obj, "__dict__");
+        return false;
     }
-    return false;
+    auto obj = py::cast(value);
+    return py::hasattr(obj, "__class__") && py::hasattr(obj, "__dict__");
 }
 
-ValueItem::UniquePtr PythonClassItemBuilder::CreateValueItem(const QString &name, const Value &value, ValueItem *parent)
+ValueItem::UniquePtr PythonClassItemBuilder::CreateValueItem(const QString &name, const EquationValue &value, ValueItem *parent)
 {
     py::gil_scoped_acquire acquire;
 
@@ -376,7 +354,7 @@ void PythonClassItemBuilder::LoadChildren(ValueItem *item, int begin, int end)
             key_str.remove(0,1);
             key_str.chop(1);
         }
-        ValueItem::UniquePtr child_item = BuilderUtils::CreateValueItem(key_str, value, item);
+        ValueItem::UniquePtr child_item = BuilderUtils::CreateValueItem(key_str, py::cast<EquationValue>(value), item);
         item->AddChild(std::move(child_item));
     }
 }

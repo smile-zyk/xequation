@@ -18,8 +18,20 @@ function(add_gtest_executable target_name test_label source_file)
         GTest::gmock_main
     )
 
+    # REL 运行时 DLL（rel_runtime / xdataset）拷贝到测试可执行文件目录，
+    # 否则 ctest 运行时找不到（MSYS2 报 "error while loading shared libraries"）。
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:rel_runtime>"
+            "$<TARGET_FILE_DIR:${target_name}>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:xdataset>"
+            "$<TARGET_FILE_DIR:${target_name}>"
+        COMMENT "Copy REL runtime DLLs next to ${target_name}")
+
     gtest_discover_tests(${target_name}
         PROPERTIES LABELS ${test_label}
+        DISCOVERY_TIMEOUT 60
     )
 
 endfunction()
@@ -29,6 +41,6 @@ add_gtest_executable(dependency_graph_test "DependencyGraph" dependency_graph_te
 add_gtest_executable(equation_manager_test "EquationManager" equation_manager_test.cc)
 add_gtest_executable(equation_signals_manager_test "EquationSignalsManager" equation_signals_manager_test.cc)
 add_gtest_executable(pybind_cast_test "PyObjectConverter" pybind_cast_test.cc)
-# add_gtest_executable(python_parser_test "PythonParser" python_parser_test.cc)
-# add_gtest_executable(python_executor_test "PythonExecutor" python_executor_test.cc)
+add_gtest_executable(python_parser_test "PythonParser" python_parser_test.cc)
+add_gtest_executable(python_executor_test "PythonExecutor" python_executor_test.cc)
 add_gtest_executable(python_equation_engine_test "PythonEquationEngine" python_equation_engine_test.cc)

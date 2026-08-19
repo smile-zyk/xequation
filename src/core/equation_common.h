@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "bitmask.hpp"
-#include "value.h"
+#include "equation_value.h"
 
 namespace xequation
 {
@@ -58,7 +58,7 @@ struct InterpretResult
     InterpretMode mode;
     ResultStatus status;
     std::string message;
-    Value value;
+    EquationValue value;
 };
 
 enum class ItemType

@@ -2,7 +2,7 @@
 #include <string>
 #include <unordered_set>
 
-#include "value.h"
+#include "equation_value.h"
 #include "equation_common.h"
 
 namespace xequation
@@ -14,10 +14,10 @@ class EquationContext
     virtual bool Contains(const std::string &key) const = 0;
 
     // Gets value for the given key.
-    virtual Value Get(const std::string &key) const = 0;
+    virtual EquationValue Get(const std::string &key) const = 0;
 
     // Sets value for the given key.
-    virtual void Set(const std::string &key, const Value &value) = 0;
+    virtual void Set(const std::string &key, const EquationValue &value) = 0;
 
     // Removes the given key.
     virtual bool Remove(const std::string &key) = 0;
