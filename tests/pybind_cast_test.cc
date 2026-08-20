@@ -16,14 +16,22 @@ using namespace xequation::python;
 // =========================================================================
 
 // ---- EquationValue -> py::object --------------------------------------
+// C++ 构造的 rel::Value 载荷经 REL 自己的 Python 绑定呈现为 rel.Value 对象
+// （带完整运算符 / is_* 查询 / data_type / data_kind / buffer 协议）。
+// 注意：rel.Value.__str__ 输出的是 DataFrame 风格的终端表格（Format），
+// 不适合做文本断言，这里改用结构化 API（data_type/data_kind/as_measurement）。
 
 TEST(EquationValueCast, CastInt)
 {
     EquationValue value(42);  // -> rel::Value::Integer
     pybind11::object obj = pybind11::cast(value);
 
-    EXPECT_TRUE(pybind11::isinstance<pybind11::int_>(obj));
-    EXPECT_EQ(obj.cast<int>(), 42);
+    // rel.Value 绑定对象（而非 Python int）
+    pybind11::object rel_value_cls = pybind11::module_::import("rel").attr("Value");
+    EXPECT_TRUE(pybind11::isinstance(obj, rel_value_cls));
+    EXPECT_TRUE(pybind11::cast<bool>(obj.attr("is_measurement")()));
+    EXPECT_EQ(pybind11::cast<std::string>(obj.attr("data_type")), "integer");
+    EXPECT_EQ(pybind11::cast<std::string>(obj.attr("data_kind")), "scalar");
 }
 
 TEST(EquationValueCast, CastDouble)
@@ -31,8 +39,11 @@ TEST(EquationValueCast, CastDouble)
     EquationValue value(3.14);  // -> rel::Value::Real
     pybind11::object obj = pybind11::cast(value);
 
-    EXPECT_TRUE(pybind11::isinstance<pybind11::float_>(obj));
-    EXPECT_DOUBLE_EQ(obj.cast<double>(), 3.14);
+    pybind11::object rel_value_cls = pybind11::module_::import("rel").attr("Value");
+    EXPECT_TRUE(pybind11::isinstance(obj, rel_value_cls));
+    EXPECT_TRUE(pybind11::cast<bool>(obj.attr("is_measurement")()));
+    EXPECT_EQ(pybind11::cast<std::string>(obj.attr("data_type")), "real");
+    EXPECT_EQ(pybind11::cast<std::string>(obj.attr("data_kind")), "scalar");
 }
 
 TEST(EquationValueCast, CastString)
@@ -40,8 +51,11 @@ TEST(EquationValueCast, CastString)
     EquationValue value(std::string("hello world"));  // -> rel::Value::String
     pybind11::object obj = pybind11::cast(value);
 
-    EXPECT_TRUE(pybind11::isinstance<pybind11::str>(obj));
-    EXPECT_EQ(obj.cast<std::string>(), "hello world");
+    pybind11::object rel_value_cls = pybind11::module_::import("rel").attr("Value");
+    EXPECT_TRUE(pybind11::isinstance(obj, rel_value_cls));
+    EXPECT_TRUE(pybind11::cast<bool>(obj.attr("is_measurement")()));
+    EXPECT_EQ(pybind11::cast<std::string>(obj.attr("data_type")), "string");
+    EXPECT_EQ(pybind11::cast<std::string>(obj.attr("data_kind")), "scalar");
 }
 
 TEST(EquationValueCast, CastBool)
@@ -49,8 +63,11 @@ TEST(EquationValueCast, CastBool)
     EquationValue value(true);  // -> rel::Value::Boolean
     pybind11::object obj = pybind11::cast(value);
 
-    EXPECT_TRUE(pybind11::isinstance<pybind11::bool_>(obj));
-    EXPECT_EQ(obj.cast<bool>(), true);
+    pybind11::object rel_value_cls = pybind11::module_::import("rel").attr("Value");
+    EXPECT_TRUE(pybind11::isinstance(obj, rel_value_cls));
+    EXPECT_TRUE(pybind11::cast<bool>(obj.attr("is_measurement")()));
+    EXPECT_EQ(pybind11::cast<std::string>(obj.attr("data_type")), "boolean");
+    EXPECT_EQ(pybind11::cast<std::string>(obj.attr("data_kind")), "scalar");
 }
 
 TEST(EquationValueCast, CastNull)
@@ -61,16 +78,17 @@ TEST(EquationValueCast, CastNull)
     EXPECT_TRUE(obj.is_none());
 }
 
-// ---- py::object -> EquationValue（标量归一化为 rel::Value）-------------
+// ---- py::object -> EquationValue（原样保留 PyObjectRef，往返保真）-----
 
 TEST(EquationValueCast, LoadInt)
 {
     pybind11::object obj = pybind11::cast(42);
     EquationValue value = pybind11::cast<EquationValue>(obj);
 
-    EXPECT_TRUE(value.IsRelValue());
-    EXPECT_TRUE(value.IsInteger());
-    EXPECT_EQ(value.Cast<int>(), 42);
+    EXPECT_TRUE(value.IsPyObject());
+    EXPECT_FALSE(value.IsRelValue());
+    // 透传回同一个 Python 对象，仍可直接 cast<int>
+    EXPECT_EQ(pybind11::cast<int>(pybind11::cast(value)), 42);
 }
 
 TEST(EquationValueCast, LoadDouble)
@@ -78,8 +96,8 @@ TEST(EquationValueCast, LoadDouble)
     pybind11::object obj = pybind11::cast(2.5);
     EquationValue value = pybind11::cast<EquationValue>(obj);
 
-    EXPECT_TRUE(value.IsReal());
-    EXPECT_DOUBLE_EQ(value.Cast<double>(), 2.5);
+    EXPECT_TRUE(value.IsPyObject());
+    EXPECT_DOUBLE_EQ(pybind11::cast<double>(pybind11::cast(value)), 2.5);
 }
 
 TEST(EquationValueCast, LoadString)
@@ -87,8 +105,8 @@ TEST(EquationValueCast, LoadString)
     pybind11::object obj = pybind11::cast("hello");
     EquationValue value = pybind11::cast<EquationValue>(obj);
 
-    EXPECT_TRUE(value.IsString());
-    EXPECT_EQ(value.Cast<std::string>(), "hello");
+    EXPECT_TRUE(value.IsPyObject());
+    EXPECT_EQ(pybind11::cast<std::string>(pybind11::cast(value)), "hello");
 }
 
 TEST(EquationValueCast, LoadBool)
@@ -96,8 +114,8 @@ TEST(EquationValueCast, LoadBool)
     pybind11::object obj = pybind11::cast(true);
     EquationValue value = pybind11::cast<EquationValue>(obj);
 
-    EXPECT_TRUE(value.IsBoolean());
-    EXPECT_EQ(value.Cast<bool>(), true);
+    EXPECT_TRUE(value.IsPyObject());
+    EXPECT_EQ(pybind11::cast<bool>(pybind11::cast(value)), true);
 }
 
 // ---- 容器保持不透明 PyObjectRef，双向透传 ------------------------------

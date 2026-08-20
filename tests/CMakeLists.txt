@@ -11,6 +11,7 @@ function(add_gtest_executable target_name test_label source_file)
 
     target_link_libraries(${target_name} PRIVATE
         xequation_core
+        xequation_rel
         xequation_python
         GTest::gtest
         GTest::gtest_main
@@ -37,6 +38,7 @@ function(add_gtest_executable target_name test_label source_file)
 endfunction()
 
 add_gtest_executable(value_test "Value" value_test.cc)
+add_gtest_executable(rel_engine_test "RelEngine" rel_engine_test.cc)
 add_gtest_executable(dependency_graph_test "DependencyGraph" dependency_graph_test.cc)
 add_gtest_executable(equation_manager_test "EquationManager" equation_manager_test.cc)
 add_gtest_executable(equation_signals_manager_test "EquationSignalsManager" equation_signals_manager_test.cc)
