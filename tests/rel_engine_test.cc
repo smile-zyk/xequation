@@ -33,6 +33,63 @@ TEST(RelEquationEngine, TestParseExpression)
     EXPECT_THAT(item.dependencies, testing::UnorderedElementsAre("x"));
 }
 
+// ---- AST 依赖提取精度（正则做不到的场景）-----------------------------
+
+TEST(RelEquationEngine, TestParseDepsFunctionCallVsMatrixIndex)
+{
+    auto& engine = RelEquationEngine::GetInstance();
+
+    // 单段 callee 且注册为函数 -> 函数调用，callee 不是依赖，参数是
+    auto r1 = engine.Parse("sin(x) * cos(y)", ParseMode::kExpression);
+    EXPECT_THAT(r1.items[0].dependencies, testing::UnorderedElementsAre("x", "y"));
+
+    // 非注册函数的 a(...) -> 矩阵索引，a 是依赖
+    auto r2 = engine.Parse("a(1, 2) + 1", ParseMode::kExpression);
+    EXPECT_THAT(r2.items[0].dependencies, testing::UnorderedElementsAre("a"));
+}
+
+TEST(RelEquationEngine, TestParseDepsAttributeChain)
+{
+    // 多段路径收集所有前缀：a.b.c -> a、a.b、a.b.c
+    auto result = RelEquationEngine::GetInstance().Parse("a.b.c", ParseMode::kExpression);
+    EXPECT_THAT(result.items[0].dependencies,
+                testing::UnorderedElementsAre("a", "a.b", "a.b.c"));
+}
+
+TEST(RelEquationEngine, TestParseDepsSelfReference)
+{
+    // x = x + 1：RHS 读取 x，是依赖（与 Python 引擎一致）
+    auto result = RelEquationEngine::GetInstance().Parse("x = x + 1", ParseMode::kStatement);
+    EXPECT_EQ(result.items[0].type, ItemType::kVariable);
+    EXPECT_THAT(result.items[0].dependencies, testing::UnorderedElementsAre("x"));
+}
+
+TEST(RelEquationEngine, TestParseDepsNoStringMisdetect)
+{
+    // 字符串/单位后缀里的标识符不应被误捕为依赖
+    auto result = RelEquationEngine::GetInstance().Parse(R"("hello world" = x)", ParseMode::kStatement);
+    // 字符串字面量不是合法标识符 -> 语法错误（不是依赖误报）
+    EXPECT_EQ(result.items[0].status, ResultStatus::kSyntaxError);
+}
+
+TEST(RelEquationEngine, TestParseDepsSweepAndIndex)
+{
+    // 列表/矩阵/索引结构里的引用
+    auto r1 = RelEquationEngine::GetInstance().Parse("[a, b, c]", ParseMode::kExpression);
+    EXPECT_THAT(r1.items[0].dependencies, testing::UnorderedElementsAre("a", "b", "c"));
+
+    auto r2 = RelEquationEngine::GetInstance().Parse("m[1, 2] * n", ParseMode::kExpression);
+    EXPECT_THAT(r2.items[0].dependencies, testing::UnorderedElementsAre("m", "n"));
+}
+
+TEST(RelEquationEngine, TestParseDepsComparisonNotAssignment)
+{
+    // == 不是赋值：是表达式，左侧也是引用
+    auto result = RelEquationEngine::GetInstance().Parse("a == b", ParseMode::kStatement);
+    EXPECT_EQ(result.items[0].type, ItemType::kExpression);
+    EXPECT_THAT(result.items[0].dependencies, testing::UnorderedElementsAre("a", "b"));
+}
+
 TEST(RelEquationEngine, TestEquationManager)
 {
     auto& engine = RelEquationEngine::GetInstance();

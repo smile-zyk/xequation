@@ -5,6 +5,7 @@
 #include <boost/compute/detail/lru_cache.hpp>
 
 #include "core/equation_common.h"
+#include "expr.h"  // rel::ExprPtr / rel::ExprVisitor
 
 namespace xequation
 {
@@ -12,8 +13,10 @@ namespace rel_engine
 {
 
 // REL 语句解析器：仿照 python/PythonParser 的接口。
-// REL 没有 Python AST 可用，这里用正则识别"赋值 vs 表达式"，
-// 并用 rel::Environment 的全局注册表（函数/常量）过滤依赖标识符。
+// 依赖提取基于 REL 的语法树（rel::Parse -> ExprPtr）：
+//   - 赋值语句在文本层拆分（与 rel::Exec 的 find_binding_eq 一致）；
+//   - 右侧表达式用 rel::Parse 得到 AST，经 ExprVisitor 遍历收集
+//     ReferenceExpr（引用路径），并跳过函数调用名与内置常量。
 class RelParser
 {
   public:
@@ -38,9 +41,14 @@ class RelParser
     size_t GetParseResultCacheSize() const { return parse_result_cache_.size(); }
 
   private:
-    // 提取表达式中的标识符依赖（排除函数名/内置常量/自身）
-    std::vector<std::string> ExtractDependencies(const std::string &expression,
-                                                 const std::string &self_name = "") const;
+    // 遍历表达式 AST，提取引用路径依赖（去重保序）
+    std::vector<std::string> ExtractDependencies(const std::string &expression) const;
+    std::vector<std::string> ExtractDependencies(const rel::ExprPtr &expr) const;
+
+    // 仿 rel::Exec：找顶层绑定 '='（跳过 ==, !=, <=, >=）
+    static std::size_t FindBindingEq(const std::string &line);
+    static std::string Trim(const std::string &s);
+    static bool IsValidIdentifier(const std::string &name);
 
     void EvictLRU();
 
