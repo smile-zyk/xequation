@@ -2,7 +2,7 @@
 #include "core/equation.h"
 #include "core/equation_common.h"
 #include "python/python_common.h"
-#include "python_parser_embed.h"
+#include "python_parser_embedded.h"
 #include <pybind11/gil.h>
 #include <string>
 #include <vector>
@@ -15,8 +15,9 @@ namespace python
 PythonParser::PythonParser()
 {
     pybind11::gil_scoped_acquire acquire;
-    std::string py_code(reinterpret_cast<const char *>(python_parser_data), python_parser_size);
-    pybind11::exec(py_code);
+    // python_parser.py 源码以内嵌 raw string 形式提供（见 python_parser_embedded.h），
+    // 用 pybind11 直接执行，无需 bin2c 生成 embed.h。
+    pybind11::exec(kPythonParserSource);
 
     pybind11::module main = pybind11::module::import("__main__");
     pybind11::object python_class = main.attr("PythonParser");
