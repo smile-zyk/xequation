@@ -135,9 +135,10 @@ TEST(EquationValueCast, DictRoundTrip)
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    // 不能用 pybind11::initialize_interpreter()（默认配置找不到 stdlib 会失败），
-    // 统一通过引擎用构建期注入的 REL_PYTHON_* 路径初始化嵌入解释器。
-    PythonEquationEngine::SetDefaultPyEnvConfig();
+    // 不能用 pybind11::initialize_interpreter()（默认配置找不到 stdlib 会失败）。
+    // 用 REL python_manager 的构建期默认配置初始化嵌入解释器，
+    // 引擎构造（GetInstance）会幂等复用已初始化的解释器。
+    python_manager::PyEnvManager::SetDefaultPyEnvConfig();
     PythonEquationEngine::GetInstance();
     // 引擎初始化后释放了主线程 GIL，测试体内会直接操作 pybind11 对象，
     // 所以需要在主线程重新持有 GIL。

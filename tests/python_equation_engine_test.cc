@@ -93,10 +93,11 @@ d=a+b*c
 int main(int argc, char **argv) {
     testing::InitGoogleTest(&argc, argv);
     // 不能用 scoped_interpreter（默认配置找不到 stdlib 会 terminate），
-    // 也不能把 SetDefaultPyEnvConfig 只放在某个 TEST 里：
+    // 也不能把配置只放在某个 TEST 里：
     // ctest 用 --gtest_filter 单测运行时不会先跑那个 TEST。
-    // 所以统一在 main() 里设置配置并初始化嵌入解释器。
-    PythonEquationEngine::SetDefaultPyEnvConfig();
+    // 所以统一在 main() 里用 REL python_manager 的默认配置初始化嵌入解释器，
+    // 引擎构造（GetInstance）会幂等复用已初始化的解释器。
+    python_manager::PyEnvManager::SetDefaultPyEnvConfig();
     PythonEquationEngine::GetInstance();
     return RUN_ALL_TESTS();
 }

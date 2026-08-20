@@ -39,8 +39,10 @@ enable_testing()
 # 集成 smile-zyk/REL 的 rel 库：xequation 只需要 rel::Value。
 # xdataset 与 REL 同层（3rd/xdataset），由 xequation 直接引入；
 # REL 侧仅在 xdataset target 不存在时才自行构建（见 3rd/REL/CMakeLists.txt）。
-# BUILD_PYTHON=OFF 避免 REL 自带的嵌入式解释器与 xequation 的 Python 桥
-# 冲突；rel_cli / rel_test 等目标由 EXCLUDE_FROM_ALL 排除出默认构建。
+# BUILD_PYTHON=ON：REL 编译其 Python bridge（pybind11::embed），并提供
+# python_manager（嵌入式 CPython 环境管理），xequation 的 Python 引擎
+# 委托它做初始化/销毁，不再自带环境管理。
+# rel_cli / rel_test 等目标由 EXCLUDE_FROM_ALL 排除出默认构建。
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL/CMakeLists.txt")
     message(FATAL_ERROR
         "REL project not found at ${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL. "
@@ -53,7 +55,7 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rd/xdataset/CMakeLists.txt")
 endif()
 set(BUILD_XDATASET_TEST OFF CACHE BOOL "" FORCE)
 add_subdirectory(3rd/xdataset XDATASET EXCLUDE_FROM_ALL)
-set(BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+set(BUILD_PYTHON ON CACHE BOOL "" FORCE)
 add_subdirectory(3rd/REL REL EXCLUDE_FROM_ALL)
 
 add_subdirectory(3rd/qtpropertybrowser)

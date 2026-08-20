@@ -9,55 +9,22 @@
 using namespace xequation;
 using namespace xequation::python;
 
-PythonEquationEngine::PyEnvConfig PythonEquationEngine::config_;
-static PyThreadState* g_main_thread_state = nullptr;
-
 PythonEquationEngine::PythonEquationEngine()
 {
     engine_info_.name = "Python";
-    
-    if (Py_IsInitialized())
-    {
-        manage_python_context_ = false;
-    }
-    else
-    {
-        manage_python_context_ = true;
-        InitializePyEnv();
-    }
+
+    // 环境管理与初始化委托给 REL 的 python_manager（幂等）：
+    //   - 解释器已初始化（宿主或先前调用）-> 直接复用，不改变所有权；
+    //   - 未初始化 -> 用 python_manager 存储的配置（默认/自定义）初始化。
+    // 宿主若需自定义路径，应在 GetInstance() 之前调用
+    // python_manager::PyEnvManager::SetPyEnvConfig() / SetDefaultPyEnvConfig()。
+    python_manager::PyEnvManager::InitializePyEnv();
+
     code_parser = std::unique_ptr<PythonParser>(new PythonParser());
     code_executor = std::unique_ptr<PythonExecutor>(new PythonExecutor());
 
     // 把 PyObject 生命周期操作注入 core（PyObjectRef 延迟 DECREF 依赖它）
     value_convert::InstallPyObjectOps();
-}
-
-void PythonEquationEngine::SetPyEnvConfig(const PyEnvConfig &config)
-{
-    config_ = config;
-}
-
-void PythonEquationEngine::SetDefaultPyEnvConfig()
-{
-    // Build-time paths injected by CMake (see src/python/CMakeLists.txt,
-    // rel_python_env). Embedded CPython must not be left to guess its stdlib
-    // location: a stale PYTHONHOME/PYTHONPATH (or a wrong inferred prefix)
-    // makes initialization fail with
-    // "failed to get the Python codec of the filesystem encoding".
-    PyEnvConfig config;
-#ifdef REL_PYTHON_HOME
-    config.py_home = REL_PYTHON_HOME;
-#endif
-#ifdef REL_PYTHON_STDLIB
-    config.lib_path_list.push_back(REL_PYTHON_STDLIB);
-#endif
-#ifdef REL_PYTHON_LIB_DYNLOAD
-    config.lib_path_list.push_back(REL_PYTHON_LIB_DYNLOAD);
-#endif
-#ifdef REL_PYTHON_SITE_PACKAGES
-    config.lib_path_list.push_back(REL_PYTHON_SITE_PACKAGES);
-#endif
-    SetPyEnvConfig(config);
 }
 
 InterpretResult PythonEquationEngine::Interpret(const std::string &code, const EquationContext *context, InterpretMode mode)
@@ -93,77 +60,13 @@ std::unique_ptr<EquationContext> PythonEquationEngine::CreateContext()
     return std::unique_ptr<EquationContext>(new PythonEquationContext(engine_info_));
 }
 
-void PythonEquationEngine::InitializePyEnv()
-{
-    PyConfig config;
-    PyConfig_InitPythonConfig(&config);
-
-    if (!config_.py_home.empty())
-    {
-        config.home = Py_DecodeLocale(config_.py_home.c_str(), nullptr);
-    }
-
-    if (!config_.lib_path_list.empty())
-    {
-        config.module_search_paths_set = 1;
-        for (const auto &path : config_.lib_path_list)
-        {
-            wchar_t *wide_path = Py_DecodeLocale(path.c_str(), nullptr);
-            if (wide_path == nullptr)
-            {
-                PyErr_SetString(PyExc_RuntimeError, "Failed to decode Python path");
-                throw std::runtime_error("Failed to decode Python path");
-            }
-            PyWideStringList_Append(&config.module_search_paths, wide_path);
-            PyMem_RawFree(wide_path);
-        }
-    }
-
-    PyStatus status = Py_InitializeFromConfig(&config);
-    PyConfig_Clear(&config);
-    if (PyStatus_Exception(status))
-    {
-        if (status.err_msg)
-        {
-            fprintf(stderr, "Python initialization error: %s\n", status.err_msg);
-        }
-        throw std::runtime_error("Failed to initialize Python environment");
-    }
-
-    if (!Py_IsInitialized())
-    {
-        throw std::runtime_error("Python initialization failed");
-    }
-
-    // Release the GIL from the main thread so background threads can acquire it.
-    g_main_thread_state = PyEval_SaveThread();
-}
-
 PythonEquationEngine::~PythonEquationEngine()
 {
-    if (manage_python_context_)
-    {
-        // Restore GIL before destroying Python objects
-        if (g_main_thread_state)
-        {
-            PyEval_RestoreThread(g_main_thread_state);
-            g_main_thread_state = nullptr;
-        }
-        
-        // Destroy pybind11 objects while holding GIL
-        code_parser.reset();
-        code_executor.reset();
-        
-        // Now finalize Python
-        Py_Finalize();
-    }
-    else
-    {
-        // If we don't manage the context, destroy objects with GIL acquired
-        pybind11::gil_scoped_acquire acquire;
-        code_parser.reset();
-        code_executor.reset();
-    }
+    // 销毁 pybind11 对象需要持有 GIL。解释器生命周期由 python_manager 管理
+    // （宿主可调用 python_manager::PyEnvManager::ShutdownPyEnv() 收尾）。
+    pybind11::gil_scoped_acquire acquire;
+    code_parser.reset();
+    code_executor.reset();
 }
 
 void PythonEquationEngine::SetOutputHandler(OutputHandler handler)

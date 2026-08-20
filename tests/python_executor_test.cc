@@ -14,7 +14,7 @@ class PythonExecutorTest : public ::testing::Test
   protected:
     virtual void SetUp()
     {
-        PythonEquationEngine::SetDefaultPyEnvConfig();
+        // Python 环境已在 main() 里由 python_manager 初始化
         executor_.reset(new PythonExecutor());
     }
 
@@ -343,8 +343,8 @@ int main(int argc, char **argv)
     // 不能用 scoped_interpreter：它会用默认配置初始化嵌入的 CPython，
     // 而该 Python DLL 内置的 prefix 是旧路径（D:\M\msys64\mingw64），
     // 找不到 stdlib 会直接 terminate。
-    // 这里通过引擎用构建期注入的 REL_PYTHON_* 路径初始化解释器。
-    PythonEquationEngine::SetDefaultPyEnvConfig();
+    // 用 REL python_manager 的默认配置初始化解释器，引擎构造幂等复用。
+    python_manager::PyEnvManager::SetDefaultPyEnvConfig();
     PythonEquationEngine::GetInstance();
     // 引擎初始化后释放了主线程 GIL，测试体内会直接操作 pybind11 对象，
     // 所以需要在主线程重新持有 GIL。
