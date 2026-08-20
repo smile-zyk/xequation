@@ -91,6 +91,15 @@ namespace rel
         Expr(int line_value, int column_value);
         virtual ~Expr() {}
 
+        // AST nodes are move-only: they own unique_ptr members and are
+        // managed exclusively through std::unique_ptr<Expr>.  Explicitly
+        // deleting the copy operations keeps MSVC from instantiating the
+        // (deleted) implicit copy assignment when exporting the class.
+        Expr(const Expr&) = delete;
+        Expr& operator=(const Expr&) = delete;
+        Expr(Expr&&) noexcept = default;
+        Expr& operator=(Expr&&) noexcept = default;
+
         int line;
         int column;
 

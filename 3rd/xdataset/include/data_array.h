@@ -3,7 +3,6 @@
 
 #include <memory>
 #include <string>
-#include "ordered_map.h"
 #include <vector>
 
 #include "data_series.h"
@@ -11,9 +10,11 @@
 #include "multi_dimension_spec.h"
 #include "multi_index_selector.h"
 
+#include <tsl/ordered_map.h>
+
 namespace xdataset
 {
-    using DataSeriesMap = ordered_map<std::string, DataSeries>;
+    using DataSeriesMap = tsl::ordered_map<std::string, DataSeries>;
 
     enum class DataArrayKind
     {
@@ -187,7 +188,7 @@ namespace xdataset
         // Dependent variable with named independent DataArray objects.
         static DataArray CreateDependent(
             DataSeries data,
-            const ordered_map<std::string, const DataArray*>& indep_variables);
+            const tsl::ordered_map<std::string, const DataArray*>& indep_variables);
 
     private:
 

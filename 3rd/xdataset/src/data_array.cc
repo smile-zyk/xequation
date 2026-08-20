@@ -6,7 +6,7 @@
 #include <functional>
 #include <map>
 #include <stdexcept>
-#include "ordered_map.h"
+#include <tsl/ordered_map.h>
 #include <vector>
 
 namespace xdataset
@@ -18,7 +18,7 @@ namespace xdataset
     {
 
         /// Shared validation logic (assumes datas are already canonicalized).
-        void validate_datas_internal(const ordered_map<std::string, DataSeries>& datas,
+        void validate_datas_internal(const tsl::ordered_map<std::string, DataSeries>& datas,
                                      const MultiDimensionSpec&                    multi_dimension_spec,
                                      DataArrayKind                                kind)
         {
@@ -82,7 +82,7 @@ namespace xdataset
         // Canonicalize then validate.  validate() canonicalizes its own copy
         // of the datas, so the member is handled independently.
         for (auto it = datas_.begin(); it != datas_.end(); ++it)
-            it->second.canonicalize();
+            it.value().canonicalize();
         validate_datas_internal(datas_, multi_dimension_spec_, data_kind_);
     }
 
@@ -93,7 +93,7 @@ namespace xdataset
     {
         // info.datas has been moved; canonicalize and validate datas_ directly.
         for (auto it = datas_.begin(); it != datas_.end(); ++it)
-            it->second.canonicalize();
+            it.value().canonicalize();
         validate_datas_internal(datas_, multi_dimension_spec_, data_kind_);
     }
 
@@ -549,7 +549,7 @@ namespace xdataset
 
     DataArray DataArray::CreateDependent(
         DataSeries data,
-        const ordered_map<std::string, const DataArray*>& indep_variables)
+        const tsl::ordered_map<std::string, const DataArray*>& indep_variables)
     {
         if (indep_variables.empty())
         {
@@ -701,7 +701,7 @@ void DataArray::set_indep_data(DataSeries new_series)
     }
 
     new_series.canonicalize();
-    it->second = std::move(new_series);
+    it.value() = std::move(new_series);
     data_frame_cache_.reset();
 }
 
@@ -730,7 +730,7 @@ void DataArray::set_indep_data(Index indep_index, DataSeries new_series)
     }
 
     new_series.canonicalize();
-    it->second = std::move(new_series);
+    it.value() = std::move(new_series);
     data_frame_cache_.reset();
 }
 
@@ -752,7 +752,7 @@ void DataArray::set_indep_data(const std::string& indep_name, DataSeries new_ser
     }
 
     new_series.canonicalize();
-    it->second = std::move(new_series);
+    it.value() = std::move(new_series);
     data_frame_cache_.reset();
 }
 
@@ -785,7 +785,7 @@ void DataArray::set_indep_data(Index indep_index, Index row, Measurement value)
     if (value.shape() != it->second.data_shape())
         throw std::invalid_argument("set_indep_data: measurement shape does not match series");
 
-    DataSeries& target_series = it->second;
+    DataSeries& target_series = it.value();
 
     if (value.data_kind() == DataKind::kScalar)
     {
@@ -852,7 +852,7 @@ void DataArray::set_indep_data(const std::string& indep_name, Index row, Measure
     if (value.shape() != it->second.data_shape())
         throw std::invalid_argument("set_indep_data: measurement shape does not match series");
 
-    DataSeries& target_series = it->second;
+    DataSeries& target_series = it.value();
 
     if (value.data_kind() == DataKind::kScalar)
     {

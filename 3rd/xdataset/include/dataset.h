@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <tsl/ordered_map.h>
 #include <utility>
 #include <vector>
 
@@ -71,7 +72,7 @@ private:
 
 struct InternalNode
 {
-    ordered_map<std::string, std::unique_ptr<TreeNode>> children;
+    tsl::ordered_map<std::string, std::unique_ptr<TreeNode>> children;
 };
 
 struct LeafNode

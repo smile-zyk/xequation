@@ -44,6 +44,16 @@ namespace xdataset
         /// destroyed correctly by the library's caches.
         virtual ~DataFrame() = default;
 
+        // Frames are created via the static factories and owned through
+        // std::unique_ptr<DataFrame>.  They hold unique_ptr chunk storage, so
+        // they are move-only: deleting the copy operations keeps MSVC from
+        // instantiating the (deleted) implicit copy assignment when exporting
+        // the class (C2280).
+        DataFrame(const DataFrame&) = delete;
+        DataFrame& operator=(const DataFrame&) = delete;
+        DataFrame(DataFrame&&) noexcept = default;
+        DataFrame& operator=(DataFrame&&) noexcept = default;
+
         // ---- static factories ---------------------------------------------
 
         /// Build a frame tabulating a Block's independent/dependent variables.
@@ -112,8 +122,12 @@ namespace xdataset
         std::size_t                chunk_size_  = 128;
         RowGenerator               generator_;
 
-        mutable std::vector<DataFrameRow>  rows_;
-        mutable std::vector<bool>           loaded_chunks_;
+        // Chunked lazy row storage.  Each chunk is a heap-allocated,
+        // contiguous vector<DataFrameRow>, created on first access.  This
+        // keeps row addresses stable (GetRow returns const refs) without the
+        // up-front N-row footprint of a single pre-sized vector: chunks that
+        // are never touched never allocate.
+        mutable std::vector<std::unique_ptr<std::vector<DataFrameRow>>> chunks_;
     };
 
 } // namespace xdataset

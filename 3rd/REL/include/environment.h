@@ -81,6 +81,14 @@ public:
     /// Returns default Value when not found.
     rel::Value Get(const std::string& name) const;
 
+    /// Remove a user-defined variable by name.
+    /// Returns true when the variable existed and was removed.
+    bool Remove(const std::string& name);
+
+    /// Remove all user-defined variables (constants / functions / datasets
+    /// registered globally are unaffected).
+    void Clear();
+
     /// Names of all user-defined variables (unordered).
     std::vector<std::string> VariableNames() const;
 

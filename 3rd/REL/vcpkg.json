@@ -3,6 +3,7 @@
 		"gtest",
 		"eigen3",
 		"boost-variant",
-		"rapidjson"
+		"rapidjson",
+		"tsl-ordered-map"
 	]
 }

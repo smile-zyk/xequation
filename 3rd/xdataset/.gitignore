@@ -228,3 +228,7 @@ __marimo__/
 .vscode/
 LNA_Design.h5
 build_no_test/
+
+# Test-generated files
+*.csv
+*.h5

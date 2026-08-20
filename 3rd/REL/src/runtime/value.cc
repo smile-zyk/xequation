@@ -4,6 +4,7 @@
 
 #include "value.h"
 
+#include "data_frame.h"  // DataFrame::FromDataArray
 #include "data_series.h"
 
 #include <stdexcept>
@@ -298,8 +299,39 @@ bool Value::is_canonicalized() const
 
 // ---- formatting ------------------------------------------------------------
 
+std::unique_ptr<xdataset::DataFrame> Value::data_frame(
+    const std::string& name) const
+{
+    if (is_measurement())
+    {
+        return as_measurement().to_dataframe(name);
+    }
+
+    // DataArray: render with custom or default variable name.
+    const xdataset::DataArray& da = as_data_array();
+    const std::string& header = name.empty() ? "data" : name;
+    return xdataset::DataFrame::FromDataArray(da, header);
+}
+
+std::string Value::to_string() const
+{
+    if (is_measurement())
+    {
+        // Inline compact form: reuses Measurement::to_string() with
+        // auto-scaled units (e.g. "3.14 GHz", "[1, 2, 3]").
+        return as_measurement().to_string();
+    }
+
+    // DataArray: tabular render is the natural compact representation.
+    // (DataFrame::to_string leads with a newline, so the table never
+    // glues onto preceding output.)
+    return as_data_array().GetOrCreateDataFrame("data").to_string();
+}
+
 std::string Value::Format(const std::string& name, int max_rows) const
 {
+    // Both branches render a DataFrame table; DataFrame::to_string leads
+    // with a newline so the table never glues onto preceding output.
     if (is_measurement())
     {
         const xdataset::Measurement& m = as_measurement();

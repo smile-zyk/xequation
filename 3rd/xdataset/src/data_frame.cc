@@ -4,6 +4,7 @@
 #include "data_array.h"
 #include "measurement.h"
 
+#include <algorithm>
 #include <fstream>
 #include <memory>
 #include <sstream>
@@ -231,9 +232,13 @@ namespace xdataset
         chunk_size_  = (chunk_size > 0) ? chunk_size : 256;
         generator_   = std::move(generator);
 
-        // Pre-allocate cache slots so operator[] is safe for any valid row.
-        rows_.resize(total_rows_);
-        loaded_chunks_.assign((total_rows_ + chunk_size_ - 1) / chunk_size_, false);
+        // Lazy chunk storage: only the chunk pointer array is allocated up
+        // front (one pointer per chunk).  Each chunk's rows are materialised
+        // on first access in EnsureChunkLoaded.  resize() default-constructs
+        // nullptrs (assign() would need to copy unique_ptrs).
+        const std::size_t num_chunks =
+            (total_rows_ + chunk_size_ - 1) / chunk_size_;
+        chunks_.resize(num_chunks);
     }
 
     void DataFrame::ConfigureStatic(std::vector<std::string> headers,
@@ -241,25 +246,32 @@ namespace xdataset
     {
         headers_    = std::move(headers);
         total_rows_ = rows.size();
-        rows_       = std::move(rows);
         // No generator, no chunk loading -- rows are fully materialised.
-        // Mark all rows as already loaded so base GetRow / EnsureChunkLoaded
-        // works without a generator.
-        loaded_chunks_.assign(
-            total_rows_ > 0 ? 1 : 0, true);
-        chunk_size_ = static_cast<std::size_t>(total_rows_);
+        // Store them as a single chunk so base GetRow / EnsureChunkLoaded
+        // works without a generator.  chunk_size_ is clamped to >= 1 so the
+        // row->chunk index division in GetRow never divides by zero.
+        chunk_size_ = (std::max)(static_cast<std::size_t>(1), total_rows_);
+        chunks_.clear();
+        if (total_rows_ > 0)
+        {
+            // C++11: std::make_unique is C++14; construct the unique_ptr
+            // explicitly.
+            chunks_.push_back(std::unique_ptr<std::vector<DataFrameRow>>(
+                new std::vector<DataFrameRow>(std::move(rows))));
+        }
     }
 
     const DataFrameRow& DataFrame::GetRow(Index row) const
     {
-        EnsureChunkLoaded(row / static_cast<Index>(chunk_size_));
-        return rows_[static_cast<std::size_t>(row)];
+        const std::size_t ci = static_cast<std::size_t>(row) / chunk_size_;
+        EnsureChunkLoaded(static_cast<Index>(ci));
+        return (*chunks_[ci])[static_cast<std::size_t>(row) % chunk_size_];
     }
 
     void DataFrame::EnsureChunkLoaded(Index chunk_idx) const
     {
         const std::size_t ci = static_cast<std::size_t>(chunk_idx);
-        if (loaded_chunks_[ci])
+        if (chunks_[ci])
         {
             return;
         }
@@ -268,13 +280,14 @@ namespace xdataset
         const Index end   = static_cast<Index>((std::min)((ci + 1) * chunk_size_, total_rows_));
 
         std::vector<DataFrameRow> chunk_rows = generator_(start, end);
+        // Generator must produce exactly end - start rows; pad with default
+        // rows if it returns fewer (matches the old pre-sized-vector
+        // behaviour where missing rows stayed default-constructed).
+        chunk_rows.resize(static_cast<std::size_t>(end - start));
 
-        for (std::size_t i = 0; i < chunk_rows.size(); ++i)
-        {
-            rows_[static_cast<std::size_t>(start) + i] = std::move(chunk_rows[i]);
-        }
-
-        loaded_chunks_[ci] = true;
+        // One contiguous allocation per chunk; rows are never moved again.
+        chunks_[ci] = std::unique_ptr<std::vector<DataFrameRow>>(
+            new std::vector<DataFrameRow>(std::move(chunk_rows)));
     }
 
     // =========================================================================
@@ -424,6 +437,10 @@ namespace xdataset
 
         // ---- build output ----
         std::ostringstream oss;
+
+        // Leading newline so the table never glues onto preceding output
+        // (e.g. a REPL prompt or an inline message printed just before it).
+        oss << '\n';
 
         oss << make_border('+', '+', '+', '-');
         oss << make_row(columns);

@@ -17,6 +17,14 @@
 
 #include <string>
 
+// MSVC has no POSIX ssize_t; pybind11 only provides it inside the pybind11
+// namespace.  The buffer helpers below use the unqualified name, so define it
+// here (matching Py_ssize_t, which pybind11::ssize_t aliases).
+#ifdef _MSC_VER
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
+
 #include "function.h"
 #include "value.h"
 

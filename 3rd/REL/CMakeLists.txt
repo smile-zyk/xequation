@@ -24,6 +24,18 @@ if(NOT TARGET xdataset)
     add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
 endif()
 
+# The official HDF Group Windows packages build HDF5 as a DLL whose headers
+# only emit __declspec(dllimport) when H5_BUILT_AS_DYNAMIC_LIB is defined.
+# Without it, H5_DLLVAR expands to a plain `extern`, so the data symbols
+# (H5T_NATIVE_INT_g, H5_libinit_g, ...) are referenced without the __imp_
+# thunk and the link fails with LNK2001.  xdataset's find_package(HDF5
+# REQUIRED) runs inside its subdirectory, so the imported HDF5 target is not
+# visible here; the definition is harmless when HDF5 is absent (the build
+# would already have failed on the REQUIRED find_package).
+if(WIN32)
+    target_compile_definitions(xdataset PRIVATE H5_BUILT_AS_DYNAMIC_LIB)
+endif()
+
 # =========================================================================
 #  Python plugin (embedded interpreter + pybind11 bindings)
 # =========================================================================
@@ -156,7 +168,14 @@ if(BUILD_PYTHON)
         set(REL_PYTHON_DLL
             "${_py_bin_dir}/libpython${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}.dll")
         if(NOT EXISTS "${REL_PYTHON_DLL}")
-            # python.org layout: <prefix>/python3X.dll
+            # python.org / scoop layout: python.exe and python3X.dll live in
+            # the same directory (scoop: <app>/current/python.exe +
+            # <app>/current/python314.dll).
+            set(REL_PYTHON_DLL
+                "${_py_bin_dir}/python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}.dll")
+        endif()
+        if(NOT EXISTS "${REL_PYTHON_DLL}")
+            # Some python.org installers place the DLL one level up.
             get_filename_component(_py_prefix "${_py_bin_dir}" DIRECTORY)
             set(REL_PYTHON_DLL
                 "${_py_prefix}/python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR}.dll")
@@ -319,10 +338,17 @@ if(WIN32)
                 "$<TARGET_FILE_DIR:rel_cli>"
         )
     endif()
-    if(XDATASET_ENABLE_HDF5 AND HDF5_ROOT)
+    if(HDF5_ROOT)
+        # The official HDF Group Windows package ships hdf5.dll; locate it
+        # under <root>/bin (may also be named libhdf5-<abi>.dll on MinGW).
+        if(EXISTS "${HDF5_ROOT}/bin/hdf5.dll")
+            set(REL_HDF5_DLL "${HDF5_ROOT}/bin/hdf5.dll")
+        else()
+            set(REL_HDF5_DLL "${HDF5_ROOT}/bin/libhdf5-320.dll")
+        endif()
         add_custom_command(TARGET rel_cli POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${HDF5_ROOT}/bin/libhdf5-320.dll"
+                "${REL_HDF5_DLL}"
                 "$<TARGET_FILE_DIR:rel_cli>"
         )
     endif()
@@ -399,10 +425,17 @@ if(WIN32)
                 "$<TARGET_FILE_DIR:rel_test>"
         )
     endif()
-    if(XDATASET_ENABLE_HDF5 AND HDF5_ROOT)
+    if(HDF5_ROOT)
+        # The official HDF Group Windows package ships hdf5.dll; locate it
+        # under <root>/bin (may also be named libhdf5-<abi>.dll on MinGW).
+        if(EXISTS "${HDF5_ROOT}/bin/hdf5.dll")
+            set(REL_HDF5_DLL "${HDF5_ROOT}/bin/hdf5.dll")
+        else()
+            set(REL_HDF5_DLL "${HDF5_ROOT}/bin/libhdf5-320.dll")
+        endif()
         add_custom_command(TARGET rel_test POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${HDF5_ROOT}/bin/libhdf5-320.dll"
+                "${REL_HDF5_DLL}"
                 "$<TARGET_FILE_DIR:rel_test>"
         )
     endif()

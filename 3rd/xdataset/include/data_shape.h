@@ -38,13 +38,13 @@ public:
     bool operator==(const DataShape& o) const { return dims == o.dims; }
     bool operator!=(const DataShape& o) const { return dims != o.dims; }
 
-    XDATASET_API DataKind kind() const;
+    DataKind kind() const;
 
-    XDATASET_API Index element_count() const;
+    Index element_count() const;
 
-    XDATASET_API std::vector<Index> copy() const;
+    std::vector<Index> copy() const;
 
-    XDATASET_API std::string to_string() const;
+    std::string to_string() const;
 };
 
 } // namespace xdataset

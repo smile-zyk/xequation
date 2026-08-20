@@ -42,6 +42,16 @@ rel::Value Environment::Get(const std::string& name) const
     return rel::Value();
 }
 
+bool Environment::Remove(const std::string& name)
+{
+    return variables_.erase(name) > 0;
+}
+
+void Environment::Clear()
+{
+    variables_.clear();
+}
+
 std::vector<std::string> Environment::VariableNames() const
 {
     std::vector<std::string> names;

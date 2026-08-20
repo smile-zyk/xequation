@@ -3,7 +3,7 @@
 #include "rel_api.h"
 #include "value.h"  // rel::Value
 
-#include "ordered_map.h"
+#include <tsl/ordered_map.h>
 
 #include <functional>
 #include <string>
@@ -33,7 +33,7 @@ namespace rel
     //  registered via ComputedParam().
 
     /// Named-argument map: param names to resolved Values, in declaration order.
-    using ArgMap = ordered_map<std::string, Value>;
+    using ArgMap = tsl::ordered_map<std::string, Value>;
 
     /// Native implementation of a registered REL function.
     typedef std::function<Value(const ArgMap&)> NativeFunction;
@@ -92,7 +92,7 @@ namespace rel
     {
     public:
         /// Named-argument map: param names to resolved Values, in declaration order.
-        using ArgMap = ordered_map<std::string, Value>;
+        using ArgMap = tsl::ordered_map<std::string, Value>;
         Function() = default;
 
         Function(std::string name_value,

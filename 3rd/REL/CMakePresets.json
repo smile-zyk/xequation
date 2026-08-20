@@ -28,10 +28,8 @@
                 "CMAKE_CXX_COMPILER": "cl",
                 "CMAKE_C_COMPILER": "cl",
                 "VCPKG_TARGET_TRIPLET" : "x64-windows",
-                "VCPKG_HOST_TRIPLET" : "x64-windows"
-            },
-            "toolset": {
-                "value": "v143"
+                "VCPKG_HOST_TRIPLET" : "x64-windows",
+                "HDF5_ROOT": "C:/Program Files/HDF_Group/HDF5/2.2.0"
             },
             "condition": {
                 "type": "equals",

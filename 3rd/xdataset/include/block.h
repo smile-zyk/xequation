@@ -3,7 +3,7 @@
 
 #include <memory>
 #include <string>
-#include "ordered_map.h"
+#include <tsl/ordered_map.h>
 #include <vector>
 
 #include "data_series.h"
@@ -73,9 +73,9 @@ namespace xdataset
         void ensure_unique_name(const std::string& name) const;
 
         std::string                                        name_;
-        ordered_map<std::string, IndependentSpec> independent_spec_map_;
-        ordered_map<std::string, DependentSpec>   dependent_spec_map_;
-        mutable ordered_map<std::string, std::unique_ptr<DataArray>> data_array_cache_;
+        tsl::ordered_map<std::string, IndependentSpec> independent_spec_map_;
+        tsl::ordered_map<std::string, DependentSpec>   dependent_spec_map_;
+        mutable tsl::ordered_map<std::string, std::unique_ptr<DataArray>> data_array_cache_;
         mutable std::unique_ptr<DataFrame>                    data_frame_cache_;
     };
 }

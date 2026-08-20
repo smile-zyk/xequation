@@ -10,6 +10,7 @@ option(BUILD_XDATASET_TEST "Build xdataset unit tests" ON)
 
 find_package(Eigen3 3.3 CONFIG REQUIRED)
 find_package(Boost 1.72 CONFIG REQUIRED)
+find_package(tsl-ordered-map CONFIG REQUIRED)
 
 # HDF5: prefer Homebrew/system HDF5 via HDF5_ROOT hint, fall back to CMake's FindHDF5
 if(HDF5_ROOT)
@@ -83,5 +84,5 @@ add_executable(xdataset_playground
 target_include_directories(xdataset PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(xdataset_playground PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(xdataset PUBLIC Eigen3::Eigen Boost::headers ${HDF5_TARGET})
+target_link_libraries(xdataset PUBLIC Eigen3::Eigen Boost::headers tsl::ordered_map ${HDF5_TARGET})
 target_link_libraries(xdataset_playground PRIVATE xdataset)
