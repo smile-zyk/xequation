@@ -18,10 +18,11 @@ endif()
 # CTest suite (it is pulled in with EXCLUDE_FROM_ALL, so xdataset_test is not
 # built and gtest_discover_tests would register a NOT_BUILT stub).
 set(BUILD_XDATASET_TEST OFF CACHE BOOL "Build xdataset unit tests" FORCE)
-# REL does not need the pybind11 Python bindings (avoids requiring Python /
-# pybind11 during configure).
-set(BUILD_XDATASET_PYTHON ON CACHE BOOL "Build the xdataset Python bindings" FORCE)
-add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
+# 当 xequation 作为宿主时，xdataset 由宿主在 3rd/xdataset 直接引入
+# （与 REL 同层），这里仅在 xdataset 尚未被引入时才自行构建。
+if(NOT TARGET xdataset)
+    add_subdirectory(third_party/xdataset EXCLUDE_FROM_ALL)
+endif()
 
 # =========================================================================
 #  Python plugin (embedded interpreter + pybind11 bindings)
