@@ -9,7 +9,7 @@ namespace xdataset
     class XDATASET_API MultiIndexSelector
     {
     public:
-        enum Kind
+        enum class Kind
         {
             kAny,
             kEqual,

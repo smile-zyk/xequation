@@ -7,12 +7,12 @@
 ### 文件清单
 
 ```
-include/xdataset/
+include/
   unit_data.h        ← 新建: UnitData 核心结构 + 运算符
-  unit_registry.h     ← 新建: UnitRegistry + ScalePrefix + PredefUnit 注册表
   unit.h              ← 改造: 删除 llnl-units 依赖, 改用 UnitData + double
 
 src/
+  unit_registry.h     ← 新建: UnitRegistry + ScalePrefix + PredefUnit 注册表
   unit.cc             ← 改造: parse/to_string/best_display 全部重写
   data_series.cc      ← 改造: 删除 units::convert, 简化为 v *= mult
   measurement.cc      ← 改造: 同上
@@ -26,7 +26,7 @@ vcpkg.json            ← 删除 "llnl-units" 依赖
 ## 2. UnitData —— 7 SI 维度的整数指数向量
 
 ```cpp
-// include/xdataset/unit_data.h
+// include/unit_data.h
 
 namespace xdataset {
 
@@ -117,7 +117,7 @@ struct UnitData {
 ### 3.2 UnitRegistry —— 两类注册
 
 ```cpp
-// include/xdataset/unit_registry.h
+// src/unit_registry.h
 
 namespace xdataset {
 
@@ -225,7 +225,7 @@ UnitRegistry& rel_registry() {
 ## 4. Unit 类 —— 公开 API
 
 ```cpp
-// include/xdataset/unit.h (改造后)
+// include/unit.h (改造后)
 
 namespace xdataset {
 
@@ -541,9 +541,9 @@ rel_registry().register_predef("degC", 1.0, {0,0,0,0,1,0,0}, /*affine=*/true);
 ## 13. 实施顺序
 
 ```
-Step 1  include/xdataset/unit_data.h         新建: UnitData 核心结构
-Step 2  include/xdataset/unit_registry.h      新建: UnitRegistry + 词汇表
-Step 3  include/xdataset/unit.h               改造: 删 llnl, 用新内部存储
+Step 1  include/unit_data.h             新建: UnitData 核心结构
+Step 2  src/unit_registry.h              新建: UnitRegistry + 词汇表
+Step 3  include/unit.h                   改造: 删 llnl, 用新内部存储
 Step 4  src/unit.cc                           重写: parse / to_string / best_display
 Step 5  src/data_series.cc                    适配: 删除 units::convert
 Step 6  src/measurement.cc                    适配: 同上

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rel_runtime_api.h"
+#include "rel_api.h"
 #include "value.h"  // rel::Value
 
 #include "ordered_map.h"
@@ -13,7 +13,7 @@
 namespace rel
 {
     // =====================================================================
-    //  Function registry — host-registered callable functions
+    //  Function registry -- host-registered callable functions
     // =====================================================================
     //
     //  A registered function may declare parameters with optional default
@@ -23,11 +23,11 @@ namespace rel
     //  any parameter that has a default may be skipped at the call site.
     //
     //  Slot resolution (evaluating explicit arguments, filling omitted slots
-    //  with defaults) is done inside Function::Invoke — the Evaluator
+    //  with defaults) is done inside Function::Invoke -- the Evaluator
     //  packs explicit call-site arguments into an ArgMap and delegates
     //  everything else to Invoke().
     //
-    //  Some parameters have a "computed default" — a value that cannot be
+    //  Some parameters have a "computed default" -- a value that cannot be
     //  supplied as a static constant, but must be produced at resolve time
     //  from the already-resolved parameters.  Computed defaults are
     //  registered via ComputedParam().
@@ -130,12 +130,55 @@ namespace rel
         /// Missing parameters are filled from static or computed defaults
         /// (in declaration order) before calling impl_.  Throws when a
         /// required parameter is missing.
-        REL_RUNTIME_API Value Invoke(const ArgMap& user_args) const;
+        REL_API Value Invoke(const ArgMap& user_args) const;
 
     private:
         std::string                name_;
         std::vector<FunctionParam> params_;
         NativeFunction             impl_;
+    };
+
+    // =====================================================================
+    //  FunctionLibrary -- a named batch of functions
+    // =====================================================================
+    //
+    //  A collection of functions that can be registered in one call
+    //  (see Environment::RegisterLibrary).  Header-only; used by C++
+    //  extensions to hand a whole library to the host.
+
+    class FunctionLibrary
+    {
+    public:
+        FunctionLibrary() = default;
+
+        explicit FunctionLibrary(std::string name)
+            : name_(std::move(name))
+        {}
+
+        const std::string&            name()      const { return name_; }
+        const std::vector<Function>& functions() const { return functions_; }
+
+        std::size_t size()  const { return functions_.size(); }
+        bool        empty() const { return functions_.empty(); }
+
+        /// Append one function.
+        FunctionLibrary& Add(Function fn)
+        {
+            functions_.push_back(std::move(fn));
+            return *this;
+        }
+
+        /// Build and append one function from its parts.
+        FunctionLibrary& Add(const std::string& name,
+                             std::vector<FunctionParam> params,
+                             NativeFunction impl)
+        {
+            return Add(Function(name, std::move(params), std::move(impl)));
+        }
+
+    private:
+        std::string           name_;
+        std::vector<Function> functions_;
     };
 
 }  // namespace rel

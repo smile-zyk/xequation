@@ -2,15 +2,17 @@
 #define DATA_FRAME_H
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
-#include "data_series.h"
 #include "measurement.h"
 
 namespace xdataset
 {
     class DataSeries;
+    class Block;
+    class DataArray;
 
     // =========================================================================
     // DataFrameRow -- a single row in a DataFrame table
@@ -27,18 +29,48 @@ namespace xdataset
     // DataFrame -- lazy-loading tabular container
     // =========================================================================
     //
-    // Rows are loaded on demand in fixed-size chunks.  Derived classes
-    // (BlockDataFrame, DataArrayDataFrame) provide the RowGenerator that
-    // populates rows from their respective data sources.
+    // Rows are loaded on demand in fixed-size chunks.  The concrete frame
+    // types are internal to the library -- they are created through the
+    // static factories below (FromBlock / FromDataArray / FromMeasurement)
+    // and are also produced by Block::GetOrCreateDataFrame(),
+    // DataArray::GetOrCreateDataFrame() and Measurement::to_dataframe().
+    // Callers interact with the DataFrame base interface only.
     // =========================================================================
 
     class XDATASET_API DataFrame
     {
     public:
+        /// Virtual so derived objects held via unique_ptr<DataFrame> are
+        /// destroyed correctly by the library's caches.
+        virtual ~DataFrame() = default;
+
+        // ---- static factories ---------------------------------------------
+
+        /// Build a frame tabulating a Block's independent/dependent variables.
+        static std::unique_ptr<DataFrame> FromBlock(const Block& block);
+
+        /// Build a frame tabulating a DataArray.
+        /// @param variable      The DataArray to tabulate.
+        /// @param variable_name Column header for dependent data (default "UnNamed").
+        static std::unique_ptr<DataFrame> FromDataArray(
+            const DataArray& variable,
+            std::string variable_name = "UnNamed");
+
+        /// Build a single-row frame displaying one Measurement.
+        static std::unique_ptr<DataFrame> FromMeasurement(
+            const Measurement& measurement,
+            std::string name);
+
+        // ---- accessors ----------------------------------------------------
+
         const std::vector<std::string>& headers()   const { return headers_;   }
         std::size_t                     row_count() const { return total_rows_; }
 
         virtual const DataFrameRow& GetRow(Index row) const;
+
+        /// Update the dependent column header without rebuilding rows.
+        /// No-op for frames without a dependent column (Block, Measurement).
+        virtual void UpdateVariableName(std::string variable_name);
 
         std::string ToCsv() const;
         void        WriteToCsv(const std::string& file_path) const;
@@ -82,64 +114,6 @@ namespace xdataset
 
         mutable std::vector<DataFrameRow>  rows_;
         mutable std::vector<bool>           loaded_chunks_;
-    };
-
-    // =========================================================================
-    // BlockDataFrame -- DataFrame backed by a Block's independent/dependent data
-    // =========================================================================
-    class Block;
-    class XDATASET_API BlockDataFrame : public DataFrame
-    {
-    public:
-        explicit BlockDataFrame(const Block& block);
-    };
-
-    // =========================================================================
-    // DataArrayDataFrame -- DataFrame backed by a DataArray's data
-    // =========================================================================
-    class DataArray;
-    class XDATASET_API DataArrayDataFrame : public DataFrame
-    {
-    public:
-        /// @param variable      The DataArray to tabulate.
-        /// @param variable_name  Column header for dependent data (default "UnNamed").
-        explicit DataArrayDataFrame(const DataArray& variable,
-                                    std::string variable_name = "UnNamed");
-
-        /// Update the dependent column header without rebuilding rows.
-        void UpdateName(std::string variable_name);
-
-        const std::string& variable_name() const { return variable_name_; }
-
-    private:
-        void rebuild_headers();
-
-        const DataArray* data_array_;
-        std::string      variable_name_;
-    };
-
-    // =========================================================================
-    // MeasurementDataFrame -- DataFrame that displays a single Measurement
-    // =========================================================================
-    //
-    // Always has exactly 1 row.  The number of columns depends on the
-    // Measurement's kind and shape:
-    //   - Scalar -> 1 column (the value itself)
-    //   - Vector -> width columns (one per element)
-    //   - Matrix -> rows x cols columns (flattened row-major)
-    //
-    // Unlike BlockDataFrame / DataArrayDataFrame, there is no lazy loading
-    // or chunk cache — the single row is stored eagerly.
-    // =========================================================================
-    class XDATASET_API MeasurementDataFrame : public DataFrame
-    {
-    public:
-        MeasurementDataFrame(const Measurement& measurement, std::string name);
-
-        const DataFrameRow& GetRow(Index row) const override;
-
-    private:
-        DataFrameRow row_;
     };
 
 } // namespace xdataset

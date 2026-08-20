@@ -1,7 +1,7 @@
-#ifndef REL_RUNTIME_OPERATION_PIPELINE_H
-#define REL_RUNTIME_OPERATION_PIPELINE_H
+#ifndef REL_OPERATION_PIPELINE_H
+#define REL_OPERATION_PIPELINE_H
 
-#include "rel_runtime_api.h"
+#include "rel_api.h"
 #include "value.h"
 
 #include <string>
@@ -83,4 +83,4 @@ Value Operate(const std::vector<Value>& operands,
 }  // namespace operation
 }  // namespace rel
 
-#endif  // REL_RUNTIME_OPERATION_PIPELINE_H
+#endif  // REL_OPERATION_PIPELINE_H

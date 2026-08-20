@@ -1,5 +1,5 @@
 // =============================================================================
-//  rel_bindings.cc — Value / Param / ComputedParam / register_function and the
+//  rel_bindings.cc -- Value / Param / ComputedParam / register_function and the
 //  Value<->Python conversion used by the callback shims.
 // =============================================================================
 

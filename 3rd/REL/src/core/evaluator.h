@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rel_api.h"
 #include "expr.h"
 #include "environment.h"
 #include "value.h"
@@ -9,7 +10,7 @@
 namespace rel {
 
 // =========================================================================
-//  Evaluator — ExprVisitor that walks the AST and produces an rel::Value
+//  Evaluator -- ExprVisitor that walks the AST and produces an rel::Value
 // =========================================================================
 //
 //  Usage:
@@ -18,7 +19,7 @@ namespace rel {
 //
 //  Arithmetic, comparison, etc. delegate to rel::Value operators.
 
-class Evaluator : public ExprVisitor
+class REL_API Evaluator : public ExprVisitor
 {
 public:
     explicit Evaluator(Environment& env);

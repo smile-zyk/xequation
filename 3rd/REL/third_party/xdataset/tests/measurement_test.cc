@@ -4,7 +4,6 @@
 #include <gtest/gtest.h>
 
 #include <complex>
-#include <cstring>
 #include <string>
 #include <vector>
 
@@ -12,7 +11,6 @@
 using xdataset::DataKind;
 using xdataset::DataSeries;
 using xdataset::Measurement;
-using xdataset::MeasurementDataFrame;
 using xdataset::DataType;
 using xdataset::Index;
 using xdataset::MultiIndexSelector;
@@ -290,12 +288,12 @@ TEST(MeasurementFormatTest, AutoScaleKiloFor100Hz)
 TEST(MeasurementToDataFrameTest, Scalar)
 {
     Measurement m = Measurement::Real(3.14).set_unit(xdataset::Unit::parse("meter"));
-    MeasurementDataFrame df = m.to_dataframe("distance");
+    auto df = m.to_dataframe("distance");
 
-    EXPECT_EQ(df.row_count(), 1u);
-    ASSERT_EQ(df.headers().size(), 1u);
-    EXPECT_EQ(df.headers()[0], "distance");
-    EXPECT_EQ(df.GetRow(0).fields[0].to_string(), "3.14 meter");
+    EXPECT_EQ(df->row_count(), 1u);
+    ASSERT_EQ(df->headers().size(), 1u);
+    EXPECT_EQ(df->headers()[0], "distance");
+    EXPECT_EQ(df->GetRow(0).fields[0].to_string(), "3.14 meter");
 }
 
 TEST(MeasurementToDataFrameTest, Vector)
@@ -304,17 +302,17 @@ TEST(MeasurementToDataFrameTest, Vector)
     v << 1.0, 2.0, 3.0;
     Measurement m = Measurement::Vector(v);
 
-    MeasurementDataFrame df = m.to_dataframe("pos");
+    auto df = m.to_dataframe("pos");
 
-    EXPECT_EQ(df.row_count(), 1u);
-    ASSERT_EQ(df.headers().size(), 3u);
-    EXPECT_EQ(df.headers()[0], "pos(1)");
-    EXPECT_EQ(df.headers()[1], "pos(2)");
-    EXPECT_EQ(df.headers()[2], "pos(3)");
+    EXPECT_EQ(df->row_count(), 1u);
+    ASSERT_EQ(df->headers().size(), 3u);
+    EXPECT_EQ(df->headers()[0], "pos(1)");
+    EXPECT_EQ(df->headers()[1], "pos(2)");
+    EXPECT_EQ(df->headers()[2], "pos(3)");
 
-    EXPECT_EQ(df.GetRow(0).fields[0].to_string(), "1");
-    EXPECT_EQ(df.GetRow(0).fields[1].to_string(), "2");
-    EXPECT_EQ(df.GetRow(0).fields[2].to_string(), "3");
+    EXPECT_EQ(df->GetRow(0).fields[0].to_string(), "1");
+    EXPECT_EQ(df->GetRow(0).fields[1].to_string(), "2");
+    EXPECT_EQ(df->GetRow(0).fields[2].to_string(), "3");
 }
 
 TEST(MeasurementToDataFrameTest, Matrix)
@@ -323,19 +321,19 @@ TEST(MeasurementToDataFrameTest, Matrix)
     mat << 1.0, 2.0, 3.0, 4.0;
     Measurement m = Measurement::Matrix(mat);
 
-    MeasurementDataFrame df = m.to_dataframe("mat");
+    auto df = m.to_dataframe("mat");
 
-    EXPECT_EQ(df.row_count(), 1u);
-    ASSERT_EQ(df.headers().size(), 4u);
-    EXPECT_EQ(df.headers()[0], "mat(1,1)");
-    EXPECT_EQ(df.headers()[1], "mat(1,2)");
-    EXPECT_EQ(df.headers()[2], "mat(2,1)");
-    EXPECT_EQ(df.headers()[3], "mat(2,2)");
+    EXPECT_EQ(df->row_count(), 1u);
+    ASSERT_EQ(df->headers().size(), 4u);
+    EXPECT_EQ(df->headers()[0], "mat(1,1)");
+    EXPECT_EQ(df->headers()[1], "mat(1,2)");
+    EXPECT_EQ(df->headers()[2], "mat(2,1)");
+    EXPECT_EQ(df->headers()[3], "mat(2,2)");
 
-    EXPECT_EQ(df.GetRow(0).fields[0].to_string(), "1");
-    EXPECT_EQ(df.GetRow(0).fields[1].to_string(), "2");
-    EXPECT_EQ(df.GetRow(0).fields[2].to_string(), "3");
-    EXPECT_EQ(df.GetRow(0).fields[3].to_string(), "4");
+    EXPECT_EQ(df->GetRow(0).fields[0].to_string(), "1");
+    EXPECT_EQ(df->GetRow(0).fields[1].to_string(), "2");
+    EXPECT_EQ(df->GetRow(0).fields[2].to_string(), "3");
+    EXPECT_EQ(df->GetRow(0).fields[3].to_string(), "4");
 }
 
 TEST(MeasurementToDataFrameTest, ToCsvRoundtrip)
@@ -344,8 +342,8 @@ TEST(MeasurementToDataFrameTest, ToCsvRoundtrip)
     v << 10.0, 20.0;
     Measurement m = Measurement::Vector(v);
 
-    MeasurementDataFrame df = m.to_dataframe("velocity");
-    const std::string csv = df.ToCsv();
+    auto df = m.to_dataframe("velocity");
+    const std::string csv = df->ToCsv();
 
     // Header row
     EXPECT_NE(csv.find(",velocity(1),velocity(2)"), std::string::npos);

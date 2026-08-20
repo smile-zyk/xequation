@@ -1,11 +1,9 @@
 ﻿#ifndef DATASET_H
 #define DATASET_H
 
-#include <boost/variant.hpp>
-#include <boost/variant/recursive_wrapper.hpp>
-
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "block.h"
@@ -15,39 +13,105 @@ namespace xdataset
 {
 
 // =========================================================================
-// InternalNode -- Group-level node in the Dataset tree
+// TreeNode -- move-only node in the Dataset tree (InternalNode | LeafNode)
 // =========================================================================
 //
-// An InternalNode holds only child nodes (no Block).  A node is guaranteed
-// by the type system to be EITHER an InternalNode OR a LeafNode — it can
-// never be both.  Intermediate nodes are created implicitly by
-// Dataset::AddBlock().
+// A node is guaranteed by the type system to be EITHER an InternalNode OR a
+// LeafNode — it can never be both.  Internal nodes hold child nodes (no
+// Block); leaf nodes hold a Block (no children).  Intermediate nodes are
+// created implicitly by Dataset::AddBlock().
+//
+// This is a hand-rolled move-only variant instead of boost::variant:
+// boost::variant's copy constructor/assignment are non-template member
+// functions, which MSVC eagerly instantiates when the variant is used;
+// with non-copyable alternatives (unique_ptr members) that yields
+// C2280 "attempt to reference a deleted function" even though the copies
+// are never actually used (GCC/Clang instantiate lazily and compile fine).
 // =========================================================================
 
 struct InternalNode;
+struct LeafNode;
 
-// =========================================================================
-// LeafNode -- Block-bearing leaf in the Dataset tree
-// =========================================================================
+class TreeNode
+{
+public:
+    /// Constructs an empty Internal node (used for the Dataset root).
+    TreeNode();
+
+    /// Constructs an Internal node holding the given subtree.
+    TreeNode(InternalNode node);
+
+    /// Constructs a Leaf node holding the given Block.
+    TreeNode(LeafNode node);
+
+    // Move-only: the tree owns its nodes via unique_ptr.
+    TreeNode(TreeNode&& other) noexcept;
+    TreeNode& operator=(TreeNode&& other) noexcept;
+    TreeNode(const TreeNode&) = delete;
+    TreeNode& operator=(const TreeNode&) = delete;
+
+    bool is_internal() const noexcept { return kind_ == Kind::Internal; }
+    bool is_leaf()     const noexcept { return kind_ == Kind::Leaf; }
+
+    /// Returns the InternalNode, or nullptr if this is a Leaf node.
+    InternalNode* internal() noexcept { return internal_.get(); }
+    const InternalNode* internal() const noexcept { return internal_.get(); }
+
+    /// Returns the LeafNode, or nullptr if this is an Internal node.
+    LeafNode* leaf() noexcept { return leaf_.get(); }
+    const LeafNode* leaf() const noexcept { return leaf_.get(); }
+
+private:
+    enum class Kind { Internal, Leaf };
+
+    Kind kind_;
+    std::unique_ptr<InternalNode> internal_;
+    std::unique_ptr<LeafNode> leaf_;
+};
+
+struct InternalNode
+{
+    ordered_map<std::string, std::unique_ptr<TreeNode>> children;
+};
 
 struct LeafNode
 {
     std::unique_ptr<Block> block;
 };
 
-// =========================================================================
-// TreeNode -- a node in the Dataset tree (InternalNode | LeafNode)
-// =========================================================================
+// ---- TreeNode out-of-line definitions (require complete node types) ------
 
-using TreeNode = boost::variant<
-    boost::recursive_wrapper<InternalNode>,
-    LeafNode
->;
+inline TreeNode::TreeNode()
+    : kind_(Kind::Internal)
+    , internal_(new InternalNode())
+{}
 
-struct InternalNode
+inline TreeNode::TreeNode(InternalNode node)
+    : kind_(Kind::Internal)
+    , internal_(new InternalNode(std::move(node)))
+{}
+
+inline TreeNode::TreeNode(LeafNode node)
+    : kind_(Kind::Leaf)
+    , leaf_(new LeafNode(std::move(node)))
+{}
+
+inline TreeNode::TreeNode(TreeNode&& other) noexcept
+    : kind_(other.kind_)
+    , internal_(std::move(other.internal_))
+    , leaf_(std::move(other.leaf_))
+{}
+
+inline TreeNode& TreeNode::operator=(TreeNode&& other) noexcept
 {
-    ordered_map<std::string, std::unique_ptr<TreeNode>> children;
-};
+    if (this != &other)
+    {
+        kind_     = other.kind_;
+        internal_ = std::move(other.internal_);
+        leaf_     = std::move(other.leaf_);
+    }
+    return *this;
+}
 
 // ========================================================================
     // ========================================================================

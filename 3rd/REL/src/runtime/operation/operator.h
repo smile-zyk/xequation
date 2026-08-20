@@ -1,7 +1,7 @@
-#ifndef REL_RUNTIME_OPERATION_H
-#define REL_RUNTIME_OPERATION_H
+#ifndef REL_OPERATION_H
+#define REL_OPERATION_H
 
-#include "rel_runtime_api.h"
+#include "rel_api.h"
 #include "value.h"
 
 #include <vector>
@@ -17,55 +17,55 @@ namespace operation {
 // Binary arithmetic
 // =========================================================================
 
-REL_RUNTIME_API Value OperationAdd(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationSub(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationMul(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationDiv(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationTimes(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationRdivide(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationMod(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationPow(const Value& lhs, const Value& rhs);
+REL_API Value OperationAdd(const Value& lhs, const Value& rhs);
+REL_API Value OperationSub(const Value& lhs, const Value& rhs);
+REL_API Value OperationMul(const Value& lhs, const Value& rhs);
+REL_API Value OperationDiv(const Value& lhs, const Value& rhs);
+REL_API Value OperationTimes(const Value& lhs, const Value& rhs);
+REL_API Value OperationRdivide(const Value& lhs, const Value& rhs);
+REL_API Value OperationMod(const Value& lhs, const Value& rhs);
+REL_API Value OperationPow(const Value& lhs, const Value& rhs);
 
 // =========================================================================
 // Unary
 // =========================================================================
 
-REL_RUNTIME_API Value OperationNegate(const Value& v);
-REL_RUNTIME_API Value OperationNot(const Value& v);
-REL_RUNTIME_API Value OperationBitNot(const Value& v);
+REL_API Value OperationNegate(const Value& v);
+REL_API Value OperationNot(const Value& v);
+REL_API Value OperationBitNot(const Value& v);
 
 // =========================================================================
 // Comparison (result is Integer 0/1, dimensionless)
 // =========================================================================
 
-REL_RUNTIME_API Value OperationEq(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationNeq(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationLt(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationGt(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationLe(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationGe(const Value& lhs, const Value& rhs);
+REL_API Value OperationEq(const Value& lhs, const Value& rhs);
+REL_API Value OperationNeq(const Value& lhs, const Value& rhs);
+REL_API Value OperationLt(const Value& lhs, const Value& rhs);
+REL_API Value OperationGt(const Value& lhs, const Value& rhs);
+REL_API Value OperationLe(const Value& lhs, const Value& rhs);
+REL_API Value OperationGe(const Value& lhs, const Value& rhs);
 
 // =========================================================================
 // Bitwise (Integer only, dimensionless)
 // =========================================================================
 
-REL_RUNTIME_API Value OperationBitAnd(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationBitOr(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationBitXor(const Value& lhs, const Value& rhs);
+REL_API Value OperationBitAnd(const Value& lhs, const Value& rhs);
+REL_API Value OperationBitOr(const Value& lhs, const Value& rhs);
+REL_API Value OperationBitXor(const Value& lhs, const Value& rhs);
 
 // =========================================================================
 // Shift (Integer only)
 // =========================================================================
 
-REL_RUNTIME_API Value OperationShl(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationShr(const Value& lhs, const Value& rhs);
+REL_API Value OperationShl(const Value& lhs, const Value& rhs);
+REL_API Value OperationShr(const Value& lhs, const Value& rhs);
 
 // =========================================================================
 // Logical (result is Integer 0/1, dimensionless)
 // =========================================================================
 
-REL_RUNTIME_API Value OperationAnd(const Value& lhs, const Value& rhs);
-REL_RUNTIME_API Value OperationOr(const Value& lhs, const Value& rhs);
+REL_API Value OperationAnd(const Value& lhs, const Value& rhs);
+REL_API Value OperationOr(const Value& lhs, const Value& rhs);
 
 // =========================================================================
 // Ternary
@@ -75,7 +75,7 @@ REL_RUNTIME_API Value OperationOr(const Value& lhs, const Value& rhs);
 /// condition is evaluated as logical (non-zero -> 1, zero -> 0).
 /// For each element, if condition is 1 the result is taken from true_value,
 /// otherwise from false_value.  Supports row broadcast and shape broadcast.
-REL_RUNTIME_API Value OperationConditional(const Value& condition,
+REL_API Value OperationConditional(const Value& condition,
                                          const Value& true_value,
                                          const Value& false_value);
 /// If(cond0, val0, cond1, val1, ..., cond_{n-1}, val_{n-1}, else_val)
@@ -83,18 +83,18 @@ REL_RUNTIME_API Value OperationConditional(const Value& condition,
 /// For each element, the first branch whose condition is non-zero provides
 /// the result; if no condition matches, the final else_val is used.
 /// This generalizes Conditional to an arbitrary number of branches.
-REL_RUNTIME_API Value OperationIf(const std::vector<Value>& operands);
+REL_API Value OperationIf(const std::vector<Value>& operands);
 // =========================================================================
 // Variadic generators
 // =========================================================================
 
 /// Matrix {} -- stack operands with row broadcast.
-REL_RUNTIME_API Value OperationMatrix(const std::vector<Value>& operands);
+REL_API Value OperationMatrix(const std::vector<Value>& operands);
 
 /// Sweep [] -- collect operands into a DataArray (one row per operand).
-REL_RUNTIME_API Value OperationSweep(const std::vector<Value>& operands);
+REL_API Value OperationSweep(const std::vector<Value>& operands);
 
 }  // namespace operation
 }  // namespace rel
 
-#endif  // REL_RUNTIME_OPERATION_H
+#endif  // REL_OPERATION_H

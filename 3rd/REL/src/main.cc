@@ -6,14 +6,11 @@
 //   - File mode (one argument): evaluate each non-empty line from a file.
 
 #include "environment.h"
-#include "evaluator.h"
 #include "rel.h"
-#include "parser.h"
-#include "scanner.h"
 #include "function_library_sample.h"
 
 #ifdef REL_HAS_PYTHON
-#include "python_env.h"
+#include "python_manager.h"
 #endif
 
 #ifdef _WIN32
@@ -25,14 +22,13 @@
 #include <readline/history.h>
 #endif
 
-#include <cctype>
 #include <fstream>
 #include <iostream>
 #include <string>
 
 namespace
 {
-    // Initialize the embedded Python environment (rel_python_env).  The
+    // Initialize the embedded Python environment (python_manager).  The
     // interpreter lifecycle is owned by the host: configure the standard
     // paths (py_home + stdlib / lib-dynload / site-packages, injected by
     // CMake at build time) and start the interpreter.  A host that already
@@ -40,159 +36,36 @@ namespace
     void init_python_env()
     {
 #ifdef REL_HAS_PYTHON
-        xequation::python::PyEnvManager::SetDefaultPyEnvConfig();
-        xequation::python::PyEnvManager::InitializePyEnv();
+        python_manager::PyEnvManager::SetDefaultPyEnvConfig();
+        python_manager::PyEnvManager::InitializePyEnv();
 #endif
     }
 
     // Tear down in the reverse order: release every pybind11::function held
     // by the callback registry while the interpreter is still alive, then
-    // finalize the interpreter (only when rel_python_env created it).
+    // finalize the interpreter (only when python_manager created it).
     void shutdown_python_env()
     {
 #ifdef REL_HAS_PYTHON
         rel::Environment::CleanupPythonState();
-        xequation::python::PyEnvManager::ShutdownPyEnv();
+        python_manager::PyEnvManager::ShutdownPyEnv();
 #endif
     }
 
-    bool is_ident_start(char c)
+    int eval_line(rel::Environment& env, const std::string& line, int /*line_no*/)
     {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
-    }
-
-    bool is_ident_char(char c)
-    {
-        return is_ident_start(c) || (c >= '0' && c <= '9');
-    }
-
-    bool is_valid_identifier(const std::string& name)
-    {
-        if (name.empty() || !is_ident_start(name[0]))
-            return false;
-        for (std::size_t i = 1; i < name.size(); ++i)
-            if (!is_ident_char(name[i]))
-                return false;
-        if (name == "if" || name == "then" || name == "elseif" || name == "else" ||
-            name == "AND" || name == "OR" || name == "NOT" ||
-            name == "EQUALS" || name == "NOTEQUALS")
-            return false;
-        return true;
-    }
-
-    std::size_t find_binding_eq(const std::string& line)
-    {
-        for (std::size_t i = 0; i < line.size(); ++i)
+        // Public front-end API: Exec handles both plain expressions and
+        // `name = expr` bindings (validating the identifier, evaluating, and
+        // defining the variable in `env`).  Throws on any failure.
+        try
         {
-            if (line[i] != '=') continue;
-            if (i > 0)
-            {
-                char prev = line[i - 1];
-                if (prev == '=' || prev == '!' || prev == '<' || prev == '>')
-                    continue;
-            }
-            if (i + 1 < line.size() && line[i + 1] == '=')
-                continue;
-            return i;
+            rel::Exec(line, env);
         }
-        return std::string::npos;
-    }
-
-    std::string trim(const std::string& s)
-    {
-        std::size_t b = 0;
-        while (b < s.size() && std::isspace(static_cast<unsigned char>(s[b]))) ++b;
-        std::size_t e = s.size();
-        while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1]))) --e;
-        return s.substr(b, e - b);
-    }
-
-    int parse_and_eval(rel::Environment& env,
-                       const std::string& source,
-                       int line_no)
-    {
-        rel::Scanner scanner(source, line_no);
-        rel::ScanResult scanResult = scanner.Scan();
-        if (!scanResult.Ok())
+        catch (const std::exception& e)
         {
-            std::cerr << scanResult.errors[0].to_string() << '\n';
+            std::cerr << e.what() << '\n';
             return 1;
         }
-
-        rel::Parser parser(std::move(scanResult.tokens));
-        rel::ParseResult result = parser.Parse();
-
-        if (!result.Ok())
-        {
-            std::cerr << result.errors[0].to_string() << '\n';
-            return 1;
-        }
-
-        rel::Evaluator evaluator(env);
-        rel::Value value;
-        try {
-            value = evaluator.Evaluate(*result.expr);
-        } catch (const std::exception& e) {
-            rel::Error err;
-            err.kind    = rel::ErrorKind::RunTime;
-            err.line    = result.expr->line;
-            err.column  = result.expr->column;
-            err.message = e.what();
-            std::cerr << err.to_string() << std::endl;
-            return 1;
-        }
-        std::cout << value.Format() << '\n';
-        return 0;
-    }
-
-    int eval_line(rel::Environment& env, const std::string& line, int line_no)
-    {
-        std::size_t eq = find_binding_eq(line);
-        if (eq == std::string::npos)
-            return parse_and_eval(env, line, line_no);
-
-        std::string name = trim(line.substr(0, eq));
-        std::string expr_str = trim(line.substr(eq + 1));
-
-        if (!is_valid_identifier(name))
-        {
-            std::cerr << "error " << line_no << ": invalid identifier '"
-                      << name << "'\n";
-            return 1;
-        }
-
-        rel::Scanner scanner(expr_str, line_no);
-        rel::ScanResult scanResult = scanner.Scan();
-        if (!scanResult.Ok())
-        {
-            std::cerr << scanResult.errors[0].to_string() << '\n';
-            return 1;
-        }
-
-        rel::Parser parser(std::move(scanResult.tokens));
-        rel::ParseResult result = parser.Parse();
-
-        if (!result.Ok())
-        {
-            std::cerr << result.errors[0].to_string() << '\n';
-            return 1;
-        }
-
-        rel::Evaluator evaluator(env);
-        rel::Value v;
-        try {
-            v = evaluator.Evaluate(*result.expr);
-            env.Define(name, v);
-        } catch (const std::exception& e) {
-            rel::Error err;
-            err.kind    = rel::ErrorKind::RunTime;
-            err.line    = result.expr->line;
-            err.column  = result.expr->column;
-            err.message = e.what();
-            std::cerr << err.to_string() << std::endl;
-            return 1;
-        }
-        std::cout << v.Format(name) << '\n';
         return 0;
     }
 

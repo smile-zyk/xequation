@@ -114,7 +114,7 @@ namespace rel
         }
 
         // =========================================================================
-        //  DeriveDtypePromote  (conditional: Int only→Int, Real→Real, Complex→Complex)
+        //  DeriveDtypePromote  (conditional: Int only->Int, Real->Real, Complex->Complex)
         // =========================================================================
 
         DataType DeriveDtypePromote(const std::vector<DataType>& dtypes)
@@ -136,7 +136,7 @@ namespace rel
         }
 
         // =========================================================================
-        //  DeriveDtypePromoteReal  (like Promote but Int �?Real always)
+        //  DeriveDtypePromoteReal  (like Promote but Int ->Real always)
         // =========================================================================
 
         DataType DeriveDtypePromoteReal(const std::vector<DataType>& dtypes)
@@ -178,7 +178,7 @@ namespace rel
         }
 
         // =========================================================================
-        //  DeriveDtypePromoteWithString  (like Promote but all-String �?String; mix �?error)
+        //  DeriveDtypePromoteWithString  (like Promote but all-String ->String; mix ->error)
         // =========================================================================
 
         DataType DeriveDtypePromoteWithString(const std::vector<DataType>& dtypes)
@@ -202,7 +202,7 @@ namespace rel
         }
 
         // =========================================================================
-        //  DeriveDtypeRequireInt  (only Bool/Int �?Int; reject anything else)
+        //  DeriveDtypeRequireInt  (only Bool/Int ->Int; reject anything else)
         // =========================================================================
 
         DataType DeriveDtypeRequireInt(const std::vector<DataType>& dtypes)
@@ -219,7 +219,7 @@ namespace rel
         }
 
         // =========================================================================
-        //  DeriveDtypeForceReal  (all numeric �?Real, with validation)
+        //  DeriveDtypeForceReal  (all numeric ->Real, with validation)
         // =========================================================================
 
         DataType DeriveDtypeForceReal(const std::vector<DataType>& dtypes)
@@ -236,7 +236,7 @@ namespace rel
         }
 
         // =========================================================================
-        //  DeriveDtypeForceRealNoComplex  (Int/Real �?Real, reject Complex)
+        //  DeriveDtypeForceRealNoComplex  (Int/Real ->Real, reject Complex)
         // =========================================================================
 
         DataType DeriveDtypeForceRealNoComplex(const std::vector<DataType>& dtypes)
@@ -253,7 +253,7 @@ namespace rel
         }
 
         // =========================================================================
-        //  DeriveDtypeForceIntNoComplex  (Int/Real → Int, reject Complex)
+        //  DeriveDtypeForceIntNoComplex  (Int/Real -> Int, reject Complex)
         // =========================================================================
 
         DataType DeriveDtypeForceIntNoComplex(const std::vector<DataType>& dtypes)
@@ -270,7 +270,7 @@ namespace rel
         }
 
         // =========================================================================
-        //  DeriveDtypeComplexToReal  (Int→Int, Real→Real, Complex→Real)
+        //  DeriveDtypeComplexToReal  (Int->Int, Real->Real, Complex->Real)
         // =========================================================================
 
         DataType DeriveDtypeComplexToReal(const std::vector<DataType>& dtypes)

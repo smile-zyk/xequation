@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rel_api.h"
 #include "error.h"
 #include "token.h"
 
@@ -10,10 +11,10 @@
 namespace rel
 {
     // ========================================================================
-    // ScanResult — scanner output
+    // ScanResult -- scanner output
     // ========================================================================
 
-    struct ScanResult
+    struct REL_API ScanResult
     {
         std::vector<Token> tokens;      // up to the first error, or all
         std::vector<Error> errors;      // lexical errors encountered
@@ -22,7 +23,7 @@ namespace rel
     };
 
     // ========================================================================
-    // Scanner — hand-written single-pass lexer
+    // Scanner -- hand-written single-pass lexer
     // ========================================================================
     //
     // Turns a string of source text into tokens defined in
@@ -36,7 +37,7 @@ namespace rel
     // The returned tokens always end with one END_OF_INPUT token.
     // Lexical errors are collected in ScanResult::errors (no INVALID tokens).
 
-    class Scanner
+    class REL_API Scanner
     {
     public:
         explicit Scanner(std::string source, int initial_line = 1);

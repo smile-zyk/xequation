@@ -1,4 +1,3 @@
-#include "touchstone_io.h"
 #include "data_array_io.h"
 #include "dataset_io.h"
 #include "dataset.h"
@@ -212,12 +211,8 @@ namespace xdataset
     TEST(TouchstoneDataArrayIoTest, WriterReaderDirect)
     {
         DataArray da = make_s2p_data_array();
-        {
-            TouchstoneDataArrayWriter w("test_da_direct.s2p");
-            w.Write(da);
-        }
-        TouchstoneDataArrayReader r("test_da_direct.s2p");
-        DataArray loaded = r.Read();
+        DataArrayIO::Save(da, "touchstone", "test_da_direct.s2p");
+        DataArray loaded = DataArrayIO::Load("touchstone", "test_da_direct.s2p");
         std::remove("test_da_direct.s2p");
 
         EXPECT_EQ(loaded.data().data_shape()[0], 2);
@@ -231,9 +226,7 @@ namespace xdataset
     TEST(TouchstoneDatasetReaderTest, ReadS2PIntoDataset)
     {
         write_test_s2p_ri("test_ds_s2p.s2p");
-        // Use TouchstoneReader directly (not through DatasetIO)
-        TouchstoneReader r("test_ds_s2p.s2p");
-        Dataset ds = r.Read();
+        Dataset ds = DatasetIO::Load("touchstone", "test_ds_s2p.s2p");
         std::remove("test_ds_s2p.s2p");
 
         EXPECT_EQ(ds.block_count(), 1u);
@@ -256,8 +249,7 @@ namespace xdataset
     TEST(TouchstoneDatasetReaderTest, ReadS1PIntoDataset)
     {
         write_test_s1p_ri("test_ds_s1p.s1p");
-        TouchstoneReader r("test_ds_s1p.s1p");
-        Dataset ds = r.Read();
+        Dataset ds = DatasetIO::Load("touchstone", "test_ds_s1p.s1p");
         std::remove("test_ds_s1p.s1p");
 
         EXPECT_TRUE(ds.IsLeaf("SP"));

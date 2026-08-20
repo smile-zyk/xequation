@@ -160,7 +160,9 @@ public:
     const_iterator find(const Key& key) const
     {
         auto it = index_.find(key);
-        return it != index_.end() ? it->second : list_.end();
+        if (it != index_.end())
+            return it->second;   // iterator 隐式转换为 const_iterator
+        return list_.end();
     }
 
     size_type count(const Key& key) const

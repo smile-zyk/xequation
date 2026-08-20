@@ -11,11 +11,11 @@ namespace xdataset
         {
             switch (kind)
             {
-            case MultiIndexSelector::kAny:
+            case MultiIndexSelector::Kind::kAny:
                 return "Any";
-            case MultiIndexSelector::kEqual:
+            case MultiIndexSelector::Kind::kEqual:
                 return "Equal";
-            case MultiIndexSelector::kIn:
+            case MultiIndexSelector::Kind::kIn:
                 return "In";
             }
 
@@ -25,7 +25,7 @@ namespace xdataset
 
     MultiIndexSelector MultiIndexSelector::Any()
     {
-        return MultiIndexSelector(kAny, std::vector<Index>());
+        return MultiIndexSelector(Kind::kAny, std::vector<Index>());
     }
 
     MultiIndexSelector MultiIndexSelector::Equal(Index idx)
@@ -38,7 +38,7 @@ namespace xdataset
         {
             throw std::invalid_argument("equal selector index must be >= 0 or -1");
         }
-        return MultiIndexSelector(kEqual, std::vector<Index>(1, idx));
+        return MultiIndexSelector(Kind::kEqual, std::vector<Index>(1, idx));
     }
 
     MultiIndexSelector MultiIndexSelector::In(const std::vector<Index>& indices)
@@ -73,7 +73,7 @@ namespace xdataset
 
         std::sort(normalized.begin(), normalized.end());
         normalized.erase(std::unique(normalized.begin(), normalized.end()), normalized.end());
-        return MultiIndexSelector(kIn, normalized);
+        return MultiIndexSelector(Kind::kIn, normalized);
     }
 
     MultiIndexSelector::Kind MultiIndexSelector::kind() const
@@ -83,17 +83,17 @@ namespace xdataset
 
     bool MultiIndexSelector::is_any() const
     {
-        return kind_ == kAny;
+        return kind_ == Kind::kAny;
     }
 
     bool MultiIndexSelector::is_equal() const
     {
-        return kind_ == kEqual;
+        return kind_ == Kind::kEqual;
     }
 
     bool MultiIndexSelector::is_in() const
     {
-        return kind_ == kIn;
+        return kind_ == Kind::kIn;
     }
 
     Index MultiIndexSelector::equal_value() const
@@ -164,11 +164,11 @@ namespace xdataset
 
     bool MultiIndexSelector::matches(Index idx) const
     {
-        if (kind_ == kAny)
+        if (kind_ == Kind::kAny)
         {
             return true;
         }
-        if (kind_ == kEqual)
+        if (kind_ == Kind::kEqual)
         {
             return idx == values_[0];
         }

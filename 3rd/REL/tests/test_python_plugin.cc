@@ -14,7 +14,7 @@
 #include "value.h"
 
 #ifdef REL_HAS_PYTHON
-#include "python_env.h"
+#include "python_manager.h"
 #endif
 
 #include <cstdio>
@@ -61,9 +61,9 @@ protected:
     static void SetUpTestSuite()
     {
         // The runtime no longer creates an interpreter lazily; the test
-        // binary owns the embedded interpreter lifecycle (rel_python_env).
-        xequation::python::PyEnvManager::SetDefaultPyEnvConfig();
-        xequation::python::PyEnvManager::InitializePyEnv();
+        // binary owns the embedded interpreter lifecycle (python_manager).
+        python_manager::PyEnvManager::SetDefaultPyEnvConfig();
+        python_manager::PyEnvManager::InitializePyEnv();
 
         rel::Environment::InitBuiltinConstants();
         rel::Environment::InitBuiltinFunctions();
@@ -82,7 +82,7 @@ protected:
         // Release callbacks before finalization; finalize only when the
         // test binary created the interpreter.
         rel::Environment::CleanupPythonState();
-        xequation::python::PyEnvManager::ShutdownPyEnv();
+        python_manager::PyEnvManager::ShutdownPyEnv();
     }
 };
 
@@ -420,6 +420,32 @@ TEST_F(PythonPluginTest, PythonFunctionPreservesVectorShape)
     EXPECT_EQ(s.as_data_array().datas().begin()->second.size(), 3u);
 
     rel::Environment::UnregisterFunction("py_ident");
+}
+
+// ---------------------------------------------------------------------------
+//  Language front-end: eval.
+//  The embedded module `rel` carries both the value layer (Value,
+//  register_function, ...) and the front end (rel.eval).
+// ---------------------------------------------------------------------------
+
+TEST_F(PythonPluginTest, RelModuleEval)
+{
+    RUN_PY(
+        "import numpy as np\n"
+        "import rel\n"
+        "v = rel.eval('1 + 2 * 3')\n"
+        "assert float(np.asarray(v)) == 7.0, np.asarray(v)\n");
+}
+
+TEST_F(PythonPluginTest, RelModuleEvalErrorRaises)
+{
+    RUN_PY(
+        "import rel\n"
+        "try:\n"
+        "    rel.eval('1 +')\n"
+        "    assert False, 'expected eval error'\n"
+        "except RuntimeError as e:\n"
+        "    assert 'syntax error' in str(e), str(e)\n");
 }
 
 }  // namespace

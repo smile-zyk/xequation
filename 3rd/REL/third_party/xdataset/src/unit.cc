@@ -10,6 +10,107 @@ namespace xdataset
 {
 
 // =========================================================================
+//  UnitData implementation
+// =========================================================================
+
+UnitData::UnitData() {}
+
+UnitData::UnitData(int8_t m_, int8_t kg_, int8_t s_, int8_t A_,
+                   int8_t K_, int8_t mol_, int8_t cd_)
+    : m(m_), kg(kg_), s(s_), A(A_), K(K_), mol(mol_), cd(cd_) {}
+
+UnitData UnitData::operator*(const UnitData& o) const
+{
+    return {
+        int8_t(m + o.m),
+        int8_t(kg + o.kg),
+        int8_t(s + o.s),
+        int8_t(A + o.A),
+        int8_t(K + o.K),
+        int8_t(mol + o.mol),
+        int8_t(cd + o.cd),
+    };
+}
+
+UnitData UnitData::operator/(const UnitData& o) const
+{
+    return {
+        int8_t(m - o.m),
+        int8_t(kg - o.kg),
+        int8_t(s - o.s),
+        int8_t(A - o.A),
+        int8_t(K - o.K),
+        int8_t(mol - o.mol),
+        int8_t(cd - o.cd),
+    };
+}
+
+UnitData UnitData::inv() const
+{
+    return {
+        int8_t(-m),
+        int8_t(-kg),
+        int8_t(-s),
+        int8_t(-A),
+        int8_t(-K),
+        int8_t(-mol),
+        int8_t(-cd),
+    };
+}
+
+UnitData UnitData::pow(int n) const
+{
+    return {
+        int8_t(m * n),
+        int8_t(kg * n),
+        int8_t(s * n),
+        int8_t(A * n),
+        int8_t(K * n),
+        int8_t(mol * n),
+        int8_t(cd * n),
+    };
+}
+
+bool UnitData::empty() const
+{
+    return m == 0 && kg == 0 && s == 0 && A == 0
+        && K == 0 && mol == 0 && cd == 0;
+}
+
+bool UnitData::operator==(const UnitData& o) const
+{
+    return m == o.m && kg == o.kg && s == o.s && A == o.A
+        && K == o.K && mol == o.mol && cd == o.cd;
+}
+
+bool UnitData::operator!=(const UnitData& o) const { return !(*this == o); }
+
+std::string UnitData::key() const
+{
+    struct Part { std::string name; int8_t exp; };
+    const Part parts[] = {
+        {"meter", m},
+        {"kg",    kg},
+        {"sec",   s},
+        {"A",     A},
+        {"K",     K},
+        {"mol",   mol},
+        {"cd",    cd},
+    };
+    std::string r;
+    for (std::size_t i = 0; i < 7; ++i) {
+        if (parts[i].exp == 0) continue;
+        if (!r.empty()) r += '*';
+        r += parts[i].name;
+        if (parts[i].exp != 1) {
+            r += '^';
+            r += std::to_string(static_cast<int>(parts[i].exp));
+        }
+    }
+    return r;
+}
+
+// =========================================================================
 //  Construction
 // =========================================================================
 

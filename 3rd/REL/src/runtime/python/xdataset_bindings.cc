@@ -1,11 +1,11 @@
 // =============================================================================
-//  xdataset_bindings.cc — Unit / Measurement / DataSeries / DataArray /
+//  xdataset_bindings.cc -- Unit / Measurement / DataSeries / DataArray /
 //  Block / Dataset bindings for the embedded `rel` module.
 //
 //  numpy interop is implemented via the buffer protocol (def_buffer), so
 //  `np.asarray(x)` works without requiring numpy headers at compile time.
 //  Zero-copy is used for real / integer / complex data; string and boolean
-//  buffers are not exposed (raise TypeError), matching PYTHON.md §5.1.
+//  buffers are not exposed (raise TypeError), matching PYTHON.md sec.5.1.
 // =============================================================================
 
 #include "python_common.h"
@@ -228,7 +228,7 @@ pybind11::buffer_info make_measurement_buffer(const Measurement& m)
 // ---- ndarray / list -> DataSeries / Measurement ------------------------
 
 /// Read a buffer (numpy array, memoryview, ...) into a DataSeries.  The
-/// buffer protocol is the "唯一入口" (only entry point) from numpy.
+/// buffer protocol is the "only entry point" from numpy.
 DataSeries dataseries_from_buffer(pybind11::handle obj)
 {
     pybind11::buffer buf = pybind11::reinterpret_borrow<pybind11::buffer>(obj);

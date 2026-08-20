@@ -22,7 +22,7 @@ target_link_libraries(xequation_core PUBLIC Boost::multi_index)
 target_link_libraries(xequation_core PUBLIC Boost::uuid)
 target_link_libraries(xequation_core PUBLIC Boost::compute)
 target_link_libraries(xequation_core PUBLIC Boost::variant)
-target_link_libraries(xequation_core PUBLIC rel_runtime)
+target_link_libraries(xequation_core PUBLIC rel)
 
 target_include_directories(xequation_core PUBLIC ../)
 target_include_directories(xequation_core PUBLIC ${TSL_ORDERED_MAP_INCLUDE_DIRS})

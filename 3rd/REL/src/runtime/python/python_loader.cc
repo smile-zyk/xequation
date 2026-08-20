@@ -1,19 +1,19 @@
 // =============================================================================
-//  python_loader.cc — plugin execution + GIL-protected callback registry
+//  python_loader.cc -- plugin execution + GIL-protected callback registry
 // =============================================================================
 //
 //  Two responsibilities:
 //
 //    1. Plugin execution: run plugin files / code against an interpreter
 //       that the HOST initialized.  Interpreter lifecycle (configuration,
-//       initialization, finalization) lives in the rel_python_env static
-//       library (src/python_env) — this translation unit never creates or
+//       initialization, finalization) lives in the python_manager static
+//       library (src/python_manager) -- this translation unit never creates or
 //       destroys an interpreter.
 //
 //    2. The GIL-protected callback registry: the ONLY place where pybind11::function
-//       objects live.  Environment never sees a pybind11::function — registered
+//       objects live.  Environment never sees a pybind11::function -- registered
 //       Python functions become a pure-C++ shim whose impl_ captures a
-//       std::string lookup key (see PYTHON.md §1 / §4).
+//       std::string lookup key (see PYTHON.md sec.1 / sec.4).
 // =============================================================================
 
 #include "python_common.h"
@@ -47,14 +47,14 @@ std::vector<std::string> g_python_registered;
 std::atomic<unsigned long long> g_next_key{0};
 
 // The interpreter must have been initialized by the host before any plugin
-// runs (xequation::python::PyEnvManager::InitializePyEnv in main).
+// runs (python_manager::PyEnvManager::InitializePyEnv in main).
 bool EnsureInterpreter(std::string* error_out)
 {
     if (Py_IsInitialized())
         return true;
     if (error_out)
         *error_out = "Python interpreter not initialized; the host must call "
-                     "xequation::python::PyEnvManager::InitializePyEnv() first";
+                     "python_manager::PyEnvManager::InitializePyEnv() first";
     return false;
 }
 
@@ -90,7 +90,7 @@ bool LoadPythonFile(const std::string& path, std::string* error_out)
     ConfigureStdout();
     try
     {
-        // Each plugin file gets an independent globals dict — scripts cannot
+        // Each plugin file gets an independent globals dict -- scripts cannot
         // pollute one another or the host __main__.
         pybind11::dict script_globals;
         script_globals["__builtins__"] = pybind11::module_::import("builtins");
@@ -152,7 +152,7 @@ void CleanupPythonState()
     g_name_to_key.clear();
 
     // NOTE: the interpreter itself is NOT finalized here.  Finalization is
-    // owned by rel_python_env (xequation::python::PyEnvManager::ShutdownPyEnv),
+    // owned by python_manager (python_manager::PyEnvManager::ShutdownPyEnv),
     // which the host calls AFTER this cleanup.
 }
 
@@ -167,7 +167,7 @@ std::string store_callback(pybind11::function fn)
 NativeFunction make_callback_shim(const std::string& key)
 {
     // The shim captures ONLY the key (std::string), so Function copy/move/dtor
-    // never touch Python objects and never need the GIL (PYTHON.md §4.1).
+    // never touch Python objects and never need the GIL (PYTHON.md sec.4.1).
     return [key](const Function::ArgMap& args) -> Value {
         pybind11::gil_scoped_acquire gil;  // re-entrant: harmless if already held
 
@@ -208,7 +208,7 @@ void register_python_function(const std::string& name,
 bool unregister_python_function(const std::string& name)
 {
     // ALL registry containers (g_callbacks, g_name_to_key,
-    // g_python_registered) are protected by the GIL — every read/write must
+    // g_python_registered) are protected by the GIL -- every read/write must
     // happen under it, otherwise a concurrent register/unregister from
     // another thread is a data race on the containers themselves.
     {

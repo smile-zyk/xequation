@@ -1,3 +1,4 @@
+#include "dataset_io.h"
 #include "hdf5_io.h"
 
 #include <hdf5.h>

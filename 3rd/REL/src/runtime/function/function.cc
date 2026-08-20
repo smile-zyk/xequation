@@ -2,7 +2,7 @@
 //  REL -- Function implementation (default value resolution, invocation)
 // =============================================================================
 
-#include "function/function.h"
+#include "function.h"
 
 #include <sstream>
 #include <stdexcept>

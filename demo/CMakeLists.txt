@@ -29,12 +29,12 @@ if(WIN32)
     COMMENT "run windeployqt")
 endif()
 
-# windeployqt 只拷贝 Qt DLL；REL 的运行时 DLL（rel_runtime / xdataset）
+# windeployqt 只拷贝 Qt DLL；REL 的运行时 DLL（rel / xdataset）
 # 需要显式拷贝到可执行文件目录，否则运行时找不到（MSYS2 报
 # "error while loading shared libraries: libxdataset.dll"）。
 add_custom_command(TARGET xequation_demo POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "$<TARGET_FILE:rel_runtime>"
+      "$<TARGET_FILE:rel>"
       "$<TARGET_FILE_DIR:xequation_demo>"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "$<TARGET_FILE:xdataset>"

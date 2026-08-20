@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rel_runtime_api.h"
+#include "rel_api.h"
 
 #include <boost/variant.hpp>
 
@@ -14,12 +14,12 @@
 
 namespace rel {
 // =========================================================================
-//  Value �?unified value type for Measurement and DataArray
+//  Value ->unified value type for Measurement and DataArray
 // =========================================================================
 //
 //  Value is a two-way variant:
-//    Measurement                 �?scalar / vector / matrix + unit (by value)
-//    shared_ptr<DataArray>       �?named variable with coordinate axes
+//    Measurement                 ->scalar / vector / matrix + unit (by value)
+//    shared_ptr<DataArray>       ->named variable with coordinate axes
 //
 //  Measurement is stored by value (~64 bytes on the stack); DataArray is
 //  stored via shared_ptr to avoid deep copies when the same array is
@@ -28,11 +28,11 @@ namespace rel {
 //  Calling data() on a Measurement-backed Value auto-converts it to an
 //  Independent DataArray so that the unified mutation API works seamlessly.
 
-class REL_RUNTIME_API Value
+class REL_API Value
 {
 public:
     // =====================================================================
-    //  FlatData<T> — typed flat pointer + optional owning storage
+    //  FlatData<T> -- typed flat pointer + optional owning storage
     // =====================================================================
     //
     //  Returned by flat_data<T>().  Replaces the old FlatInput<T> pattern
@@ -325,7 +325,7 @@ private:
 }  // namespace rel
 
 // =========================================================================
-//  Value::flat_data<T>() — template implementation
+//  Value::flat_data<T>() -- template implementation
 // =========================================================================
 //
 //  Defined here (in header) because it is a template that must be visible
@@ -357,7 +357,7 @@ Value::FlatData<T> Value::flat_data() const {
     FlatData<T> fd;
     const xdataset::DataSeries& src = as_data_array().data();
     if (src.data_type() == xdataset::DataTypeOf<T>::tag) {
-        // borrow directly — no copy
+        // borrow directly -- no copy
         fd.ptr    = src.contiguous_data<T>();
         fd.stride = static_cast<xdataset::Index>(src.element_count());
     } else {

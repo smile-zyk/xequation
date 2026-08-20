@@ -527,8 +527,8 @@ namespace rel
 
             // Right-boundary guard: the suffix must not be followed by an
             // alphanumeric character, otherwise it's part of an identifier
-            // or keyword (e.g. "1AND1" → 1, AND, 1, not 1A, ND1;
-            // "8ms" → 8, ms instead of 8, m, s).
+            // or keyword (e.g. "1AND1" -> 1, AND, 1, not 1A, ND1;
+            // "8ms" -> 8, ms instead of 8, m, s).
             if (best_len > 0 && is_alnum(peek(best_len)))
             {
                 best_len = 0;

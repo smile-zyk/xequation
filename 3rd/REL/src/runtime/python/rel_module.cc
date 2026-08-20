@@ -1,6 +1,11 @@
 // =============================================================================
-//  rel_module.cc — the embedded `rel` module entry point + PEP 562 lazy
+//  rel_module.cc -- the embedded `rel` module entry point + PEP 562 lazy
 //  attribute lookup (functions and constants) via FunctionProxy.
+//
+//  A single module named `rel` carries the WHOLE Python surface: the VALUE /
+//  RUNTIME layer (Value, Measurement, DataArray, Dataset, register_function,
+//  the builtin function proxies, ...) plus the language front-end
+//  (rel.eval(source) -> rel.Value).
 // =============================================================================
 
 #include "python_common.h"
@@ -16,6 +21,7 @@
 #include <string>
 
 #include "environment.h"
+#include "rel.h"
 
 namespace rel {
 namespace python {
@@ -23,7 +29,7 @@ namespace {
 
 /// Lightweight callable that resolves a registered function by name on every
 /// call (no caching), so re-registration / unregistration take effect
-/// immediately and no pybind11::function is ever captured (PYTHON.md §4.3).
+/// immediately and no pybind11::function is ever captured (PYTHON.md sec.4.3).
 struct FunctionProxy
 {
     std::string name;
@@ -57,8 +63,16 @@ pybind11::object call_function_proxy(const FunctionProxy& p,
     return to_python(fn.Invoke(named));
 }
 
+}  // namespace
+
+// Register the standard C++ exception -> Python exception translators.
 void register_exception_translators()
 {
+    static bool registered = false;
+    if (registered)
+        return;
+    registered = true;
+
     pybind11::register_exception_translator([](std::exception_ptr p) {
         if (!p)
             return;
@@ -77,7 +91,6 @@ void register_exception_translators()
     });
 }
 
-}  // namespace
 }  // namespace python
 }  // namespace rel
 
@@ -85,11 +98,18 @@ PYBIND11_EMBEDDED_MODULE(rel, m)
 {
     using namespace rel::python;
 
-    m.doc() = "REL runtime — embedded Python plugin bridge";
+    m.doc() = "REL -- embedded runtime + language front-end "
+              "(Value, Measurement, DataArray, Dataset, register_function, eval, ...)";
 
     register_exception_translators();
     register_xdataset_bindings(m);
     register_rel_bindings(m);
+
+    // ---- language front-end: rel.eval --------------------------------
+    // Parse and evaluate a REL source string against a fresh Environment.
+    m.def("eval", [](const std::string& source) -> rel::Value {
+        return rel::Eval(source);
+    }, pybind11::arg("source"));
 
     pybind11::class_<FunctionProxy>(m, "FunctionProxy")
         .def(pybind11::init<std::string>())

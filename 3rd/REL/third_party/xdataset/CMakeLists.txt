@@ -71,7 +71,7 @@ if(BUILD_XDATASET_TEST)
         tests/unit_test.cc
     )
 
-    target_include_directories(xdataset_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/xdataset ${CMAKE_CURRENT_SOURCE_DIR})
+    target_include_directories(xdataset_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(xdataset_test PRIVATE xdataset GTest::gtest_main)
     gtest_discover_tests(xdataset_test)
 endif()
@@ -80,8 +80,8 @@ add_executable(xdataset_playground
     apps/xdataset_playground/main.cc
 )
 
-target_include_directories(xdataset PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/xdataset ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(xdataset_playground PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/xdataset ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(xdataset PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(xdataset_playground PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(xdataset PUBLIC Eigen3::Eigen Boost::headers ${HDF5_TARGET})
 target_link_libraries(xdataset_playground PRIVATE xdataset)

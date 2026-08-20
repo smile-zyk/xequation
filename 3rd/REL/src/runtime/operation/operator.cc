@@ -18,7 +18,7 @@
 //
 //  This file also implements the Value / Measurement / DataArray operators
 //  (delegating to the OperationXxx kernels below).  They used to live in
-//  xdataset but now live in the rel_runtime library so that xdataset stays a
+//  xdataset but now live in the rel library so that xdataset stays a
 //  pure storage library.
 
 #include "operation/operator.h"
@@ -406,7 +406,7 @@ namespace rel
                 return std::abs(a) >= std::abs(b) ? 1 : 0;
             }
 
-            // String cmp �?non-template to avoid copy overhead
+            // String cmp ->non-template to avoid copy overhead
             inline int str_cmp_eq(const std::string& a, const std::string& b)
             {
                 return a == b ? 1 : 0;
@@ -735,7 +735,7 @@ namespace rel
             ShapeBroadcastPlan shape_plan = ShapeBroadcastPlan::Make(op_shapes, info.shape);
             RowBroadcastPlan row_plan = RowBroadcastPlan::Compute(row_counts);
 
-            // Build flat string arrays (no flat_data �?strings handled separately)
+            // Build flat string arrays (no flat_data ->strings handled separately)
             Index l_stride = static_cast<Index>(l_shape.element_count());
             Index r_stride = static_cast<Index>(r_shape.element_count());
             Index result_rows = info.rows;
@@ -1031,7 +1031,7 @@ namespace rel
         //  ExecuteMatrix ({} generator) - stack operands with row broadcast
         // =========================================================================
         //
-        //  Output: all Measurement �?Measurement, otherwise DataArray.
+        //  Output: all Measurement ->Measurement, otherwise DataArray.
 
         template <typename T>
         static Value ExecMatrixT(const ExecContextInfo& info, const std::vector<Value>& ops)
@@ -1271,7 +1271,7 @@ namespace rel
         // =========================================================================
         //
         //  RowBroadcastPlan handles row broadcast. ShapeBroadcastPlan handles cell
-        //  broadcast (Scalar �?Vector etc.).
+        //  broadcast (Scalar ->Vector etc.).
 
         template <typename T>
         static Value ExecSweepT(const ExecContextInfo& info, const std::vector<Value>& ops)
@@ -1482,8 +1482,8 @@ namespace rel
 
         Value ExecuteUnaryNot(const ExecContextInfo& info, const std::vector<Value>& ops)
         {
-            // Logical NOT: first convert to int via as_logical() (non-zero�?),
-            // then apply NOT.  Scalar Meas �?upgrade to Boolean.
+            // Logical NOT: first convert to int via as_logical() (non-zero->),
+            // then apply NOT.  Scalar Meas ->upgrade to Boolean.
 
             Value v;
             if (ops[0].is_measurement())
@@ -1926,7 +1926,7 @@ namespace rel
 
             if (c_meas && t_meas && f_meas)
             {
-                // Measurement output �?use string tensors or scalar directly
+                // Measurement output ->use string tensors or scalar directly
                 DataKind dk = info.shape.kind();
                 if (dk == DataKind::kScalar)
                 {

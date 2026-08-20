@@ -1,8 +1,8 @@
 // =============================================================================
-//  python_env.cc — embedded CPython environment configuration & lifecycle
+//  python_manager.cc -- embedded CPython environment configuration & lifecycle
 // =============================================================================
 
-#include "python_env.h"
+#include "python_manager.h"
 
 #include <Python.h>
 
@@ -13,8 +13,7 @@
 #include <windows.h>
 #endif
 
-namespace xequation {
-namespace python {
+namespace python_manager {
 namespace {
 
 #ifdef _WIN32
@@ -22,7 +21,7 @@ namespace {
 // LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: PATH is no longer searched for their
 // DLL dependencies.  A standalone python.exe still works because its
 // application directory is <prefix>/bin (where libopenblas.dll & friends
-// live), but an embedding host's directory does not contain them — numpy
+// live), but an embedding host's directory does not contain them -- numpy
 // then fails with a misleading "import from source directory" error.
 // Register the missing directories via AddDllDirectory before interpreter
 // startup so packages like numpy can load their native dependencies.
@@ -75,7 +74,7 @@ void PyEnvManager::SetPyEnvConfig(const PyEnvConfig& config)
 
 void PyEnvManager::SetDefaultPyEnvConfig()
 {
-    // Build-time paths injected by CMake (see CMakeLists.txt, rel_python_env).
+    // Build-time paths injected by CMake (see CMakeLists.txt, python_manager).
     PyEnvConfig config;
 #ifdef REL_PYTHON_HOME
     config.py_home = REL_PYTHON_HOME;
@@ -205,5 +204,4 @@ bool PyEnvManager::ManagePythonContext()
     return manage_python_context_;
 }
 
-}  // namespace python
-}  // namespace xequation
+}  // namespace python_manager

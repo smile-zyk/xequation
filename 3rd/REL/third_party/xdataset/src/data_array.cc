@@ -135,13 +135,11 @@ namespace xdataset
     {
         if (!data_frame_cache_)
         {
-            data_frame_cache_.reset(new DataArrayDataFrame(*this, variable_name));
+            data_frame_cache_ = DataFrame::FromDataArray(*this, variable_name);
         }
         else
         {
-            auto* arr_df = static_cast<DataArrayDataFrame*>(data_frame_cache_.get());
-            if (arr_df->variable_name() != variable_name)
-                arr_df->UpdateName(variable_name);
+            data_frame_cache_->UpdateVariableName(variable_name);
         }
         return *data_frame_cache_;
     }

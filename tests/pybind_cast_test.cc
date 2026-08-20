@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "python/value_pybind_converter.h"
 #include "python/python_equation_engine.h"
 #include "core/equation_value.h"
 

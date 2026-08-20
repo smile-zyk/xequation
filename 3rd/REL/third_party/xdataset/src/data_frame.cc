@@ -5,6 +5,7 @@
 #include "measurement.h"
 
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 
@@ -44,6 +45,43 @@ namespace xdataset
             return escaped;
         }
     } // namespace
+
+    // =========================================================================
+    // Concrete frame types (private to this translation unit -- the public
+    // DataFrame API exposes only the static factories below).
+    // =========================================================================
+
+    class BlockDataFrame : public DataFrame
+    {
+    public:
+        explicit BlockDataFrame(const Block& block);
+    };
+
+    class DataArrayDataFrame : public DataFrame
+    {
+    public:
+        explicit DataArrayDataFrame(const DataArray& variable,
+                                    std::string variable_name = "UnNamed");
+
+        void UpdateVariableName(std::string variable_name) override;
+
+    private:
+        void rebuild_headers();
+
+        const DataArray* data_array_;
+        std::string      variable_name_;
+    };
+
+    class MeasurementDataFrame : public DataFrame
+    {
+    public:
+        MeasurementDataFrame(const Measurement& measurement, std::string name);
+
+        const DataFrameRow& GetRow(Index row) const override;
+
+    private:
+        DataFrameRow row_;
+    };
 
     // =========================================================================
     // DataFrameRow
@@ -588,8 +626,10 @@ namespace xdataset
             });
     }
 
-    void DataArrayDataFrame::UpdateName(std::string variable_name)
+    void DataArrayDataFrame::UpdateVariableName(std::string variable_name)
     {
+        if (variable_name_ == variable_name)
+            return;
         variable_name_ = std::move(variable_name);
         rebuild_headers();
     }
@@ -706,6 +746,41 @@ namespace xdataset
     const DataFrameRow& MeasurementDataFrame::GetRow(Index /*row*/) const
     {
         return row_;
+    }
+
+    // =========================================================================
+    // DataFrame: static factories
+    // =========================================================================
+
+    std::unique_ptr<DataFrame> DataFrame::FromBlock(const Block& block)
+    {
+        return std::unique_ptr<DataFrame>(new BlockDataFrame(block));
+    }
+
+    std::unique_ptr<DataFrame> DataFrame::FromDataArray(
+        const DataArray& variable,
+        std::string variable_name)
+    {
+        return std::unique_ptr<DataFrame>(
+            new DataArrayDataFrame(variable, std::move(variable_name)));
+    }
+
+    std::unique_ptr<DataFrame> DataFrame::FromMeasurement(
+        const Measurement& measurement,
+        std::string name)
+    {
+        return std::unique_ptr<DataFrame>(
+            new MeasurementDataFrame(measurement, std::move(name)));
+    }
+
+    // =========================================================================
+    // DataFrame: header-rename hook
+    // =========================================================================
+
+    void DataFrame::UpdateVariableName(std::string /*variable_name*/)
+    {
+        // No-op: only DataArray-backed frames have a renameable dependent
+        // column.  DataArrayDataFrame overrides this.
     }
 
 } // namespace xdataset

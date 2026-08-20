@@ -1,4 +1,3 @@
-#include "hdf5_io.h"
 #include "dataset_io.h"
 #include "dataset.h"
 #include "block.h"
@@ -43,7 +42,7 @@ namespace xdataset
 
         BlockCreateInfo make_vector_info()
         {
-            // Regular(2) â†?2 rows, vector width 3
+            // Regular(2) ï¿½?2 rows, vector width 3
             BlockCreateInfo info;
             info.independent_specs.push_back(
                 IndependentSpec{"x", MakeScalarSeries(2),
@@ -176,13 +175,8 @@ namespace xdataset
         Dataset ds("direct");
         ds.AddBlock("a", make_simple_info());
 
-        {
-            Hdf5Writer w("test_direct.h5");
-            w.Write(ds);
-        }
-
-        Hdf5Reader r("test_direct.h5");
-        Dataset loaded = r.Read();
+        DatasetIO::Save(ds, "hdf5", "test_direct.h5");
+        Dataset loaded = DatasetIO::Load("hdf5", "test_direct.h5");
 
         EXPECT_EQ(loaded.name(), "direct");
         EXPECT_EQ(loaded.block_count(), 1u);

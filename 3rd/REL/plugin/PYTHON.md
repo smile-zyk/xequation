@@ -1,8 +1,9 @@
 # REL Python 插件 — 使用指南
 
 > **Status**: Updated
-> **Date**: 2026-08-16
-> **Scope**: `rel_runtime` 的 Python 嵌入接口,面向**用户**(如何加载 Python 插件、注册函数、读写数据)。
+> **Date**: 2026-08-19
+> **Scope**: REL 的 Python 嵌入接口,面向**用户**(如何加载 Python 插件、注册函数、读写数据、rel.eval)。
+> 所有 Python 绑定统一在单个嵌入模块 `rel` 下。
 
 ---
 
@@ -19,21 +20,21 @@ rel::Environment::ExecPython("print(1+1)");      // 执行一段 Python 代码
 rel::Environment::IsPythonAvailable();           // 是否编译了 Python 支持
 ```
 
-> **解释器生命周期由宿主管理**:`rel_runtime` 不再惰性创建解释器。宿主
-> (`rel.exe` / 测试)必须在加载插件前通过 `rel_python_env` 静态库初始化
+> **解释器生命周期由宿主管理**:`rel` 不再惰性创建解释器。宿主
+> (`rel_cli.exe` / 测试)必须在加载插件前通过 `python_manager` 静态库初始化
 > 嵌入式 Python 环境(见 §2.1),退出前按顺序清理(见 §2.2)。
 
-Python 脚本里 `import rel` 即可访问整个运行时 API。
+Python 脚本里 `import rel` 即可访问整个运行时 API 与语言前端(rel.eval,见 §3.1)。
 
 ---
 
 ## 2. 构建
 
-Python 支持默认开启(`BUILD_PYTHON=ON`)。需要零外部依赖的 `rel_runtime`(只依赖 xdataset)时,用 `-DBUILD_PYTHON=OFF` 关闭:
+Python 支持默认开启(`BUILD_PYTHON=ON`)。需要零外部依赖的 `rel`(只依赖 xdataset)时,用 `-DBUILD_PYTHON=OFF` 关闭:
 
 ```bash
 cmake -B build                  # 默认开启 Python
-cmake -B build -DBUILD_PYTHON=OFF   # 关闭 Python,rel_runtime 零外部依赖
+cmake -B build -DBUILD_PYTHON=OFF   # 关闭 Python,rel 零外部依赖
 cmake --build build
 ```
 
@@ -47,13 +48,13 @@ cmake --build build
 
 ---
 
-## 2.1 嵌入式 Python 环境(rel_python_env)
+## 2.1 嵌入式 Python 环境(python_manager)
 
-解释器的配置与生命周期独立在静态库 `rel_python_env`(`src/python_env`,命名空间
-`xequation::python`,只用 CPython C API,不依赖 pybind11):
+解释器的配置与生命周期独立在静态库 `python_manager`(`src/python_manager`,命名空间
+`python_manager`,只用 CPython C API,不依赖 pybind11):
 
 ```cpp
-namespace xequation::python {
+namespace python_manager {
 
 struct PyEnvConfig {
     std::string py_home;                     // Python 安装前缀(含标准库)
@@ -71,7 +72,7 @@ public:
     static bool ManagePythonContext();
 };
 
-}  // namespace xequation::python
+}  // namespace python_manager
 ```
 
 语义:
@@ -88,19 +89,19 @@ public:
 - 配置必须在 `InitializePyEnv()` 之前设置,解释器存活期间再调用 `SetPyEnvConfig`
   会抛异常。
 
-宿主侧典型用法(`rel.exe` 的 `main.cc`):
+宿主侧典型用法(`rel_cli.exe` 的 `main.cc`):
 
 ```cpp
-xequation::python::PyEnvManager::SetDefaultPyEnvConfig();
-xequation::python::PyEnvManager::InitializePyEnv();
+python_manager::PyEnvManager::SetDefaultPyEnvConfig();
+python_manager::PyEnvManager::InitializePyEnv();
 // ... 运行 REPL / 加载插件 ...
 rel::Environment::CleanupPythonState();            // 先释放回调注册表(GIL 下)
-xequation::python::PyEnvManager::ShutdownPyEnv();  // 再 finalize(仅自管理时)
+python_manager::PyEnvManager::ShutdownPyEnv();  // 再 finalize(仅自管理时)
 ```
 
 ## 2.2 关闭顺序(重要)
 
-`rel_runtime` 的回调注册表持有 `pybind11::function`(Python 对象引用)。
+`rel` 的回调注册表持有 `pybind11::function`(Python 对象引用)。
 退出时必须先调用 `rel::Environment::CleanupPythonState()`(原 `ShutdownPython`,
 已更名——它现在只清理回调注册表,不再 finalize 解释器),再调用
 `PyEnvManager::ShutdownPyEnv()`。顺序反了会导致 Python 对象在解释器销毁后
@@ -137,6 +138,21 @@ rel::Value v = rel::Environment::CallFunction("snr",
 ```
 
 REPL 里: `snr(signal, noise)` 直接可用。
+
+---
+
+## 3.1 语言前端(rel.eval)
+
+`rel.eval(source)` 对字符串解析并求值,每次使用全新的临时 `Environment`,
+返回 `rel.Value`:
+
+```python
+import rel
+
+v = rel.eval("1 + 2 * 3")   # -> rel.Value(7)
+```
+
+语法树/AST 不在 Python 侧暴露(C++ API 通过 `rel.h` 的 `Eval` 提供)。
 
 ---
 

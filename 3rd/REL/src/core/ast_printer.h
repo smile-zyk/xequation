@@ -1,12 +1,13 @@
 #pragma once
 
+#include "rel_api.h"
 #include "expr.h"
 
 #include <string>
 
 namespace rel
 {
-    class AstPrinter : public ExprVisitor
+    class REL_API AstPrinter : public ExprVisitor
     {
     public:
         std::string Print(const Expr& expr);

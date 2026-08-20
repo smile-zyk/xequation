@@ -1,5 +1,7 @@
 #pragma once
 
+#include "rel_api.h"
+
 #include <string>
 
 namespace rel
@@ -115,11 +117,11 @@ namespace rel
             : type(t), lexeme(std::move(l)), line(ln), column(col) {}
     };
 
-    std::string to_string(TokenType type);
+    REL_API std::string to_string(TokenType type);
 
     // Render a token as a short fragment that reads naturally when
     // embedded inside an error message.
     //   e.g.  `if` (line 1, column 1)
     //         <end of input> (line 3, column 1)
-    std::string to_string(const Token& token);
+    REL_API std::string to_string(const Token& token);
 } // namespace rel

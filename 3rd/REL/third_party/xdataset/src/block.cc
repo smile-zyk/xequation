@@ -182,7 +182,7 @@ namespace xdataset
     const DataFrame& Block::GetOrCreateDataFrame() const
     {
         if (!data_frame_cache_)
-            data_frame_cache_.reset(new BlockDataFrame(*this));
+            data_frame_cache_ = DataFrame::FromBlock(*this);
         return *data_frame_cache_;
     }
 } // namespace xdataset

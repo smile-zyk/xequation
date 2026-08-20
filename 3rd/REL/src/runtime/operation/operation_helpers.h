@@ -6,8 +6,8 @@
 //    - Shared templated execution loops (ExecBinaryLoop, ExecUnaryLoop, ...)
 //    - Shared Derive callbacks (DeriveShapeBroadcast, DeriveDtypePromote, ...)
 
-#ifndef REL_RUNTIME_OPERATION_HELPERS_H
-#define REL_RUNTIME_OPERATION_HELPERS_H
+#ifndef REL_OPERATION_HELPERS_H
+#define REL_OPERATION_HELPERS_H
 
 #include "operation/pipeline.h"
 #include "data_series.h"
@@ -251,4 +251,4 @@ inline Value ExecUnaryCT(const ExecContextInfo& info,
 }  // namespace operation
 }  // namespace rel
 
-#endif  // REL_RUNTIME_OPERATION_HELPERS_H
+#endif  // REL_OPERATION_HELPERS_H

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rel_api.h"
 #include "token.h"
 
 #include <memory>
@@ -44,7 +45,7 @@ namespace rel
         DDot,
     };
 
-    struct RefSegment
+    struct REL_API RefSegment
     {
         std::string name;
         RefSeparator sep;
@@ -53,7 +54,7 @@ namespace rel
         RefSegment(std::string name_value, RefSeparator sep_value);
     };
 
-    struct IfBranch
+    struct REL_API IfBranch
     {
         ExprPtr condition;
         ExprPtr value;
@@ -61,7 +62,7 @@ namespace rel
         IfBranch(ExprPtr condition_value, ExprPtr value_value);
     };
 
-    class ExprVisitor
+    class REL_API ExprVisitor
     {
     public:
         virtual ~ExprVisitor() {}
@@ -84,7 +85,7 @@ namespace rel
         virtual void visit_null_range(const NullRangeExpr& expr) = 0;
     };
 
-    class Expr
+    class REL_API Expr
     {
     public:
         Expr(int line_value, int column_value);
@@ -96,7 +97,7 @@ namespace rel
         virtual void accept(ExprVisitor& visitor) const = 0;
     };
 
-    class BooleanExpr : public Expr
+    class REL_API BooleanExpr : public Expr
     {
     public:
         BooleanExpr(int line_value, int column_value, bool value_value);
@@ -106,7 +107,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class NumberExpr : public Expr
+    class REL_API NumberExpr : public Expr
     {
     public:
         NumberExpr(int line_value,
@@ -124,7 +125,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class StringExpr : public Expr
+    class REL_API StringExpr : public Expr
     {
     public:
         StringExpr(int line_value, int column_value, std::string value_value, bool raw_value);
@@ -135,7 +136,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class ReferenceExpr : public Expr
+    class REL_API ReferenceExpr : public Expr
     {
     public:
         ReferenceExpr(int line_value, int column_value, std::vector<RefSegment> segments_value);
@@ -145,7 +146,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class UnaryExpr : public Expr
+    class REL_API UnaryExpr : public Expr
     {
     public:
         UnaryExpr(int line_value, int column_value, TokenType op_value, ExprPtr operand_value);
@@ -156,7 +157,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class BinaryExpr : public Expr
+    class REL_API BinaryExpr : public Expr
     {
     public:
         BinaryExpr(int line_value,
@@ -172,7 +173,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class LogicalExpr : public Expr
+    class REL_API LogicalExpr : public Expr
     {
     public:
         LogicalExpr(int line_value,
@@ -188,7 +189,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class ConditionalExpr : public Expr
+    class REL_API ConditionalExpr : public Expr
     {
     public:
         ConditionalExpr(int line_value,
@@ -204,7 +205,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class IfExpr : public Expr
+    class REL_API IfExpr : public Expr
     {
     public:
         IfExpr(int line_value,
@@ -218,7 +219,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class CallExpr : public Expr
+    class REL_API CallExpr : public Expr
     {
     public:
         CallExpr(int line_value,
@@ -232,7 +233,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class IndexExpr : public Expr
+    class REL_API IndexExpr : public Expr
     {
     public:
         IndexExpr(int line_value,
@@ -246,7 +247,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class GroupingExpr : public Expr
+    class REL_API GroupingExpr : public Expr
     {
     public:
         GroupingExpr(int line_value, int column_value, ExprPtr inner_value);
@@ -256,7 +257,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class SweepExpr : public Expr
+    class REL_API SweepExpr : public Expr
     {
     public:
         SweepExpr(int line_value, int column_value, std::vector<ExprPtr> items_value);
@@ -266,7 +267,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class MatrixExpr : public Expr
+    class REL_API MatrixExpr : public Expr
     {
     public:
         MatrixExpr(int line_value, int column_value, std::vector<ExprPtr> items_value);
@@ -276,7 +277,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class RangeExpr : public Expr
+    class REL_API RangeExpr : public Expr
     {
     public:
         RangeExpr(int line_value,
@@ -292,7 +293,7 @@ namespace rel
         void accept(ExprVisitor& visitor) const override;
     };
 
-    class NullRangeExpr : public Expr
+    class REL_API NullRangeExpr : public Expr
     {
     public:
         NullRangeExpr(int line_value, int column_value);

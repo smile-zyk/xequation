@@ -9,7 +9,7 @@
 //
 //    - register_xdataset_bindings()  (xdataset_bindings.cc)
 //    - register_rel_bindings()       (rel_bindings.cc)
-//    - to_python() / from_python()   (rel_bindings.cc) — the Value<->Python
+//    - to_python() / from_python()   (rel_bindings.cc) -- the Value<->Python
 //      conversion used by the callback shims in python_loader.cc
 // =============================================================================
 
@@ -17,7 +17,7 @@
 
 #include <string>
 
-#include "function/function.h"
+#include "function.h"
 #include "value.h"
 
 namespace rel {
@@ -53,7 +53,10 @@ pybind11::object string_measurement_to_py(const xdataset::Measurement& m);
 /// buffer protocol.
 pybind11::object numpy_from_py(pybind11::object list_or_str);
 
-// ---- binding registration (called once from rel_module.cc) --------------
+// ---- binding registration (the single embedded `rel` module) ------------
+
+/// Register the C++ exception -> Python exception translators.  Idempotent.
+void register_exception_translators();
 
 /// Register Unit, Measurement, DataSeries, DataArray, Block, Dataset, etc.
 void register_xdataset_bindings(pybind11::module_& m);
@@ -66,7 +69,7 @@ void register_rel_bindings(pybind11::module_& m);
 /// Convert a rel::Value to a Python object (a rel.Value instance).
 pybind11::object to_python(const rel::Value& v);
 
-/// Convert a Python object to a rel::Value using the §8.3 conversion rules.
+/// Convert a Python object to a rel::Value using the sec.8.3 conversion rules.
 /// Throws pybind11::type_error when the object cannot be converted.
 rel::Value from_python(pybind11::handle obj);
 
@@ -95,8 +98,8 @@ bool unregister_python_function(const std::string& name);
 
 /// Drop every Python plugin state while the interpreter is still alive:
 /// unregister Python-registered functions and clear the callback registry
-/// (under the GIL).  Does NOT finalize the interpreter — that is owned by
-/// rel_python_env (xequation::python::PyEnvManager::ShutdownPyEnv).
+/// (under the GIL).  Does NOT finalize the interpreter -- that is owned by
+/// python_manager (python_manager::PyEnvManager::ShutdownPyEnv).
 void CleanupPythonState();
 
 }  // namespace python

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rel_api.h"
 #include "expr.h"
 #include "error.h"
 #include "token.h"
@@ -9,7 +10,7 @@
 
 namespace rel
 {
-    struct ParseResult
+    struct REL_API ParseResult
     {
         ExprPtr expr;
         std::vector<Error> errors;
@@ -17,7 +18,7 @@ namespace rel
         bool Ok() const;
     };
 
-    class Parser
+    class REL_API Parser
     {
     public:
         explicit Parser(std::vector<Token> tokens);

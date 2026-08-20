@@ -9,13 +9,52 @@
 
 #include "value.h"  // rel::Value
 #include "dataset.h"
-#include "environment_config.h"
-#include "function/function_library.h"
+#include "function.h"
+
+#include <rapidjson/document.h>
 
 namespace rel {
 
 // =========================================================================
-//  Environment — flat variable table + global shared context
+//  EnvironmentConfig -- persistent dataset + plugin context (JSON)
+// =========================================================================
+//
+//  JSON schema:
+//  {
+//    "datasets": [
+//      { "name": "noise",    "format": "hdf5", "path": "/data/noise.xdataset" },
+//      { "name": "amplifier","format": "hdf5", "path": "/data/amp.xdataset" }
+//    ],
+//    "default_dataset": "noise",
+//    "python_plugins": ["plugins/snr.py", "plugins/eye.py"]
+//  }
+//
+//  "default_dataset" is optional; if omitted, the first dataset in "datasets"
+//  becomes the default.
+//  "python_plugins" is optional; each entry is a .py plugin path resolved
+//  relative to the config file's directory (requires BUILD_PYTHON=ON).
+
+struct REL_API DatasetConfig {
+    std::string name;
+    std::string format;
+    std::string path;
+};
+
+struct REL_API EnvironmentConfig {
+    std::vector<DatasetConfig> datasets;
+    std::string               default_dataset;
+    std::vector<std::string>  python_plugins;
+
+    /// Load from a JSON file.
+    static EnvironmentConfig Load(const std::string& config_path);
+
+private:
+    static DatasetConfig     ParseDataset(const rapidjson::Value& v);
+    static EnvironmentConfig Parse(const rapidjson::Document& doc);
+};
+
+// =========================================================================
+//  Environment -- flat variable table + global shared context
 // =========================================================================
 //
 //  A pure storage container for user-defined variables only.
@@ -27,12 +66,12 @@ namespace rel {
 //    - Define() rejects names that collide with builtin constants.
 //
 
-class REL_RUNTIME_API Environment
+class REL_API Environment
 {
 public:
     Environment() = default;
 
-    // ---- variables (instance — user-defined only) ----
+    // ---- variables (instance -- user-defined only) ----
 
     /// Bind or rebind a name.  Overwrites existing bindings silently.
     /// Throws std::runtime_error when `name` collides with a builtin constant.
@@ -111,7 +150,7 @@ public:
         // Build the positional argument vector via a braced-init-list.  It is
         // bound to a const reference (lifetime-extended) so overload
         // resolution picks the non-template vector overload instead of this
-        // template — the universal-reference parameter would otherwise win
+        // template -- the universal-reference parameter would otherwise win
         // and recurse infinitely.
         const std::vector<rel::Value>& cargs =
             std::vector<rel::Value>{ std::forward<Args>(args)... };
@@ -174,8 +213,8 @@ public:
     /// Release all Python plugin state while the interpreter is still alive:
     /// unregister Python-registered functions and drop every pybind11::function
     /// held by the callback registry (under the GIL).  Does NOT finalize the
-    /// interpreter — that is owned by rel_python_env
-    /// (xequation::python::PyEnvManager::ShutdownPyEnv), which the host must
+    /// interpreter -- that is owned by python_manager
+    /// (python_manager::PyEnvManager::ShutdownPyEnv), which the host must
     /// call AFTER this cleanup.  No-op when built without Python support.
     static void CleanupPythonState();
 
