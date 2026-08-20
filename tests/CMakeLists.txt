@@ -39,6 +39,7 @@ endfunction()
 
 add_gtest_executable(value_test "Value" value_test.cc)
 add_gtest_executable(rel_engine_test "RelEngine" rel_engine_test.cc)
+add_gtest_executable(rel_repro_test "RelEngineRepro" rel_repro_test.cc)
 add_gtest_executable(dependency_graph_test "DependencyGraph" dependency_graph_test.cc)
 add_gtest_executable(equation_manager_test "EquationManager" equation_manager_test.cc)
 add_gtest_executable(equation_signals_manager_test "EquationSignalsManager" equation_signals_manager_test.cc)

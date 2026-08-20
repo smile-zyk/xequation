@@ -1,5 +1,4 @@
 #pragma once
-#include <set>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -15,9 +14,8 @@ namespace rel_engine
 // REL 方程上下文：包装 rel::Environment，实现 EquationContext 接口。
 // 仿照 python/PythonEquationContext（其包装 pybind11::dict）。
 //
-// 注意：rel::Environment 提供 Define/Get/VariableNames，但没有 Remove。
-// Remove 语义用内部 removed_ 集合模拟：被移除的名字不再出现在
-// Contains/keys/Get 中，但绑定仍保留在 Environment 里（重新赋值会复活）。
+// rel::Environment 提供 Define/Get/Remove/Clear/VariableNames（Remove/Clear
+// 由上游 REL 提供），删除语义直接委托给 Environment，无需本地模拟。
 class RelEquationContext : public EquationContext
 {
   public:
@@ -30,10 +28,10 @@ class RelEquationContext : public EquationContext
     // Sets value for the given key (requires rel::Value payload).
     void Set(const std::string &key, const EquationValue &value) override;
 
-    // Removes the given key (marks removed; see class comment).
+    // Removes the given key (delegates to rel::Environment::Remove).
     bool Remove(const std::string &key) override;
 
-    // Clears all entries.
+    // Clears all entries (delegates to rel::Environment::Clear).
     void Clear() override;
 
     // Returns all keys in the context.
@@ -71,7 +69,6 @@ class RelEquationContext : public EquationContext
     RelEquationContext &operator=(const RelEquationContext &) = delete;
 
     rel::Environment env_;
-    std::set<std::string> removed_;
 };
 
 } // namespace rel_engine
