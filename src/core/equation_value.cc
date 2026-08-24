@@ -84,6 +84,15 @@ std::string PyObjectRef::ToString() const
     return "<python object>";
 }
 
+std::string PyObjectRef::TypeName() const
+{
+    if (ptr_ && g_py_ops.type_name)
+    {
+        return g_py_ops.type_name(ptr_);
+    }
+    return "<unknown>";
+}
+
 EquationValue::Kind EquationValue::kind() const noexcept
 {
     return static_cast<Kind>(storage_.which());

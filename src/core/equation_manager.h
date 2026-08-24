@@ -181,7 +181,12 @@ class EquationManager
         return *graph_;
     }
 
-    const EquationContext &context()
+    EquationContext &context()
+    {
+        return *context_;
+    }
+
+    const EquationContext &context() const
     {
         return *context_;
     }

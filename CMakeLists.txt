@@ -36,27 +36,25 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 enable_testing()
 
 # ---- REL runtime (rel::Value) -------------------------------------------
-# 集成 smile-zyk/REL 的 rel 库：xequation 只需要 rel::Value。
-# xdataset 与 REL 同层（3rd/xdataset），由 xequation 直接引入；
-# REL 侧仅在 xdataset target 不存在时才自行构建（见 3rd/REL/CMakeLists.txt）。
-# BUILD_PYTHON=ON：REL 编译其 Python bridge（pybind11::embed），并提供
+# xdataset 和 REL 以 git submodule 形式引入（3rd/xdataset、3rd/REL），
+# 但是【不 invoke 上游的 CMakeLists.txt】—— 上游以独立 project() 组织，
+# 会污染导出 target / CTest。这里由 3rd/vendor 重写构建，只构造 xequation
+# 需要的 target：xdataset / rel / python_manager。
+# BUILD_PYTHON=ON：rel 编译 Python bridge（pybind11::embed），并提供
 # python_manager（嵌入式 CPython 环境管理），xequation 的 Python 引擎
 # 委托它做初始化/销毁，不再自带环境管理。
-# rel_cli / rel_test 等目标由 EXCLUDE_FROM_ALL 排除出默认构建。
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL/CMakeLists.txt")
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL/include/value.h")
     message(FATAL_ERROR
-        "REL project not found at ${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL. "
-        "Expected the REL source tree under 3rd/REL.")
+        "REL submodule not found at ${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL. "
+        "Run 'git submodule update --init' first.")
 endif()
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rd/xdataset/CMakeLists.txt")
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rd/xdataset/include/data_frame.h")
     message(FATAL_ERROR
-        "xdataset project not found at ${CMAKE_CURRENT_SOURCE_DIR}/3rd/xdataset. "
-        "Expected the xdataset source tree under 3rd/xdataset.")
+        "xdataset submodule not found at ${CMAKE_CURRENT_SOURCE_DIR}/3rd/xdataset. "
+        "Run 'git submodule update --init' first.")
 endif()
-set(BUILD_XDATASET_TEST OFF CACHE BOOL "" FORCE)
-add_subdirectory(3rd/xdataset XDATASET EXCLUDE_FROM_ALL)
 set(BUILD_PYTHON ON CACHE BOOL "" FORCE)
-add_subdirectory(3rd/REL REL EXCLUDE_FROM_ALL)
+add_subdirectory(3rd/vendor)
 
 add_subdirectory(3rd/qtpropertybrowser)
 add_subdirectory(3rd/qcodeeditor)

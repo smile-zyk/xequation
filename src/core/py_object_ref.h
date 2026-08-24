@@ -9,14 +9,16 @@ namespace xequation
 {
 
 // 由 python 层注入的 PyObject 操作。core 不直接调用 CPython API。
-//   incref   —— 引用自增（原子，无需 GIL）
-//   decref   —— 引用释放（需要 GIL：持有则立即释放，否则入队延迟到 GIL 边界）
-//   to_string—— 生成可读字符串（需要 GIL，如 repr/str）
+//   incref    —— 引用自增（原子，无需 GIL）
+//   decref    —— 引用释放（需要 GIL：持有则立即释放，否则入队延迟到 GIL 边界）
+//   to_string —— 生成可读字符串（需要 GIL，如 repr/str）
+//   type_name —— 获取对象类型名（需要 GIL，如 __class__.__name__）
 struct PyObjectOps
 {
     void (*incref)(PyObject *) = nullptr;
     void (*decref)(PyObject *) = nullptr;
     std::string (*to_string)(PyObject *) = nullptr;
+    std::string (*type_name)(PyObject *) = nullptr;
 };
 
 // 全局设置/获取（python 层在解释器初始化后调用一次）
@@ -46,6 +48,9 @@ class PyObjectRef
 
     // 委托给注入的 to_string；未注入时返回占位符
     std::string ToString() const;
+
+    // 委托给注入的 type_name（如 __class__.__name__）；未注入时返回占位符
+    std::string TypeName() const;
 
   private:
     PyObject *ptr_ = nullptr;

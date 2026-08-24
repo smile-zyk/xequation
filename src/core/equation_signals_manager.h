@@ -2,6 +2,7 @@
 
 #include <boost/signals2.hpp>
 #include <memory>
+#include <unordered_map>
 
 #include "equation.h"
 #include "equation_group.h"

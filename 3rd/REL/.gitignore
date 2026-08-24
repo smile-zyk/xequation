@@ -1,5 +1,0 @@
-build/
-.cache/
-cmake_reconfig.log
-# Test-generated HDF5 files
-*.h5

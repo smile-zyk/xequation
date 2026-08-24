@@ -1,10 +1,10 @@
 #include "data_frame_table_model.h"
 
-#include "core/equation_value.h"
+#include "core/equation.h"
+#include "core/equation_manager.h"
 #include "data_frame.h"
 
 #include <algorithm>
-#include <stdexcept>
 
 namespace xequation
 {
@@ -17,44 +17,91 @@ DataFrameTableModel::DataFrameTableModel(QObject *parent) : QAbstractTableModel(
 
 DataFrameTableModel::~DataFrameTableModel() = default;
 
-void DataFrameTableModel::SetEquationValue(const EquationValue &value)
+void DataFrameTableModel::SetEquation(const Equation *equation)
 {
+    if (!equation)
+    {
+        Clear();
+        return;
+    }
+
+    // 上游 rel::Value::data_frame() 返回的是由底层 DataArray 拥有的
+    // stable reference（见 REL value.h 契约：caller must keep this Value
+    // alive while using the frame）。因此这里【持有 EquationValue 副本】，
+    // 使其内部的 rel::Value (经 shared_ptr<DataArray>) 成为 frame 的 owner，
+    // 避免引用悬垂；不持有 Equation 指针。
+    const EquationValue value = equation->GetValue();
     if (!value.IsRelValue())
     {
         Clear();
         return;
     }
 
-    const rel::Value &rel_value = value.AsRel();
+    BindToManager(equation);                 // 绑定当前方程所属 manager，处理删除
 
-    // 目前仅支持 Measurement / DataArray 两类 REL 值；
-    // rel::Value::data_frame() 对这两种类型均可构建 DataFrame。
-    try
-    {
-        // rel::Value::data_frame(name) -- owned DataFrame (move-only)
-        SetDataFrame(rel_value.data_frame());
-    }
-    catch (const std::exception &)
-    {
-        Clear();
-    }
-}
-
-void DataFrameTableModel::SetDataFrame(std::unique_ptr<xdataset::DataFrame> frame)
-{
     beginResetModel();
-    data_frame_ = std::move(frame);
-    loaded_rows_ = data_frame_ ? std::min<std::size_t>(
-                                     static_cast<std::size_t>(kLoadBatchSize),
-                                     data_frame_->row_count()
-                                 )
-                               : 0;
+    equation_value_ = value;                 // 持有副本，保证 frame 存活
+    const xdataset::DataFrame &frame = equation_value_.AsRel().data_frame();
+    data_frame_ = &frame;                    // stable reference 缓存
+    loaded_rows_ = std::min<std::size_t>(
+        static_cast<std::size_t>(kLoadBatchSize), frame.row_count()
+    );
     endResetModel();
 }
 
 void DataFrameTableModel::Clear()
 {
-    SetDataFrame(nullptr);
+    // 断开删除信号：清空后不再需要感知任何方程的移除。
+    removing_connection_.disconnect();
+    equation_name_.clear();
+
+    beginResetModel();
+    equation_value_ = EquationValue();
+    data_frame_ = nullptr;
+    loaded_rows_ = 0;
+    endResetModel();
+}
+
+void DataFrameTableModel::BindToManager(const Equation *equation)
+{
+    const EquationManager *manager = equation->manager();
+    if (!manager)
+    {
+        removing_connection_.disconnect();
+        equation_name_.clear();
+        return;
+    }
+
+    const std::string name = equation->name();
+    // 已绑定到同一个名字（通常是同一 manager 的同一方程），无需重建连接。
+    if (removing_connection_.connected() && equation_name_ == name)
+    {
+        return;
+    }
+
+    // Schema: kEquationRemoving = signal<void(const Equation *)>，删除前触发。
+    removing_connection_ = manager->signals_manager().ConnectScoped<EquationEvent::kEquationRemoving>(
+        [this](const Equation *removed)
+        {
+            OnEquationRemoving(removed);
+        }
+    );
+    equation_name_ = name;
+}
+
+void DataFrameTableModel::OnEquationRemoving(const Equation *removed)
+{
+    // kEquationRemoving 在 erase 之前发出，此处 Equation* 仍有效（可安全读 name）。
+    if (!removed || removed->name() != equation_name_)
+    {
+        return;
+    }
+    Clear();
+}
+
+bool DataFrameTableModel::HasDataFrame() const
+{
+    return data_frame_ != nullptr;
 }
 
 std::size_t DataFrameTableModel::total_row_count() const

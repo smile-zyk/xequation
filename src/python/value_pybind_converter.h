@@ -67,6 +67,27 @@ inline std::string PyObjectToString(PyObject *p)
     return result;
 }
 
+// 获取 Python 对象的类型名（__class__.__name__），用于 GUI 属性展示。
+inline std::string PyObjectTypeName(PyObject *p)
+{
+    if (!p)
+        return "<null>";
+    PyGILState_STATE st = PyGILState_Ensure();
+    std::string result;
+    try
+    {
+        pybind11::handle h(p);
+        pybind11::object type_name = h.attr("__class__").attr("__name__");
+        result = type_name.cast<std::string>();
+    }
+    catch (const pybind11::error_already_set &)
+    {
+        result = "<unknown>";
+    }
+    PyGILState_Release(st);
+    return result;
+}
+
 // python 层初始化后调用一次：把 PyObject 生命周期操作注入 core
 inline void InstallPyObjectOps()
 {
@@ -74,6 +95,7 @@ inline void InstallPyObjectOps()
     ops.incref = [](PyObject *p) { Py_XINCREF(p); };
     ops.decref = SafePyDecRef;
     ops.to_string = PyObjectToString;
+    ops.type_name = PyObjectTypeName;
     SetPyObjectOps(ops);
 }
 

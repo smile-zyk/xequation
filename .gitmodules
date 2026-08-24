@@ -1,0 +1,6 @@
+[submodule "3rd/xdataset"]
+	path = 3rd/xdataset
+	url = https://github.com/smile-zyk/xdataset.git
+[submodule "3rd/REL"]
+	path = 3rd/REL
+	url = https://github.com/smile-zyk/REL.git

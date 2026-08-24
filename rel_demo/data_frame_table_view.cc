@@ -1,6 +1,5 @@
 #include "data_frame_table_view.h"
 
-#include "core/equation_value.h"
 #include "data_frame_table_model.h"
 
 #include <QHeaderView>
@@ -49,9 +48,9 @@ void DataFrameTableView::SetupConnections()
     );
 }
 
-void DataFrameTableView::SetEquationValue(const EquationValue &value)
+void DataFrameTableView::SetEquation(const Equation *equation)
 {
-    table_model_->SetEquationValue(value);
+    table_model_->SetEquation(equation);
     // 模型重置后，确保首屏数据已加载（Qt 视图不会在 setModel/reset 后
     // 自动调用 fetchMore，这里显式触发一次）。
     FetchMoreIfNeeded();

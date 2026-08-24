@@ -5,6 +5,8 @@ set(CMAKE_AUTORCC ON)
 set(rel_demo_SRC
 rel_demo_widget.h
 rel_demo_widget.cc
+equation_property_window.h
+equation_property_window.cc
 data_frame_table_model.h
 data_frame_table_model.cc
 data_frame_table_view.h

@@ -1,5 +1,6 @@
 #include "rel_demo_widget.h"
 
+#include "equation_property_window.h"
 #include "rel_engine/rel_equation_engine.h"
 
 #include <QHBoxLayout>
@@ -47,14 +48,17 @@ void RelDemoWidget::SetupUI()
     insert_button_ = new QPushButton("Insert", this);
     redefine_button_ = new QPushButton("Redefine", this);
     rename_button_ = new QPushButton("Rename", this);
+    properties_button_ = new QPushButton("Properties", this);
     redefine_button_->setEnabled(false);  // 需要先选中列表项
     rename_button_->setEnabled(false);    // 需要先选中列表项
+    properties_button_->setEnabled(false); // 需要先选中列表项
 
     QHBoxLayout *input_layout = new QHBoxLayout();
     input_layout->addWidget(statement_edit_, 1);
     input_layout->addWidget(insert_button_);
     input_layout->addWidget(redefine_button_);
     input_layout->addWidget(rename_button_);
+    input_layout->addWidget(properties_button_);
 
     // ---- middle: equation list + dataframe view ------------------------
     equation_list_ = new QListWidget(this);
@@ -88,6 +92,7 @@ void RelDemoWidget::SetupConnections()
     );
     connect(redefine_button_, &QPushButton::clicked, this, &RelDemoWidget::OnRedefineEquation);
     connect(rename_button_, &QPushButton::clicked, this, &RelDemoWidget::OnRenameEquation);
+    connect(properties_button_, &QPushButton::clicked, this, &RelDemoWidget::OnShowProperties);
     connect(
         equation_list_, &QListWidget::itemSelectionChanged, this,
         &RelDemoWidget::OnEquationListSelectionChanged
@@ -404,6 +409,25 @@ void RelDemoWidget::OnRenameEquation()
     SelectEquationByName(trimmed_new);
 }
 
+void RelDemoWidget::OnShowProperties()
+{
+    const QString current_name = CurrentSelectedEquationName();
+    if (current_name.isEmpty())
+    {
+        return;
+    }
+
+    const Equation *equation =
+        equation_manager_->GetEquation(current_name.toStdString());
+    if (!equation)
+    {
+        return;
+    }
+
+    EquationPropertyWindow property_window(equation, this);
+    property_window.exec();
+}
+
 void RelDemoWidget::RefreshEquationList()
 {
     equation_list_->blockSignals(true);
@@ -440,6 +464,7 @@ void RelDemoWidget::OnEquationListSelectionChanged()
         data_frame_view_->Clear();
         redefine_button_->setEnabled(false);
         rename_button_->setEnabled(false);
+        properties_button_->setEnabled(false);
         return;
     }
 
@@ -448,6 +473,7 @@ void RelDemoWidget::OnEquationListSelectionChanged()
     const QString name = text.section(' ', 0, 0);
     redefine_button_->setEnabled(true);
     rename_button_->setEnabled(true);
+    properties_button_->setEnabled(true);
     ShowEquation(name);
 }
 
@@ -495,7 +521,7 @@ void RelDemoWidget::ShowEquation(const QString &equation_name)
     }
 
     const EquationValue &value = equation->GetValue();
-    data_frame_view_->SetEquationValue(value);
+    data_frame_view_->SetEquation(equation);
 
     if (value.IsRelValue())
     {

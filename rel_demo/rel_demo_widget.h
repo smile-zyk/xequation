@@ -46,6 +46,7 @@ class RelDemoWidget : public QWidget
     void OnInsertEquation();
     void OnRedefineEquation();
     void OnRenameEquation();
+    void OnShowProperties();
     void OnEquationListSelectionChanged();
     void RefreshEquationList();
     void ShowEquation(const QString &equation_name);
@@ -72,6 +73,7 @@ class RelDemoWidget : public QWidget
     QPushButton *insert_button_ = nullptr;
     QPushButton *redefine_button_ = nullptr;
     QPushButton *rename_button_ = nullptr;
+    QPushButton *properties_button_ = nullptr;
     QLabel *status_label_ = nullptr;
     QListWidget *equation_list_ = nullptr;
     DataFrameTableView *data_frame_view_ = nullptr;
