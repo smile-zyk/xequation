@@ -25,6 +25,11 @@ PythonEquationEngine::PythonEquationEngine()
 
     // 把 PyObject 生命周期操作注入 core（PyObjectRef 延迟 DECREF 依赖它）
     value_convert::InstallPyObjectOps();
+
+    // 让主线程让出 GIL，否则后台线程（TaskManager 线程池等）在
+    // gil_scoped_acquire 时会永远等不到 GIL 而死锁。
+    // PyEval_SaveThread 保存当前线程状态并释放 GIL。
+    g_main_thread_state_ = PyEval_SaveThread();
 }
 
 InterpretResult PythonEquationEngine::Interpret(const std::string &code, const EquationContext *context, InterpretMode mode)
@@ -64,6 +69,12 @@ PythonEquationEngine::~PythonEquationEngine()
 {
     // 销毁 pybind11 对象需要持有 GIL。解释器生命周期由 python_manager 管理
     // （宿主可调用 python_manager::PyEnvManager::ShutdownPyEnv() 收尾）。
+    if (g_main_thread_state_)
+    {
+        // 恢复 GIL（对应构造函数里的 PyEval_SaveThread）
+        PyEval_RestoreThread(static_cast<PyThreadState *>(g_main_thread_state_));
+        g_main_thread_state_ = nullptr;
+    }
     pybind11::gil_scoped_acquire acquire;
     code_parser.reset();
     code_executor.reset();

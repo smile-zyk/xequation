@@ -1,9 +1,7 @@
 #include "equation_manager_tasks.h"
 #include "core/equation_common.h"
-#include "python/python_qt_wrapper.h"
 #include <QDir>
 #include <QProcess>
-#include <QThread>
 #include <QFont>
 #include <QFontDatabase>
 
@@ -14,32 +12,15 @@ namespace gui
 {
 void EquationManagerTask::Execute()
 {
-    if (equation_manager_->engine_info().name == "Python")
-    {
-        pybind11::gil_scoped_acquire acquire;
-        PyThreadState *py_thread_state = PyThreadState_Get();
-        internal_data_ = static_cast<void *>(py_thread_state);
-    }
 }
 
 void EquationManagerTask::RequestCancel()
 {
     Task::RequestCancel();
-    if (equation_manager_->engine_info().name == "Python" && internal_data_)
-    {
-        pybind11::gil_scoped_acquire acquire;
-        void *data = internal_data_;
-        PyThreadState *py_thread_state = static_cast<PyThreadState *>(data);
-        PyThreadState_SetAsyncExc(py_thread_state->thread_id, PyExc_KeyboardInterrupt);
-    }
 }
 
 void EquationManagerTask::Cleanup()
 {
-    if (equation_manager_->engine_info().name == "Python")
-    {
-        internal_data_ = nullptr;
-    }
 }
 
 void UpdateEquationGroupTask::Execute()
@@ -47,9 +28,16 @@ void UpdateEquationGroupTask::Execute()
     EquationManagerTask::Execute();
     SetProgress(5, "Starting update of equation group...");
     auto manager = equation_manager();
-    // get the equations in the group before updating
-    auto equation_names = manager->GetEquationGroup(group_id_)->GetEquationNames();
-    auto update_equation_names = manager->graph().TopologicalSort(equation_names);
+    // Update scope is computed by the manager: the group's equations + all of their
+    // dependents (propagated by TopologicalSort) plus every dirty (invalidated) node.
+    // Renaming/removing a variable dirties equations that lost their dependency (e.g. in
+    // "a=1;b=a" renaming "a" to "c" dirties "b"); skipping them leaves stale values.
+    auto update_equation_names = manager->GetEquationsToUpdate(group_id_);
+    if (update_equation_names.empty())
+    {
+        SetProgress(100, "Update completed.");
+        return;
+    }
 
     SetProgress(10, "Updating equations in the group...");
 
@@ -63,8 +51,6 @@ void UpdateEquationGroupTask::Execute()
         int progress = 10 + static_cast<int>(80.0 * i / update_equation_names.size());
         SetProgress(progress, "Updating equation: " + QString::fromStdString(update_equation_names[i]));
         manager->UpdateEquationWithoutPropagate(update_equation_names[i]);
-        // release GIL for main thread to update UI
-        QThread::msleep(200);
     }
     if (cancel_requested_.load())
     {
@@ -92,8 +78,6 @@ void UpdateManagerTask::Execute()
         int progress = 10 + static_cast<int>(80.0 * i / update_equation_names.size());
         SetProgress(progress, "Updating equation: " + QString::fromStdString(update_equation_names[i]));
         manager->UpdateEquationWithoutPropagate(update_equation_names[i]);
-        // release GIL for main thread to update UI
-        QThread::msleep(200);
     }
     if (cancel_requested_.load())
     {
@@ -121,8 +105,6 @@ void UpdateEquationsTask::Execute()
         int progress = 10 + static_cast<int>(80.0 * i / update_equation_names.size());
         SetProgress(progress, "Updating equation: " + QString::fromStdString(update_equation_names[i]));
         manager->UpdateEquationWithoutPropagate(update_equation_names[i]);
-        // release GIL for main thread to update UI
-        QThread::msleep(200);
     }
     if (cancel_requested_.load())
     {

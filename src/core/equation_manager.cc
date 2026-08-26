@@ -326,14 +326,13 @@ void EquationManager::EditSingleEquation(const EquationGroupId &group_id, const 
 
     EquationGroup *group = GetEquationGroupInternal(group_id);
 
-    if (group->IsEquationExist(equation_name) == false)
-    {
-        throw EquationException::EquationNotFound(equation_name);
-    }
-
+    // NOTE: equation_name may be a NEW name (rename). GetEquation returns nullptr in that
+    // case, so it must not be dereferenced. A rename flows through EditEquationGroup below,
+    // which diffs the old group against the new statement and removes/creates equations.
     Equation *equation = group->GetEquation(equation_name);
 
-    if (equation->content() == equation_content)
+    // No-op if the name is unchanged and the content is unchanged.
+    if (equation != nullptr && equation->content() == equation_content)
     {
         return;
     }
@@ -445,6 +444,13 @@ void EquationManager::Reset()
 void EquationManager::ResetContext()
 {
     context_->Clear();
+    // The context has been cleared, so every value is gone. Re-dirty all nodes so that a
+    // subsequent Update()/UpdateEquationGroup()/UpdateEquation() recalculates everything.
+    // (Previously this relied on "dirty is never cleared"; now that updates clear dirty on
+    // success, we must re-dirty explicitly.)
+    graph_->Traversal([&](const std::string &equation_name) {
+        graph_->SetNodeDirty(equation_name, true);
+    });
 }
 
 void EquationManager::UpdateEquationInternal(const std::string &equation_name)
@@ -454,13 +460,7 @@ void EquationManager::UpdateEquationInternal(const std::string &equation_name)
         throw EquationException::EquationNotFound(equation_name);
     }
 
-    const DependencyGraph::Node *node = graph_->GetNode(equation_name);
     Equation *equation = GetEquationInternal(equation_name);
-
-    if (!node->dirty_flag())
-    {
-        return;
-    }
 
     // set status and message to calculating before calculation
     equation->set_status(ResultStatus::kCalculating);
@@ -479,6 +479,12 @@ void EquationManager::UpdateEquationInternal(const std::string &equation_name)
     if (equation->status() != ResultStatus::kSuccess)
     {
         context_->Remove(equation_name);
+    }
+    else
+    {
+        // Clear the dirty flag on success; on failure (e.g. NameError) keep it dirty so the
+        // next Update/UpdateEquation/UpdateEquationGroup retries until it succeeds.
+        graph_->SetNodeDirty(equation_name, false);
     }
     signals_manager_->Emit<EquationEvent::kEquationUpdated>(
         equation, EquationUpdateFlag::kStatus | EquationUpdateFlag::kMessage | EquationUpdateFlag::kValue
@@ -539,7 +545,16 @@ void EquationManager::UpdateEquation(const std::string &equation_name)
         throw EquationException::EquationNotFound(equation_name);
     }
 
-    auto topo_order = graph_->TopologicalSort(equation_name);
+    // Update scope = the target equation + all of its dependents (propagated by
+    // TopologicalSort) plus every dirty (invalidated) node. Renaming/removing a variable
+    // dirties equations that lost their dependency (e.g. in "a=1;b=a", renaming "a" to
+    // "c" dirties "b"). There is no live edge from "c" to "b" anymore, so reachability
+    // from "c" alone would miss it; it must be recomputed explicitly or it keeps stale
+    // values/status.
+    std::vector<std::string> update_names = graph_->TopologicalSort(equation_name);
+    CollectDirtyNodes(update_names);
+
+    auto topo_order = graph_->TopologicalSort(update_names);
 
     for (const auto &node_name : topo_order)
     {
@@ -556,12 +571,45 @@ void EquationManager::UpdateEquationGroup(const EquationGroupId &group_id)
 
     const EquationGroup *group = GetEquationGroup(group_id);
 
-    auto topo_order = graph_->TopologicalSort(group->GetEquationNames());
+    // Update scope = the group's equations + all of their dependents (propagated by
+    // TopologicalSort) plus every dirty (invalidated) node. Renaming/removing a variable
+    // dirties equations that lost their dependency (e.g. in "a=1;b=a", renaming "a" to
+    // "c" dirties "b"). They live outside the group and are unreachable from the group's
+    // downstream, but skipping them would leave stale values/status (e.g. a NameError that
+    // is never surfaced).
+    std::vector<std::string> update_names = graph_->TopologicalSort(group->GetEquationNames());
+    CollectDirtyNodes(update_names);
+
+    auto topo_order = graph_->TopologicalSort(update_names);
 
     for (const auto &node_name : topo_order)
     {
         UpdateEquationInternal(node_name);
     }
+}
+
+std::vector<std::string> EquationManager::GetEquationsToUpdate(const EquationGroupId &group_id) const
+{
+    if (IsEquationGroupExist(group_id) == false)
+    {
+        return {};
+    }
+
+    const EquationGroup *group = GetEquationGroup(group_id);
+    std::vector<std::string> update_names = graph_->TopologicalSort(group->GetEquationNames());
+    CollectDirtyNodes(update_names);
+    return graph_->TopologicalSort(update_names);
+}
+
+void EquationManager::CollectDirtyNodes(std::vector<std::string> &update_names) const
+{
+    graph_->Traversal([&](const std::string &node_name) {
+        const DependencyGraph::Node *node = graph_->GetNode(node_name);
+        if (node != nullptr && node->dirty_flag())
+        {
+            update_names.push_back(node_name);
+        }
+    });
 }
 
 void EquationManager::UpdateEquationWithoutPropagate(const std::string &equation_name)
@@ -585,6 +633,10 @@ void EquationManager::UpdateEquationStatus(const std::string &equation_name, Res
     equation->set_status(status);
     equation->set_message(message);
     context_->Remove(equation_name);
+    // On failure (e.g. KeyBoardInterrupt) the value was removed from the context; re-dirty
+    // the node so a later Update recomputes it (otherwise, under the "clear on success"
+    // semantics, the node may already be clean and the value would be lost forever).
+    graph_->SetNodeDirty(equation_name, true);
 
     signals_manager_->Emit<EquationEvent::kEquationUpdated>(
         equation, EquationUpdateFlag::kStatus | EquationUpdateFlag::kMessage | EquationUpdateFlag::kValue

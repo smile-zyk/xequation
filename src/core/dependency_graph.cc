@@ -486,6 +486,15 @@ void DependencyGraph::MakeNodeDirty(const std::string &node_name, bool dirty, bo
     }
 }
 
+void DependencyGraph::SetNodeDirty(const std::string &node_name, bool dirty)
+{
+    if(node_map_.count(node_name) == 0)
+    {
+        return;
+    }
+    node_map_.at(node_name).get()->set_dirty_flag(dirty);
+}
+
 void DependencyGraph::Traversal(std::function<void(const std::string &)> callback) const
 {
     auto topo_order = TopologicalSort();

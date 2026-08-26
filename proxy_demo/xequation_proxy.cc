@@ -1,13 +1,21 @@
-#include "xequation_embed.h"
+#include "xequation_proxy.h"
 
 #include <stdexcept>
 
 #include <Python.h>
 
+#include <pybind11/pybind11.h>
+
+#include "python/python_equation_context.h"
+#include "python/python_equation_engine.h"
+#include "python_manager.h"
+#include "rel_engine/rel_equation_context.h"
+#include "rel_engine/rel_equation_engine.h"
+
 XEquationProxy &XEquationProxy::GetInstance()
 {
-    // C++11 magic static：线程安全构造。构造函数只创建 REL 引擎，
-    // 因此可在任意位置（含静态初始化阶段）安全调用。
+    // C++11 magic-static: thread-safe construction.  The constructor only creates
+    // the REL engine, so it is safe to call from anywhere (incl. static init).
     static XEquationProxy instance;
     return instance;
 }
@@ -19,8 +27,8 @@ XEquationProxy::XEquationProxy()
 
 XEquationProxy::~XEquationProxy()
 {
-    // Python 上下文持有 pybind11::dict，析构需要 GIL。
-    // 解释器在进程退出前仍存活（无人调用 Py_FinalizeEx），此处安全。
+    // The Python context holds a pybind11::dict, whose destruction needs the GIL.
+    // The interpreter is still alive before process exit (no Py_FinalizeEx call), so safe here.
     if (python_manager_)
     {
         pybind11::gil_scoped_acquire acquire;
@@ -36,8 +44,9 @@ EquationManager *XEquationProxy::GetManager(Engine engine)
     case Engine::kPython:
         if (!python_manager_)
         {
-            // 首次访问时初始化嵌入解释器（幂等）。未初始化且宿主未提供
-            // 自定义配置时，注入构建期默认配置（REL_PYTHON_HOME 等）。
+            // Initialize the embedded interpreter lazily on first access (idempotent).
+            // If uninitialized and the host provides no custom config, inject the
+            // build-time defaults (REL_PYTHON_HOME etc.).
             if (!python_manager::PyEnvManager::IsInitialized())
             {
                 python_manager::PyEnvManager::SetDefaultPyEnvConfig();
@@ -57,19 +66,19 @@ EquationManager &XEquationProxy::manager(Engine engine)
     return *GetManager(engine);
 }
 
-// ---- 具体 Engine / Context 访问 ---------------------------------------------
+// ---- concrete Engine / Context access ----------------------------------
 
 PythonEquationEngine &XEquationProxy::python_engine()
 {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    GetManager(Engine::kPython); // 触发惰性创建
+    GetManager(Engine::kPython); // trigger lazy creation
     return PythonEquationEngine::GetInstance();
 }
 
 RelEquationEngine &XEquationProxy::rel_engine()
 {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
-    GetManager(Engine::kRel); // 触发惰性创建
+    GetManager(Engine::kRel); // trigger lazy creation
     return RelEquationEngine::GetInstance();
 }
 
@@ -87,7 +96,7 @@ RelEquationContext &XEquationProxy::rel_context()
     return dynamic_cast<RelEquationContext &>(ctx);
 }
 
-// ---- 事件通知：原样透传 core 信号 --------------------------------------------
+// ---- event notifications: pass core signals through as-is ----------------
 
 Connection XEquationProxy::ConnectEquationAdded(Engine engine, EquationAddedCallback callback)
 {
@@ -137,7 +146,7 @@ void XEquationProxy::DisconnectAll(Engine engine)
     GetManager(engine)->signals_manager().DisconnectAllEvent();
 }
 
-// ---- 编辑 ----------------------------------------------------------------------
+// ---- editing ------------------------------------------------------------------
 
 EquationGroupId XEquationProxy::AddEquationGroup(Engine engine, const std::string &equation_statement)
 {
@@ -169,7 +178,22 @@ void XEquationProxy::RemoveEquationGroup(Engine engine, const EquationGroupId &g
     GetManager(engine)->RemoveEquationGroup(group_id);
 }
 
-// ---- 解析 / 计算 ----------------------------------------------------------------
+void XEquationProxy::RemoveEquation(Engine engine, const std::string &equation_name)
+{
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+
+    // Locate the group that owns the equation (each equation has its own group in
+    // the demo); remove the whole group.  If the equation does not exist,
+    // RemoveEquationGroup throws EquationNotFound.
+    const Equation *equation = GetManager(engine)->GetEquation(equation_name);
+    if (!equation)
+    {
+        throw xequation::EquationException::EquationNotFound(equation_name);
+    }
+    GetManager(engine)->RemoveEquationGroup(equation->group_id());
+}
+
+// ---- parse / compute ----------------------------------------------------------
 
 ParseResult XEquationProxy::Parse(Engine engine, const std::string &expression, ParseMode mode)
 {
@@ -207,13 +231,7 @@ void XEquationProxy::UpdateEquationGroup(Engine engine, const EquationGroupId &g
     GetManager(engine)->UpdateEquationGroup(group_id);
 }
 
-// ---- 变量读写 / 查询 --------------------------------------------------------------
-
-void XEquationProxy::SetValue(Engine engine, const std::string &name, const EquationValue &value)
-{
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    GetManager(engine)->context().Set(name, value);
-}
+// ---- variable read / query -------------------------------------------------------
 
 EquationValue XEquationProxy::GetValue(Engine engine, const std::string &name)
 {

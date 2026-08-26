@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QWidget>
+#include <QDialog>
 #include <QProgressBar>
 #include <QLabel>
 #include <QPushButton>
@@ -8,23 +8,16 @@
 #include <QVBoxLayout>
 #include <QTimer>
 #include <QPropertyAnimation>
-#include <QParallelAnimationGroup>
 #include <QGraphicsOpacityEffect>
-#include <QApplication>
-#include <QDesktopWidget>
-#include <QScreen>
-#include <QPaintEvent>
 #include <QShowEvent>
 #include <QCloseEvent>
 #include <QEvent>
-#include <qpushbutton.h>
-#include <QGraphicsDropShadowEffect>
 
 namespace xequation
 {
 namespace gui {
 
-class ToastProgressBar : public QWidget
+class ToastProgressBar : public QDialog
 {
     Q_OBJECT
 public:
@@ -54,7 +47,6 @@ signals:
 protected:
     void showEvent(QShowEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
-    void paintEvent(QPaintEvent *event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:

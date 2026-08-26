@@ -38,7 +38,7 @@ class ToastManager : public QObject
 
     QMap<QUuid, ToastProgressBar *> toast_map_;
 
-    static QMap<QUuid, int> kOccupiedYOffsets;
+    QMap<QUuid, int> kOccupiedYOffsets;
 };
 } // namespace gui
 } // namespace xequation

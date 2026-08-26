@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QUuid>
 #include <atomic>
+#include <functional>
 
 namespace xequation
 {
@@ -28,23 +29,31 @@ class Task : public QObject
     virtual void RequestCancel();
     State state() const
     {
-        return state_;
+        return state_.load();
     }
     bool IsCompleted() const
     {
-        return state_ == State::kCompleted;
+        return state_.load() == State::kCompleted;
     }
     bool IsCancelled() const
     {
-        return state_ == State::kCancelled;
+        return state_.load() == State::kCancelled;
     }
     bool IsPending() const
     {
-        return state_ == State::kPending;
+        return state_.load() == State::kPending;
     }
     bool IsRunning() const
     {
-        return state_ == State::kRunning;
+        return state_.load() == State::kRunning;
+    }
+    QString error_message() const
+    {
+        return error_message_;
+    }
+    bool HasError() const
+    {
+        return !error_message_.isEmpty();
     }
     QUuid id() const
     {
@@ -76,15 +85,37 @@ class Task : public QObject
 
     QUuid id_;
     QString title_;
-    State state_;
+    std::atomic<State> state_{State::kPending};
     QDateTime create_time_;
     QDateTime start_time_;
     QDateTime end_time_;
     int progress_ = 0;
     QString progress_message_;
-    std::atomic<void*> internal_data_ {nullptr};
+    QString error_message_;
     std::atomic<bool> cancel_requested_{false};
     friend class TaskManager;
+};
+
+// 通用任务：包装任意可调用对象，便于直接 Enqueue 一个 lambda
+class FuncTask : public Task
+{
+    Q_OBJECT
+  public:
+    using Callback = std::function<void()>;
+    // call 为 null 时仅作为跑空任务的占位
+    explicit FuncTask(const QString &title, Callback call = nullptr, QObject *parent = nullptr)
+        : Task(title, parent), call_(std::move(call))
+    {
+    }
+    ~FuncTask() override = default;
+
+    void Execute() override;
+    void Cleanup() override
+    {
+    }
+
+  private:
+    Callback call_;
 };
 } // namespace gui
 } // namespace xequation

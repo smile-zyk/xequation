@@ -37,10 +37,10 @@ TaskManager::~TaskManager()
     }
 }
 
-void TaskManager::EnqueueTask(std::unique_ptr<Task> task, int priority)
+void TaskManager::EnqueueTask(std::unique_ptr<Task> task)
 {
     task->create_time_ = QDateTime::currentDateTime();
-    task->state_ = Task::State::kPending;
+    task->state_.store(Task::State::kPending);
 
     QUuid task_id = task->id_;
 	auto task_ptr = task.get();
@@ -48,7 +48,7 @@ void TaskManager::EnqueueTask(std::unique_ptr<Task> task, int priority)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         all_tasks_[task_id] = std::move(task);
-        pending_queue_.push(QueuedItem(task_id, priority, enqueue_counter_++));
+        pending_queue_.push_back(task_id);
     }
 
 	connect(task_ptr, &Task::Completed, this, &TaskManager::TaskFinished);
@@ -69,40 +69,38 @@ void TaskManager::CancelTask(const QUuid &task_id)
         auto task_it = all_tasks_.find(task_id);
         if (task_it != all_tasks_.end() && task_it->second)
         {
-            task_it->second->state_ = Task::State::kCanceling;
-            Task *task_ptr = task_it->second.get();
-            QtConcurrent::run(thread_pool_, [task_ptr]() {
-                task_ptr->RequestCancel();
-            });
+            task_it->second->state_.store(Task::State::kCanceling);
+            // RequestCancel 只是原子置位，直接同步调用即可，避免后续任务被清理后的悬垂指针
+            task_it->second->RequestCancel();
         }
         return;
     }
 
-    std::vector<QueuedItem> remaining;
+    std::vector<QUuid> remaining;
     while (!pending_queue_.empty())
     {
-        auto queued = pending_queue_.top();
-        pending_queue_.pop();
-        
-        if (queued.task_id == task_id)
+        auto queued_id = pending_queue_.front();
+        pending_queue_.pop_front();
+
+        if (queued_id == task_id)
         {
-            auto task_it = all_tasks_.find(task_id);
+            auto task_it = all_tasks_.find(queued_id);
             if (task_it != all_tasks_.end() && task_it->second)
             {
-                task_it->second->state_ = Task::State::kCancelled;
+                task_it->second->state_.store(Task::State::kCancelled);
                 task_it->second->Cleanup();
-                emit task_it->second->Cancelled(task_id);
-                emit TaskCancelled(task_id);
+                emit task_it->second->Cancelled(queued_id);
+                emit TaskCancelled(queued_id);
                 all_tasks_.erase(task_it);
             }
             continue;
         }
-        remaining.push_back(queued);
+        remaining.push_back(queued_id);
     }
 
-    for (auto &queued : remaining)
+    for (auto &queued_id : remaining)
     {
-        pending_queue_.push(queued);
+        pending_queue_.push_back(queued_id);
     }
 }
 
@@ -112,17 +110,17 @@ void TaskManager::Shutdown()
 
     while (!pending_queue_.empty())
     {
-        auto queued = pending_queue_.top();
-        pending_queue_.pop();
+        auto queued_id = pending_queue_.front();
+        pending_queue_.pop_front();
         
-        auto task_it = all_tasks_.find(queued.task_id);
+        auto task_it = all_tasks_.find(queued_id);
         if (task_it != all_tasks_.end() && task_it->second)
         {
-            task_it->second->state_ = Task::State::kCancelled;
+            task_it->second->state_.store(Task::State::kCancelled);
             task_it->second->Cleanup();
-            emit task_it->second->Cancelled(queued.task_id);
-            emit TaskCancelled(queued.task_id);
-			all_tasks_.erase(task_it);
+            emit task_it->second->Cancelled(queued_id);
+            emit TaskCancelled(queued_id);
+            all_tasks_.erase(task_it);
         }
     }
 
@@ -131,11 +129,9 @@ void TaskManager::Shutdown()
         auto task_it = all_tasks_.find(entry.first);
         if (task_it != all_tasks_.end() && task_it->second)
         {
-            task_it->second->state_ = Task::State::kCanceling;
-            Task *task_ptr = task_it->second.get();
-            QtConcurrent::run(thread_pool_, [task_ptr]() {
-                task_ptr->RequestCancel();
-            });
+            task_it->second->state_.store(Task::State::kCanceling);
+            // RequestCancel 只是原子置位，直接同步调用即可
+            task_it->second->RequestCancel();
         }
     }
 }
@@ -146,16 +142,16 @@ void TaskManager::ClearQueue()
 
     while (!pending_queue_.empty())
     {
-        auto queued = pending_queue_.top();
-        pending_queue_.pop();
+        auto queued_id = pending_queue_.front();
+        pending_queue_.pop_front();
         
-        auto task_it = all_tasks_.find(queued.task_id);
+        auto task_it = all_tasks_.find(queued_id);
         if (task_it != all_tasks_.end() && task_it->second)
         {
-            task_it->second->state_ = Task::State::kCancelled;
+            task_it->second->state_.store(Task::State::kCancelled);
             task_it->second->Cleanup();
-            emit task_it->second->Cancelled(queued.task_id);
-            emit TaskCancelled(queued.task_id);
+            emit task_it->second->Cancelled(queued_id);
+            emit TaskCancelled(queued_id);
             all_tasks_.erase(task_it);
         }
     }
@@ -223,11 +219,22 @@ void TaskManager::ExecuteTask(Task *task)
         return;
     }
 
-    task->state_ = Task::State::kRunning;
+    task->state_.store(Task::State::kRunning);
     emit task->Started(task->id_);
-	emit TaskStarted(task->id_);
     task->start_time_ = QDateTime::currentDateTime();
-    task->Execute();
+    try
+    {
+        task->Execute();
+    }
+    catch (const std::exception &e)
+    {
+        // QtConcurrent 会静默吞掉异常，这里记录错误信息并确保任务能正常收尾
+        task->error_message_ = QString::fromUtf8(e.what());
+    }
+    catch (...)
+    {
+        task->error_message_ = QStringLiteral("Unknown exception during task execution");
+    }
     task->end_time_ = QDateTime::currentDateTime();
 }
 
@@ -246,9 +253,9 @@ void TaskManager::MaybeDispatchNext()
                 return;
             }
 
-            auto queued = pending_queue_.top();
-            pending_queue_.pop();
-            task_id = queued.task_id;
+            auto queued_id = pending_queue_.front();
+            pending_queue_.pop_front();
+            task_id = queued_id;
 
             auto task_it = all_tasks_.find(task_id);
             if (task_it == all_tasks_.end() || !task_it->second)
@@ -311,17 +318,19 @@ void TaskManager::OnTaskFinished(const QUuid &task_id)
 
     if (task_ptr)
     {
-        if (task_ptr->state_ == Task::State::kCanceling)
+        Task::State final_state = task_ptr->state_.load();
+        if (final_state == Task::State::kCanceling)
         {
-            task_ptr->state_ = Task::State::kCancelled;
+            final_state = Task::State::kCancelled;
         }
-		if(task_ptr->state_ == Task::State::kRunning)
-		{
-			task_ptr->state_ = Task::State::kCompleted;
-		}
+        else if (final_state == Task::State::kRunning)
+        {
+            final_state = Task::State::kCompleted;
+        }
+        task_ptr->state_.store(final_state);
         task_ptr->Cleanup();
 
-        if (task_ptr->state_ == Task::State::kCancelled)
+        if (final_state == Task::State::kCancelled)
         {
             emit task_ptr->Cancelled(task_id);
             emit TaskCancelled(task_id);
@@ -339,12 +348,14 @@ void TaskManager::OnTaskFinished(const QUuid &task_id)
 
     MaybeDispatchNext();
 
+    bool drained = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (pending_queue_.empty() && running_tasks_.empty())
-        {
-            emit QueueDrained();
-        }
+        drained = pending_queue_.empty() && running_tasks_.empty();
+    }
+    if (drained)
+    {
+        emit QueueDrained();
     }
 }
 

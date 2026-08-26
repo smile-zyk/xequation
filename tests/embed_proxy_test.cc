@@ -3,8 +3,12 @@
 #include <string>
 #include <vector>
 
-#include "embed/xequation_embed.h"
+#include "xequation_proxy.h"
 #include "python/value_pybind_converter.h"
+#include "python/python_equation_context.h"
+#include "python/python_equation_engine.h"
+#include "rel_engine/rel_equation_context.h"
+#include "rel_engine/rel_equation_engine.h"
 
 namespace
 {
@@ -52,8 +56,10 @@ TEST(EmbedProxySingleton, TestConcreteEngineContextAccess)
     EXPECT_NO_THROW(proxy.rel_context());
 
     // Context 与 Manager 持有的是同一个对象
-    EXPECT_EQ(&proxy.python_context(), &proxy.manager(Engine::kPython).context());
-    EXPECT_EQ(&proxy.rel_context(), &proxy.manager(Engine::kRel).context());
+    EXPECT_EQ(static_cast<const xequation::EquationContext *>(&proxy.python_context()),
+              &proxy.manager(Engine::kPython).context());
+    EXPECT_EQ(static_cast<const xequation::EquationContext *>(&proxy.rel_context()),
+              &proxy.manager(Engine::kRel).context());
 
     // 具体 Context 可直接写值，与 GetValue 互通
     proxy.rel_context().Set("v", EquationValue(7));
@@ -118,8 +124,8 @@ TEST(EmbedProxySingleton, TestParseEvalExec)
     EXPECT_EQ(parse.items[0].name, "e");
     EXPECT_THAT(parse.items[0].dependencies, testing::UnorderedElementsAre("a", "b", "c"));
 
-    proxy.SetValue(Engine::kRel, "a", EquationValue(2));
-    proxy.SetValue(Engine::kRel, "b", EquationValue(3));
+    proxy.rel_context().Set("a", EquationValue(2));
+    proxy.rel_context().Set("b", EquationValue(3));
     auto eval = proxy.Eval(Engine::kRel, "a + b");
     EXPECT_EQ(eval.status, ResultStatus::kSuccess);
     EXPECT_EQ(eval.value.Cast<int>(), 5);

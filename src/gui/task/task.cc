@@ -35,5 +35,13 @@ void Task::SetProgress(int progress, const QString &message)
     emit ProgressUpdated(id_, progress_, progress_message_);
 }
 
+void FuncTask::Execute()
+{
+    if (call_)
+    {
+        call_();
+    }
+}
+
 } // namespace gui
 } // namespace xequation

@@ -1,27 +1,29 @@
-#include "data_frame_table_view.h"
+#include "equation_data_frame_view.h"
 
-#include "data_frame_table_model.h"
+#include "equation_data_frame_model.h"
 
 #include <QHeaderView>
 #include <QResizeEvent>
 #include <QScrollBar>
 
-namespace xequation
+namespace xresults
 {
-namespace rel_demo
+namespace gui
 {
 
-DataFrameTableView::DataFrameTableView(QWidget *parent) : QTableView(parent)
+using namespace xequation;
+
+EquationDataFrameView::EquationDataFrameView(QWidget *parent) : QTableView(parent)
 {
     SetupUI();
     SetupConnections();
 }
 
-DataFrameTableView::~DataFrameTableView() = default;
+EquationDataFrameView::~EquationDataFrameView() = default;
 
-void DataFrameTableView::SetupUI()
+void EquationDataFrameView::SetupUI()
 {
-    table_model_ = new DataFrameTableModel(this);
+    table_model_ = new EquationDataFrameModel(this);
     setModel(table_model_);
 
     setAlternatingRowColors(true);
@@ -36,58 +38,60 @@ void DataFrameTableView::SetupUI()
     verticalHeader()->setVisible(true);
     verticalHeader()->setDefaultSectionSize(24);
 
-    // 表格大小自适应窗口宽度。
+    // Table size adapts to the window width.
     setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContentsOnFirstShow);
 }
 
-void DataFrameTableView::SetupConnections()
+void EquationDataFrameView::SetupConnections()
 {
     connect(
         verticalScrollBar(), &QScrollBar::valueChanged, this,
-        &DataFrameTableView::OnVerticalScrollbarValueChanged
+        &EquationDataFrameView::OnVerticalScrollbarValueChanged
     );
 }
 
-void DataFrameTableView::SetEquation(const Equation *equation)
+void EquationDataFrameView::SetEquation(const Equation *equation)
 {
     table_model_->SetEquation(equation);
-    // 模型重置后，确保首屏数据已加载（Qt 视图不会在 setModel/reset 后
-    // 自动调用 fetchMore，这里显式触发一次）。
+    // After the model resets, ensure the first screen is loaded (the Qt view
+    // does not call fetchMore automatically after setModel/reset; trigger it
+    // once explicitly).
     FetchMoreIfNeeded();
 }
 
-void DataFrameTableView::Clear()
+void EquationDataFrameView::Clear()
 {
     table_model_->Clear();
 }
 
-void DataFrameTableView::resizeEvent(QResizeEvent *event)
+void EquationDataFrameView::resizeEvent(QResizeEvent *event)
 {
     QTableView::resizeEvent(event);
     FetchMoreIfNeeded();
 }
 
-void DataFrameTableView::showEvent(QShowEvent *event)
+void EquationDataFrameView::showEvent(QShowEvent *event)
 {
     QTableView::showEvent(event);
     FetchMoreIfNeeded();
 }
 
-void DataFrameTableView::OnVerticalScrollbarValueChanged(int /*value*/)
+void EquationDataFrameView::OnVerticalScrollbarValueChanged(int /*value*/)
 {
     FetchMoreIfNeeded();
 }
 
-void DataFrameTableView::FetchMoreIfNeeded()
+void EquationDataFrameView::FetchMoreIfNeeded()
 {
     if (!table_model_)
     {
         return;
     }
 
-    // 滚动到底部（或首屏装不满）时，若模型还有更多行则请求加载。
-    // 与 QTreeView 的懒加载模式一致：检查可视区域底部是否已是
-    // 当前最后一行，若是且 canFetchMore() 为真则调用 fetchMore()。
+    // When scrolled to the bottom (or the first screen is not full), request
+    // more rows if the model still has them.  Matches QTreeView's lazy-load
+    // pattern: check whether the visible area bottom is the current last row;
+    // if so and canFetchMore() is true, call fetchMore().
     const int viewport_height = viewport()->height();
     if (viewport_height <= 0)
     {
@@ -97,8 +101,9 @@ void DataFrameTableView::FetchMoreIfNeeded()
     const QModelIndex bottom_index = indexAt(QPoint(1, viewport_height - 1));
     if (!bottom_index.isValid())
     {
-        // 视口内尚无行（首屏未填满或模型为空）。若模型仍有更多数据，
-        // 直接请求加载一批，确保有内容可显示。
+        // No rows in the viewport (first screen not filled or model empty). If
+        // the model still has more data, request a batch directly so there is
+        // something to show.
         if (table_model_->canFetchMore(QModelIndex()))
         {
             table_model_->fetchMore(QModelIndex());
@@ -113,5 +118,5 @@ void DataFrameTableView::FetchMoreIfNeeded()
     }
 }
 
-} // namespace rel_demo
-} // namespace xequation
+} // namespace gui
+} // namespace xresults

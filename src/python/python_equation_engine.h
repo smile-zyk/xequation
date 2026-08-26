@@ -34,6 +34,9 @@ class PythonEquationEngine : public EquationEngine<PythonEquationEngine>
   private:
     std::unique_ptr<PythonParser> code_parser = nullptr;
     std::unique_ptr<PythonExecutor> code_executor = nullptr;
+    // 主线程初始化 Python 后保存的线程状态；非空表示主线程已让出 GIL
+    // （参见构造函数末尾的 PyEval_SaveThread）。
+    void *g_main_thread_state_ = nullptr;
 };
 } // namespace python
 } // namespace xequation

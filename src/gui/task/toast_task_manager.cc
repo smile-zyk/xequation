@@ -14,7 +14,13 @@ ToastTaskManager::ToastTaskManager(QWidget *parent, int max_concurrent_tasks)
 
 ToastTaskManager::~ToastTaskManager()
 {
+    // 必须先断开与 toast 相关的连接并停用回调，再删除 toast_manager_。
+    // 基类 ~TaskManager 会触发 Shutdown / waitForFinished，进而发出
+    // TaskCompleted / TaskCancelled 等信号，若 toast_manager_ 已销毁会变成悬垂指针。
+    disconnect(toast_manager_, nullptr, this, nullptr);
+    disconnect(this, nullptr, toast_manager_, nullptr);
     delete toast_manager_;
+    toast_manager_ = nullptr;
 }
 
 void ToastTaskManager::SetupConnections()

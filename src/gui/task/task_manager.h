@@ -7,10 +7,13 @@
 #include <QObject>
 #include <QThreadPool>
 #include <QtConcurrent/QtConcurrent>
+#include <deque>
 #include <memory>
 #include <mutex>
-#include <queue>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace xequation
 {
@@ -23,7 +26,18 @@ class TaskManager : public QObject
     TaskManager(QObject *parent = nullptr, int max_concurrent_tasks = 1);
     ~TaskManager();
 
-    void EnqueueTask(std::unique_ptr<Task> task, int priority = 0);
+    void EnqueueTask(std::unique_ptr<Task> task);
+
+    // 便捷重载：直接传入可调用对象（lambda / 函数指针 / std::function 等）
+    // SFINAE 约束：仅当参数能构造成 FuncTask::Callback（即 std::function<void()>）时参与重载，
+    // 避免抢走 EnqueueTask(std::unique_ptr<Task>) 的匹配（如 EnqueueTask(std::move(task))）。
+    template <typename Callable,
+              typename std::enable_if<std::is_constructible<FuncTask::Callback, Callable>::value, int>::type = 0>
+    void EnqueueTask(Callable &&callable, const QString &title = QString())
+    {
+        auto task = std::unique_ptr<FuncTask>(new FuncTask(title, std::forward<Callable>(callable)));
+        EnqueueTask(std::move(task));
+    }
     void CancelTask(const QUuid &task_id);
     void Shutdown();
     void ClearQueue();
@@ -47,27 +61,6 @@ class TaskManager : public QObject
     void QueueDrained();
 
   private:
-    struct QueuedItem
-    {
-        QUuid task_id;
-        int priority;
-        std::size_t enqueue_order;
-
-        QueuedItem(const QUuid &id, int prio, std::size_t order)
-            : task_id(id), priority(prio), enqueue_order(order)
-        {
-        }
-
-        bool operator<(const QueuedItem &other) const
-        {
-            if (priority == other.priority)
-            {
-                return enqueue_order > other.enqueue_order;
-            }
-            return priority < other.priority;
-        }
-    };
-
     struct RunningTaskInfo
     {
         std::unique_ptr<QFutureWatcher<void>> watcher;
@@ -90,11 +83,10 @@ class TaskManager : public QObject
 
     std::unordered_map<QUuid, std::unique_ptr<Task>, QUuidHash> all_tasks_;
     
-    std::priority_queue<QueuedItem, std::vector<QueuedItem>> pending_queue_;
+    std::deque<QUuid> pending_queue_;
     
     std::unordered_map<QUuid, RunningTaskInfo, QUuidHash> running_tasks_;
 
-    std::size_t enqueue_counter_{0};
     mutable std::mutex mutex_;
 };
 } // namespace gui

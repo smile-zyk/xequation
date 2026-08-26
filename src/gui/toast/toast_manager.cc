@@ -7,7 +7,6 @@ namespace gui
 {
 
 int ToastManager::kProgressBarMargin = 10;
-QMap<QUuid, int> ToastManager::kOccupiedYOffsets;
 
 ToastManager::ToastManager(QWidget *parent)
     : QObject(parent)
@@ -139,25 +138,26 @@ ToastProgressBar *ToastManager::GetProgressBar(const QUuid &id) const
 
 void ToastManager::ReorderProgressBars()
 {
-    QMap<int, QUuid> sorted_offsets;
-    for (auto it = kOccupiedYOffsets.begin(); it != kOccupiedYOffsets.end(); ++it)
-    {
-        sorted_offsets[it.value()] = it.key();
-    }
+    QList<QUuid> keys = kOccupiedYOffsets.keys();
+    std::sort(keys.begin(), keys.end(), [this](const QUuid &a, const QUuid &b) {
+        return kOccupiedYOffsets.value(a) < kOccupiedYOffsets.value(b);
+    });
 
     int new_y_offset = 0;
-    for (auto it = sorted_offsets.begin(); it != sorted_offsets.end(); ++it)
+    for (const QUuid &uuid : keys)
     {
-        QUuid uuid = it.value();
         kOccupiedYOffsets[uuid] = new_y_offset;
         ToastProgressBar *toast = nullptr;
         if (toast_map_.contains(uuid))
         {
             toast = toast_map_[uuid];
             toast->SetYOffset(new_y_offset);
+            new_y_offset += toast->height() + kProgressBarMargin;
         }
-        
-        new_y_offset += toast->height() + kProgressBarMargin;
+        else
+        {
+            kOccupiedYOffsets.remove(uuid);
+        }
     }
 }
 } // namespace gui

@@ -174,6 +174,12 @@ class EquationManager
 
     void UpdateEquationStatus(const std::string &equation_name, ResultStatus status, const std::string& message = "");
 
+    // Computes the update scope for a group: the group's equations + all of their
+    // dependents (propagated by TopologicalSort) plus every dirty (invalidated) node
+    // (e.g. cross-group equations that lost their dependency after a rename/removal).
+    // Returns an empty vector if the group does not exist.
+    std::vector<std::string> GetEquationsToUpdate(const EquationGroupId &group_id) const;
+
     bool WriteDependencyGraphToDotFile(const std::string &file_path) const;
 
     const DependencyGraph &graph()
@@ -217,6 +223,10 @@ class EquationManager
 
     void AddEquationToGroup(EquationGroup *group, EquationPtr equation);
     void RemoveEquationInGroup(EquationGroup *group, const std::string &equation_name);
+
+    // Appends every dirty node in the graph to update_names (may duplicate; the caller
+    // deduplicates with TopologicalSort).
+    void CollectDirtyNodes(std::vector<std::string> &update_names) const;
 
     ScopedConnection ConnectGraphDependencyUpdated(std::vector<std::string> &dependency_updated_equation) const;
     ScopedConnection ConnectGraphDependentUpdated(std::vector<std::string> &dependent_updated_equation) const;

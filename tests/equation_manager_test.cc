@@ -610,6 +610,116 @@ TEST_F(EquationManagerTest, Eval)
     EXPECT_EQ(res.status, ResultStatus::kNameError);
 }
 
+TEST_F(EquationManagerTest, RenameDependencyAcrossGroupsDoesNotUpdateDependent)
+{
+    // User scenario: AddEquation(a,1) / AddEquation(b,a) in two groups;
+    // after renaming "a" to "c" in group 0, UpdateEquationGroup(group 0) must also
+    // recompute "b" in group 1.
+    EquationGroupId id_0 = manager_.AddEquationGroup("A=1");
+    EquationGroupId id_1 = manager_.AddEquationGroup("B=A");
+    manager_.Update();
+
+    EXPECT_TRUE(manager_.context().Contains("B"));
+    EXPECT_TRUE(manager_.context().Get("B").Cast<int>() == 1);
+    EXPECT_EQ(manager_.GetEquation("B")->status(), ResultStatus::kSuccess);
+
+    // Rename A=1 to C=1 (equivalent to editing group 0: remove "a", add "c").
+    manager_.EditEquationGroup(id_0, "C=1");
+
+    // After the edit, "B"'s dependency "a" is gone, so "B" must be dirty.
+    EXPECT_TRUE(manager_.graph().GetNode("B")->dirty_flag());
+
+    // Equivalent to the GUI edit flow: only the edited group is updated.
+    // Correct behavior: "B"'s dependency "a" no longer exists, so "B" must be
+    // recomputed -> NameError and removed from context, instead of keeping the stale
+    // value 1 and Success status.
+    manager_.UpdateEquationGroup(id_0);
+
+    EXPECT_FALSE(manager_.context().Contains("B"));
+    EXPECT_EQ(manager_.GetEquation("B")->status(), ResultStatus::kNameError);
+    EXPECT_TRUE(manager_.context().Contains("C"));
+    EXPECT_TRUE(manager_.context().Get("C").Cast<int>() == 1);
+}
+
+TEST_F(EquationManagerTest, UpdateEquationAfterRenameRecomputesDirtyDependents)
+{
+    // User scenario: A=1 (group 0), B=A (group 1). After renaming "A" to "C" in group 0,
+    // even an explicit UpdateEquation("C") must recompute the invalidated "B";
+    // it must not keep the stale value 1 and Success status.
+    EquationGroupId id_0 = manager_.AddEquationGroup("A=1");
+    EquationGroupId id_1 = manager_.AddEquationGroup("B=A");
+    manager_.Update();
+
+    EXPECT_TRUE(manager_.context().Get("B").Cast<int>() == 1);
+
+    manager_.EditEquationGroup(id_0, "C=1");
+
+    // The user now updates the new node C ("B"'s dependency "a" is gone and dirty).
+    manager_.UpdateEquation("C");
+
+    EXPECT_FALSE(manager_.context().Contains("B"));
+    EXPECT_EQ(manager_.GetEquation("B")->status(), ResultStatus::kNameError);
+    EXPECT_TRUE(manager_.context().Contains("C"));
+    EXPECT_TRUE(manager_.context().Get("C").Cast<int>() == 1);
+}
+
+TEST_F(EquationManagerTest, ResetContextThenUpdateRecoversAllValues)
+{
+    // Fallback scenario for the clear semantics: after ResetContext() clears the context,
+    // Update() must recompute everything and restore the values, not no-op because the
+    // nodes are no longer dirty.
+    EquationGroupId id_0 = manager_.AddEquationGroup("A=B+C;B=D+E;C=F;D=1;E=5;F=10");
+    manager_.Update();
+
+    EXPECT_TRUE(manager_.context().Get("A").Cast<int>() == 16);
+    EXPECT_TRUE(manager_.context().Get("B").Cast<int>() == 6);
+    EXPECT_TRUE(manager_.context().Get("C").Cast<int>() == 10);
+
+    // After a successful recompute the nodes should be clean.
+    EXPECT_FALSE(manager_.graph().GetNode("A")->dirty_flag());
+    EXPECT_FALSE(manager_.graph().GetNode("B")->dirty_flag());
+
+    manager_.ResetContext();
+
+    // The context is cleared and every node should be re-dirtied.
+    EXPECT_FALSE(manager_.context().Contains("A"));
+    EXPECT_TRUE(manager_.graph().GetNode("A")->dirty_flag());
+    EXPECT_TRUE(manager_.graph().GetNode("B")->dirty_flag());
+    EXPECT_TRUE(manager_.graph().GetNode("F")->dirty_flag());
+
+    manager_.Update();
+
+    // Everything is restored.
+    EXPECT_TRUE(manager_.context().Get("A").Cast<int>() == 16);
+    EXPECT_TRUE(manager_.context().Get("B").Cast<int>() == 6);
+    EXPECT_TRUE(manager_.context().Get("C").Cast<int>() == 10);
+    EXPECT_TRUE(manager_.context().Get("D").Cast<int>() == 1);
+    EXPECT_TRUE(manager_.context().Get("E").Cast<int>() == 5);
+    EXPECT_TRUE(manager_.context().Get("F").Cast<int>() == 10);
+    EXPECT_EQ(manager_.GetEquation("A")->status(), ResultStatus::kSuccess);
+}
+
+TEST_F(EquationManagerTest, UpdateEquationStatusThenUpdateRecovers)
+{
+    // After UpdateEquationStatus removes the context value, Update() must recompute it.
+    EquationGroupId id_0 = manager_.AddEquationGroup("A=1;B=A");
+    manager_.Update();
+
+    EXPECT_TRUE(manager_.context().Get("B").Cast<int>() == 1);
+
+    // Simulate an interruption: "B" is marked KeyBoardInterrupt and removed from context.
+    manager_.UpdateEquationStatus("B", ResultStatus::kKeyBoardInterrupt);
+    EXPECT_FALSE(manager_.context().Contains("B"));
+    EXPECT_EQ(manager_.GetEquation("B")->status(), ResultStatus::kKeyBoardInterrupt);
+    EXPECT_TRUE(manager_.graph().GetNode("B")->dirty_flag());
+
+    // A later Update must recompute "B".
+    manager_.Update();
+    EXPECT_TRUE(manager_.context().Get("B").Cast<int>() == 1);
+    EXPECT_EQ(manager_.GetEquation("B")->status(), ResultStatus::kSuccess);
+    EXPECT_FALSE(manager_.graph().GetNode("B")->dirty_flag());
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

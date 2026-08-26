@@ -48,15 +48,23 @@ add_gtest_executable(python_parser_test "PythonParser" python_parser_test.cc)
 add_gtest_executable(python_executor_test "PythonExecutor" python_executor_test.cc)
 add_gtest_executable(python_equation_engine_test "PythonEquationEngine" python_equation_engine_test.cc)
 
-# ---- embed 门面测试：只链接 xequation_embed 聚合库 -------------------------
-# （不链接 xequation_core / xequation_rel / xequation_python，
-#   验证宿主仓库"一个库 + 一个头文件"的接入方式。）
-add_executable(embed_proxy_test embed_proxy_test.cc)
+# ---- XEquationProxy 门面测试：链接 core / rel_engine / python / proxy 源码 ----
+# （不再有独立的 xequation_embed 聚合库；XEquationProxy 实现在 proxy_demo/，并入本测试。）
+add_executable(embed_proxy_test embed_proxy_test.cc
+    ${CMAKE_SOURCE_DIR}/proxy_demo/xequation_proxy.cc
+)
 
 set_target_properties(embed_proxy_test PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
+target_include_directories(embed_proxy_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/proxy_demo
+    ${CMAKE_SOURCE_DIR}/src
+)
+
 target_link_libraries(embed_proxy_test PRIVATE
-    xequation_embed
+    xequation_core
+    xequation_rel
+    xequation_python
     GTest::gtest
     GTest::gtest_main
     GTest::gmock

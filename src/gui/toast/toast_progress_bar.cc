@@ -1,8 +1,8 @@
 #include "toast_progress_bar.h"
 #include "toast_manager.h"
 
-#include <QPainter>
-#include <QPainterPath>
+#include <QGuiApplication>
+#include <QScreen>
 
 namespace xequation
 {
@@ -10,11 +10,11 @@ namespace gui
 {
 
 ToastProgressBar::ToastProgressBar(const QString &title, int duration, QWidget *parent)
-    : QWidget(parent), duration_(duration), y_offset_(0), is_completed_(false), is_cancel_requested_(false)
+    : QDialog(parent), duration_(duration), y_offset_(0), is_completed_(false), is_cancel_requested_(false), is_busy_(false)
 {
     setWindowTitle(title);
+    // frameless：无系统标题栏，窗口 geometry 与 move 坐标一致，位置计算才正确
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-    setAttribute(Qt::WA_TranslucentBackground);
     setMinimumWidth(500);
     SetupUI();
     SetupConnections();
@@ -79,9 +79,15 @@ void ToastProgressBar::CancelRequest()
 
 void ToastProgressBar::Cancel()
 {
-    if (is_cancel_requested_ == false)
-    {
+    if (is_completed_)
         return;
+
+    // 可能是按钮触发的取消（is_cancel_requested_ 已置位），
+    // 也可能是 TaskManager::CancelTask 等外部主动取消，此时补标记并直接淡出
+    if (!is_cancel_requested_)
+    {
+        is_cancel_requested_ = true;
+        cancel_button_->setEnabled(false);
     }
 
     fade_out_timer_->start(duration_);
@@ -105,23 +111,6 @@ void ToastProgressBar::closeEvent(QCloseEvent *event)
     emit Finished();
 }
 
-void ToastProgressBar::paintEvent(QPaintEvent *event)
-{
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    
-    // Draw rounded rectangle background with shadow
-    QPainterPath path;
-    path.addRoundedRect(rect(), 10, 10);
-    
-    // Draw white background
-    painter.setBrush(Qt::white);
-    painter.setPen(Qt::NoPen);
-    painter.drawPath(path);
-    
-    QWidget::paintEvent(event);
-}
-
 bool ToastProgressBar::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == parentWidget())
@@ -142,17 +131,9 @@ void ToastProgressBar::SetupUI()
 
     QHBoxLayout *title_layout = new QHBoxLayout();
     title_label_ = new QLabel(windowTitle(), this);
-    QFont title_font = title_label_->font();
-    title_font.setPointSize(9);
-    title_font.setBold(true);
-    title_label_->setFont(title_font);
     title_layout->addWidget(title_label_);
     title_layout->addStretch();
-    close_button_ = new QPushButton(this);
-    close_button_->setIcon(QIcon(":/icons/close.png"));
-    close_button_->setFlat(true);
-    close_button_->setFixedSize(24, 24);
-    close_button_->setCursor(Qt::PointingHandCursor);
+    close_button_ = new QPushButton("X", this);
     title_layout->addWidget(close_button_);
 
     progress_bar_ = new QProgressBar(this);
@@ -160,27 +141,14 @@ void ToastProgressBar::SetupUI()
     progress_bar_->setValue(0);
     progress_bar_->setTextVisible(true);
     progress_bar_->setFormat("%p%");
-    progress_bar_->setMinimumHeight(20);
-    QFont progress_font = progress_bar_->font();
-    progress_font.setPointSize(8);
-    progress_bar_->setFont(progress_font);
 
     message_label_ = new QLabel(this);
     message_label_->setWordWrap(true);
-    QFont message_font = message_label_->font();
-    message_font.setPointSize(8);
-    message_label_->setFont(message_font);
 
     QHBoxLayout *button_layout = new QHBoxLayout();
     button_layout->addStretch();
 
     cancel_button_ = new QPushButton("Cancel", this);
-    cancel_button_->setMinimumWidth(80);
-    cancel_button_->setMinimumHeight(28);
-    cancel_button_->setCursor(Qt::PointingHandCursor);
-    QFont button_font = cancel_button_->font();
-    button_font.setPointSize(8);
-    cancel_button_->setFont(button_font);
 
     button_layout->addWidget(cancel_button_);
 

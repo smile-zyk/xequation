@@ -434,7 +434,7 @@ bool DemoWidget::AddEquationGroup(const std::string &statement)
     {
         auto id = equation_manager_->AddEquationGroup(statement);
         editor_type_map_[id] = EditorType::Code;
-        // Delay the async update to ensure GIL is fully released
+        // 延迟到事件循环空闲时再发起异步更新，避免阻塞当前调用栈
         QTimer::singleShot(0, [this, id]() { AsyncUpdateEquationGroup(id); });
         return true;
     }
@@ -471,7 +471,7 @@ bool DemoWidget::EditEquationGroup(const xequation::EquationGroupId &id, const s
     {
         equation_manager_->EditEquationGroup(id, statement);
         editor_type_map_[id] = EditorType::Code;
-        // Delay the async update to ensure GIL is fully released
+        // 延迟到事件循环空闲时再发起异步更新，避免阻塞当前调用栈
         QTimer::singleShot(0, [this, id]() { AsyncUpdateEquationGroup(id); });
         return true;
     }
@@ -508,7 +508,7 @@ bool DemoWidget::AddEquation(const QString &equation_name, const QString &expres
     {
         auto id = equation_manager_->AddEquation(equation_name.toStdString(), expression.toStdString());
         editor_type_map_[id] = EditorType::Normal;
-        // Delay the async update to ensure GIL is fully released
+        // 延迟到事件循环空闲时再发起异步更新，避免阻塞当前调用栈
         QTimer::singleShot(0, [this, id]() { AsyncUpdateEquationGroup(id); });
         return true;
     }
@@ -547,7 +547,7 @@ bool DemoWidget::EditEquation(
     {
         equation_manager_->EditSingleEquation(group_id, equation_name.toStdString(), expression.toStdString());
         editor_type_map_[group_id] = EditorType::Normal;
-        // Delay the async update to ensure GIL is fully released
+        // 延迟到事件循环空闲时再发起异步更新，避免阻塞当前调用栈
         QTimer::singleShot(0, [this, group_id]() { AsyncUpdateEquationGroup(group_id); });
         return true;
     }

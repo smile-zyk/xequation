@@ -213,6 +213,7 @@ class DependencyGraph
 
     void InvalidateNode(const std::string &node_name);
     void MakeNodeDirty(const std::string& node_name, bool dirty, bool make_dependent = false);
+    void SetNodeDirty(const std::string& node_name, bool dirty);
     void Traversal(std::function<void(const std::string &)> callback) const;
     void Reset();
 
