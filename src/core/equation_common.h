@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/uuid/uuid.hpp>
+
 #include "bitmask.hpp"
 #include "equation_value.h"
 
@@ -47,15 +49,8 @@ enum class ResultStatus
     kUnknownError
 };
 
-enum class InterpretMode
-{
-    kExec,
-    kEval
-};
-
 struct InterpretResult
 {
-    InterpretMode mode;
     ResultStatus status;
     std::string message;
     EquationValue value;
@@ -64,7 +59,6 @@ struct InterpretResult
 enum class ItemType
 {
     kUnknown,
-    kExpression,
     kVariable,
     kFunction,
     kClass,
@@ -104,6 +98,30 @@ struct ParseResult
     std::vector<ParseResultItem> items;
 };
 
+// =========================================================================
+//  Registered expression (只算不存)
+//
+//  A registered expression is an "observe-only" computation:
+//    - It is parsed for dependencies and participates in the dependency graph,
+//      so it is recomputed whenever the equations it depends on change.
+//    - It is NEVER written into the EquationContext.  Its result is stored in
+//      this object (via EquationManager::GetExpressionValue) and can only be
+//      consumed by the host.
+//    - It has no Equation/EquationGroup, so it does not show up in
+//      GetEquationNames()/GetEquationGroupIds().
+// =========================================================================
+using ExpressionId = boost::uuids::uuid;
+
+struct Expression
+{
+    ExpressionId id;
+    std::string content;
+    // Full result of the last evaluation (Eval).  status/message/value
+    // are accessed via result.status / result.message / result.value.
+    InterpretResult result;
+    std::vector<std::string> dependencies;
+};
+
 class ParseException : public std::exception
 {
   private:
@@ -128,9 +146,7 @@ class ItemTypeConverter
   public:
     static ItemType FromString(const std::string &type_str)
     {
-        if (type_str == "Expression")
-            return ItemType::kExpression;
-        else if (type_str == "Variable")
+        if (type_str == "Variable")
             return ItemType::kVariable;
         else if (type_str == "Function")
             return ItemType::kFunction;
@@ -150,8 +166,6 @@ class ItemTypeConverter
     {
         switch (type)
         {
-        case ItemType::kExpression:
-            return "Expression";
         case ItemType::kVariable:
             return "Variable";
         case ItemType::kFunction:
@@ -187,6 +201,17 @@ enum class EquationUpdateFlag
 };
 
 BITMASK_DEFINE_MAX_ELEMENT(EquationUpdateFlag, kDependents)
+
+enum class ExpressionUpdateFlag
+{
+    kContent = 1 << 0,
+    kStatus = 1 << 1,
+    kMessage = 1 << 2,
+    kValue = 1 << 3,
+    kDependencies = 1 << 4,
+};
+
+BITMASK_DEFINE_MAX_ELEMENT(ExpressionUpdateFlag, kDependencies)
 
 enum class EquationGroupUpdateFlag
 {
@@ -280,7 +305,8 @@ inline std::ostream &operator<<(std::ostream &os, ResultStatus status)
     return os << ResultStatusConverter::ToString(status);
 }
 
-using InterpretHandler = std::function<InterpretResult(const std::string &, EquationContext *, InterpretMode)>;
+using EvalHandler = std::function<InterpretResult(const std::string &, EquationContext *)>;
+using ExecHandler = std::function<InterpretResult(const std::string &, EquationContext *)>;
 using ParseHandler = std::function<ParseResult(const std::string &, ParseMode)>;
 } // namespace xequation
 

@@ -46,7 +46,6 @@ ResultStatus RelExecutor::MapRelError(const std::string &message) const
 InterpretResult RelExecutor::Exec(const std::string &code, rel::Environment &env)
 {
     InterpretResult res;
-    res.mode = InterpretMode::kExec;
 
     try
     {
@@ -66,7 +65,6 @@ InterpretResult RelExecutor::Exec(const std::string &code, rel::Environment &env
 InterpretResult RelExecutor::Eval(const std::string &expression, rel::Environment &env)
 {
     InterpretResult res;
-    res.mode = InterpretMode::kEval;
 
     try
     {

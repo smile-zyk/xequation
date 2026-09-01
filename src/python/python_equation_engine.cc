@@ -32,19 +32,20 @@ PythonEquationEngine::PythonEquationEngine()
     g_main_thread_state_ = PyEval_SaveThread();
 }
 
-InterpretResult PythonEquationEngine::Interpret(const std::string &code, const EquationContext *context, InterpretMode mode)
+InterpretResult PythonEquationEngine::Eval(const std::string &code, const EquationContext *context)
 {
     pybind11::gil_scoped_acquire acquire;
     value_convert::FlushPendingDecrefs();
     const PythonEquationContext* py_context = dynamic_cast<const PythonEquationContext*>(context);
-    if (mode == InterpretMode::kEval)
-    {
-        return code_executor->Eval(code, py_context ? py_context->dict() : pybind11::dict());
-    }
-    else
-    {
-        return code_executor->Exec(code, py_context ? py_context->dict() : pybind11::dict());
-    }
+    return code_executor->Eval(code, py_context ? py_context->dict() : pybind11::dict());
+}
+
+InterpretResult PythonEquationEngine::Exec(const std::string &code, const EquationContext *context)
+{
+    pybind11::gil_scoped_acquire acquire;
+    value_convert::FlushPendingDecrefs();
+    const PythonEquationContext* py_context = dynamic_cast<const PythonEquationContext*>(context);
+    return code_executor->Exec(code, py_context ? py_context->dict() : pybind11::dict());
 }
 
 ParseResult PythonEquationEngine::Parse(const std::string &code, ParseMode mode)

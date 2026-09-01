@@ -24,29 +24,34 @@ RelEquationEngine::RelEquationEngine()
 
 RelEquationEngine::~RelEquationEngine() = default;
 
-InterpretResult RelEquationEngine::Interpret(const std::string &code, const EquationContext *context,
-                                             InterpretMode mode)
+namespace
 {
-    // 解析出 REL 环境：context 必须是 RelEquationContext（或 nullptr 用临时环境）
-    rel::Environment env;
-    rel::Environment *target = &env;
-
+// 取出 REL 求值目标环境：context 必须是 RelEquationContext（或 nullptr 用临时环境）
+rel::Environment *ResolveRelEnv(const EquationContext *context, rel::Environment &fallback)
+{
     const RelEquationContext *rel_context = dynamic_cast<const RelEquationContext *>(context);
     if (rel_context)
     {
         // env() 返回非 const 引用；context 是 const 指针，这里显式转换以复用
         // 方程管理器持有的上下文环境（变量跨方程可见）。
-        target = const_cast<rel::Environment *>(&rel_context->env());
+        return const_cast<rel::Environment *>(&rel_context->env());
     }
+    return &fallback;
+}
+} // namespace
 
-    if (mode == InterpretMode::kEval)
-    {
-        return code_executor->Eval(code, *target);
-    }
-    else
-    {
-        return code_executor->Exec(code, *target);
-    }
+InterpretResult RelEquationEngine::Eval(const std::string &code, const EquationContext *context)
+{
+    rel::Environment fallback_env;
+    rel::Environment *target = ResolveRelEnv(context, fallback_env);
+    return code_executor->Eval(code, *target);
+}
+
+InterpretResult RelEquationEngine::Exec(const std::string &code, const EquationContext *context)
+{
+    rel::Environment fallback_env;
+    rel::Environment *target = ResolveRelEnv(context, fallback_env);
+    return code_executor->Exec(code, *target);
 }
 
 ParseResult RelEquationEngine::Parse(const std::string &code, ParseMode mode)

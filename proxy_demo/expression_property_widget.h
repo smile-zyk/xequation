@@ -14,7 +14,7 @@ namespace gui
 {
 
 // =========================================================================
-// EquationPropertyWidget -- property display widget for a single Equation
+// ExpressionPropertyWidget -- property display widget for a single Equation
 // (resident; refreshable).
 //
 // Shows the properties in a read-only two-column table (field | value):
@@ -32,13 +32,13 @@ namespace gui
 // two slots below; this widget decides whether it displays that equation.
 // =========================================================================
 
-class EquationPropertyWidget : public QWidget
+class ExpressionPropertyWidget : public QWidget
 {
     Q_OBJECT
 
   public:
-    explicit EquationPropertyWidget(QWidget *parent = nullptr);
-    ~EquationPropertyWidget() override;
+    explicit ExpressionPropertyWidget(QWidget *parent = nullptr);
+    ~ExpressionPropertyWidget() override;
 
     /// Set the equation to display (refresh).  Passing null clears the table and
     /// shows a placeholder.

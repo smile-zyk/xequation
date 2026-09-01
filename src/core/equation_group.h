@@ -24,6 +24,10 @@ class EquationGroup
 
     Equation* GetEquation(const std::string& equation_name);
 
+    const Equation *FirstEquation() const;
+
+    Equation *FirstEquation();
+
     bool IsEquationExist(const std::string& equation_name) const;
 
     std::vector<std::string> GetEquationNames() const;

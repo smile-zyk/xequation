@@ -53,7 +53,6 @@ InterpretResult PythonExecutor::Exec(const std::string &code_string, const pybin
     pybind11::gil_scoped_acquire acquire;
 
     InterpretResult res;
-    res.mode = InterpretMode::kExec;
     
     pybind11::object old_stdout;
     pybind11::object old_stderr;
@@ -118,7 +117,6 @@ InterpretResult PythonExecutor::Eval(const std::string &expression, const pybind
     pybind11::gil_scoped_acquire acquire;
 
     InterpretResult res;
-    res.mode = InterpretMode::kEval;
     
     pybind11::object old_stdout;
     pybind11::object old_stderr;

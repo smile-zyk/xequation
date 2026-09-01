@@ -17,7 +17,8 @@ namespace python
 class PythonEquationEngine : public EquationEngine<PythonEquationEngine>
 {
   public:
-    InterpretResult Interpret(const std::string &expr, const EquationContext *context = nullptr, InterpretMode mode = InterpretMode::kExec) override;
+    InterpretResult Eval(const std::string &expr, const EquationContext *context = nullptr) override;
+    InterpretResult Exec(const std::string &code, const EquationContext *context = nullptr) override;
     ParseResult Parse(const std::string &expr, ParseMode mode = ParseMode::kExpression) override;
 
     std::unique_ptr<EquationContext> CreateContext() override;

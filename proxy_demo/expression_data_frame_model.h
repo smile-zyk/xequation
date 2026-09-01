@@ -6,7 +6,6 @@
 #include <QAbstractTableModel>
 
 #include "core/equation.h"
-#include "core/equation_signals_manager.h"
 #include "core/equation_value.h"
 
 namespace xdataset
@@ -20,7 +19,7 @@ namespace gui
 {
 
 // =========================================================================
-// EquationDataFrameModel -- presents the DataFrame view of an
+// ExpressionDataFrameModel -- presents the DataFrame view of an
 // EquationValue(REL) as a two-dimensional table model with Qt's fetchMore
 // lazy-loading.
 //
@@ -40,21 +39,27 @@ namespace gui
 //   QTableView scrolls to the bottom (Qt built-in + view-layer complement).
 // =========================================================================
 
-class EquationDataFrameModel : public QAbstractTableModel
+class ExpressionDataFrameModel : public QAbstractTableModel
 {
     Q_OBJECT
   public:
     /// Rows appended per fetchMore (an integer multiple of xdataset chunks).
     static constexpr int kLoadBatchSize = 256;
 
-    explicit EquationDataFrameModel(QObject *parent = nullptr);
-    ~EquationDataFrameModel() override;
+    explicit ExpressionDataFrameModel(QObject *parent = nullptr);
+    ~ExpressionDataFrameModel() override;
 
     /// Set the Equation to display.
     /// Supports only REL values (Measurement / DataArray); other types clear
     /// the model.  Note: copies Equation::GetValue()'s result and holds it as
     /// the DataFrame owner; does not hold the Equation pointer.
     void SetEquation(const xequation::Equation *equation);
+
+    /// Set a value directly (no Equation binding; e.g. an expression watch's
+    /// eval result).  Only REL values display a table; other kinds clear the
+    /// model.  Like SetEquation(), the EquationValue is copied into the model
+    /// as the DataFrame's stable owner.
+    void SetValue(const xequation::EquationValue &value);
 
     /// Clear the model; show no data.
     void Clear();

@@ -349,7 +349,7 @@ ParseResult RelParser::ParseSingleStatement(const std::string &code)
             rel::ExprPtr expr = rel::Parse(code);
             item.name = "";
             item.content = code;
-            item.type = ItemType::kExpression;
+            item.type = ItemType::kUnknown;
             item.dependencies = ExtractDependencies(expr);
             item.status = ResultStatus::kSuccess;
         }
@@ -389,7 +389,7 @@ ParseResult RelParser::ParseExpression(const std::string &code)
     ParseResultItem item;
     item.name = "__expression__";
     item.content = code;
-    item.type = ItemType::kExpression;
+    item.type = ItemType::kUnknown;
     item.status = ResultStatus::kSuccess;
 
     try

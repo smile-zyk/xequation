@@ -7,6 +7,8 @@ set(xequation_rel_SRC
     rel_executor.cc
     rel_parser.h
     rel_parser.cc
+    dataset_external_inputs.h
+    dataset_external_inputs.cc
 )
 
 add_library(xequation_rel STATIC ${xequation_rel_SRC})

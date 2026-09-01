@@ -69,7 +69,7 @@ ParseResult ParseExpression(const std::string &code)
     ParseResultItem item;
     item.name = "__expression__";
     item.content = code;
-    item.type = ItemType::kExpression;
+    item.type = ItemType::kUnknown;
 
     ParseDependencies(code, item);
     result.items.push_back(item);
@@ -109,7 +109,6 @@ ParseResult ParseMultipleStatements(const std::string &input)
 InterpretResult EvalExpr(const std::string &expr, EquationContext *context)
 {
     InterpretResult result;
-    result.mode = InterpretMode::kEval;
     std::regex expr_regex(R"(^\s*(([A-Za-z_][A-Za-z0-9_]*|\d+)(\s*([\+\-\*\/])\s*([A-Za-z_][A-Za-z0-9_]*|\d+))?)\s*$)");
     std::smatch expr_match;
 
@@ -225,7 +224,6 @@ InterpretResult EvalExpr(const std::string &expr, EquationContext *context)
 InterpretResult ExecExpr(const std::string &code, EquationContext *context)
 {
     InterpretResult result;
-    result.mode = InterpretMode::kExec;
     std::regex assign_regex(R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)\s*$)");
     std::smatch assign_match;
 
@@ -249,16 +247,14 @@ InterpretResult ExecExpr(const std::string &code, EquationContext *context)
     return result;
 }
 
-InterpretResult Interpret(const std::string &code, EquationContext *context, InterpretMode mode)
+InterpretResult MockEvalHandler(const std::string &code, EquationContext *context)
 {
-    if (mode == InterpretMode::kEval)
-    {
-        return EvalExpr(code, context);
-    }
-    else
-    {
-        return ExecExpr(code, context);
-    }
+    return EvalExpr(code, context);
+}
+
+InterpretResult MockExecHandler(const std::string &code, EquationContext *context)
+{
+    return ExecExpr(code, context);
 }
 
 ParseResult Parse(const std::string &code, ParseMode mode)
@@ -329,7 +325,7 @@ class EquationManagerTest : public testing::Test
   protected:
     EquationManagerTest()
         : manager_(
-              std::unique_ptr<MockExprContext>(new MockExprContext()), Interpret, Parse,
+              std::unique_ptr<MockExprContext>(new MockExprContext()), MockEvalHandler, MockExecHandler, Parse,
               EquationEngineInfo{"Mock"}
           )
     {
@@ -601,7 +597,6 @@ TEST_F(EquationManagerTest, Eval)
     manager_.UpdateEquationGroup(id_0);
     InterpretResult res = manager_.Eval("A+B");
 
-    EXPECT_EQ(res.mode, InterpretMode::kEval);
     EXPECT_EQ(res.value.Cast<int>(), 22);
     EXPECT_EQ(res.status, ResultStatus::kSuccess);
 
@@ -718,6 +713,211 @@ TEST_F(EquationManagerTest, UpdateEquationStatusThenUpdateRecovers)
     EXPECT_TRUE(manager_.context().Get("B").Cast<int>() == 1);
     EXPECT_EQ(manager_.GetEquation("B")->status(), ResultStatus::kSuccess);
     EXPECT_FALSE(manager_.graph().GetNode("B")->dirty_flag());
+}
+
+// ============================================================================
+// Registered expressions (只算不存)
+// ============================================================================
+
+TEST_F(EquationManagerTest, ExpressionRegisterAndEvaluate)
+{
+    // Expression is registered, evaluated with Eval semantics, and its result is
+    // cached in the Expression object -- never written into the context.
+    manager_.AddEquationGroup("A=1;B=2");
+    manager_.Update();
+
+    ExpressionId expr_id = manager_.AddExpression("A+B");
+    EXPECT_TRUE(manager_.IsExpressionExist(expr_id));
+    EXPECT_EQ(manager_.GetExpressionIds().size(), 1u);
+
+    const Expression *expr = manager_.GetExpression(expr_id);
+    ASSERT_NE(expr, nullptr);
+    EXPECT_EQ(expr->content, "A+B");
+    EXPECT_THAT(expr->dependencies, testing::UnorderedElementsAre("A", "B"));
+
+    // Not evaluated yet.
+    EXPECT_TRUE(manager_.GetExpressionValue(expr_id).IsNull());
+
+    manager_.UpdateExpression(expr_id);
+    EXPECT_EQ(manager_.GetExpressionValue(expr_id).Cast<int>(), 3);
+    EXPECT_EQ(manager_.GetExpression(expr_id)->result.status, ResultStatus::kSuccess);
+
+    // The expression is not a symbol: it must not appear in equation APIs or in
+    // the context.  Only the two equations A, B are listed.
+    EXPECT_THAT(manager_.GetEquationNames(), ::testing::ElementsAre("A", "B"));
+    EXPECT_FALSE(manager_.context().Contains("A+B"));
+}
+
+TEST_F(EquationManagerTest, ExpressionRecomputesWhenEquationChanges)
+{
+    // The expression depends on equation A; editing A and running Update() must
+    // recompute the expression automatically.
+    EquationGroupId id_0 = manager_.AddEquationGroup("A=1");
+    manager_.Update();
+
+    ExpressionId expr_id = manager_.AddExpression("A*2");
+    manager_.Update();
+    EXPECT_EQ(manager_.GetExpressionValue(expr_id).Cast<int>(), 2);
+
+    manager_.EditEquationGroup(id_0, "A=5");
+    manager_.Update();
+    EXPECT_EQ(manager_.GetExpressionValue(expr_id).Cast<int>(), 10);
+    EXPECT_EQ(manager_.GetExpression(expr_id)->result.status, ResultStatus::kSuccess);
+}
+
+TEST_F(EquationManagerTest, ExpressionRecomputesOnUpdateEquation)
+{
+    // A registered expression that depends on equation A must be recomputed when a
+    // dependent equation is edited AND updated via the single-equation path
+    // (UpdateEquation) -- not only through Update()/UpdateEquationGroup().
+    EquationGroupId id_0 = manager_.AddEquationGroup("A=1;H=A");
+    manager_.Update();
+
+    ExpressionId expr_id = manager_.AddExpression("H*2");
+    manager_.Update();
+    EXPECT_EQ(manager_.GetExpressionValue(expr_id).Cast<int>(), 2);
+
+    // Edit `A` and update the single equation `A`: the change propagates to `H`,
+    // then to the expression -- the expression must be recomputed too.
+    manager_.EditEquationGroup(id_0, "A=7;H=A");
+    manager_.UpdateEquation("A");
+    EXPECT_EQ(manager_.GetExpressionValue(expr_id).Cast<int>(), 14);
+    EXPECT_EQ(manager_.GetExpression(expr_id)->result.status, ResultStatus::kSuccess);
+}
+
+TEST_F(EquationManagerTest, ExpressionFailureStaysDirtyThenRecovers)
+{
+    // "X" is undefined at registration: the expression fails with NameError and
+    // stays dirty.  Defining X and updating must recover it.
+    ExpressionId expr_id = manager_.AddExpression("X+1");
+    const Expression *expr = manager_.GetExpression(expr_id);
+    ASSERT_NE(expr, nullptr);
+
+    manager_.Update();
+    EXPECT_EQ(expr->result.status, ResultStatus::kNameError);
+
+    // The expression's graph slot is the only node that is not an equation.
+    std::string expr_node_name;
+    manager_.graph().Traversal([&](const std::string &node_name) {
+        if (!manager_.IsEquationExist(node_name))
+        {
+            expr_node_name = node_name;
+        }
+    });
+    ASSERT_FALSE(expr_node_name.empty());
+    EXPECT_TRUE(manager_.graph().GetNode(expr_node_name)->dirty_flag());
+
+    manager_.AddEquationGroup("X=2");
+    manager_.Update();
+    EXPECT_EQ(manager_.GetExpressionValue(expr_id).Cast<int>(), 3);
+    EXPECT_FALSE(manager_.graph().GetNode(expr_node_name)->dirty_flag());
+}
+
+TEST_F(EquationManagerTest, ExpressionRemove)
+{
+    ExpressionId expr_id = manager_.AddExpression("A+1");
+    EXPECT_TRUE(manager_.IsExpressionExist(expr_id));
+    EXPECT_EQ(manager_.GetExpressionIds().size(), 1u);
+
+    manager_.RemoveExpression(expr_id);
+    EXPECT_FALSE(manager_.IsExpressionExist(expr_id));
+    EXPECT_TRUE(manager_.GetExpressionIds().empty());
+    // The expression's graph node is removed with it; only the passive edge to
+    // the unresolved dependency "A" may remain, and no node survives.
+    EXPECT_TRUE(manager_.graph().TopologicalSort().empty());
+}
+
+TEST_F(EquationManagerTest, UpdateExpressionNotFoundThrows)
+{
+    ExpressionId bogus;  // default-constructed (nil) -> not registered
+    EXPECT_THROW(manager_.UpdateExpression(bogus), EquationException);
+}
+
+// ============================================================================
+// External input symbols (外部输入)
+// ============================================================================
+
+TEST_F(EquationManagerTest, ExternalInputRegisterConflicts)
+{
+    EXPECT_TRUE(manager_.AddExternalInput("c"));
+    EXPECT_TRUE(manager_.IsExternalInput("c"));
+    EXPECT_THAT(manager_.GetExternalInputNames(), testing::Contains("c"));
+
+    // Duplicate registration and conflicts with equation names are rejected.
+    EXPECT_FALSE(manager_.AddExternalInput("c"));
+    manager_.AddEquationGroup("a=1");
+    EXPECT_FALSE(manager_.AddExternalInput("a"));
+
+    manager_.RemoveExternalInput("c");
+    EXPECT_FALSE(manager_.IsExternalInput("c"));
+    EXPECT_THAT(manager_.GetExternalInputNames(), testing::Not(testing::Contains("c")));
+}
+
+TEST_F(EquationManagerTest, ExternalInputRegisteredBeforeEquation)
+{
+    // Register "c" first, then an equation that depends on it.
+    EXPECT_TRUE(manager_.AddExternalInput("c"));
+    manager_.AddEquationGroup("x=c*2");
+    manager_.Update();
+
+    // "c" is not in the context -> x is a NameError until injected.
+    EXPECT_EQ(manager_.GetEquation("x")->status(), ResultStatus::kNameError);
+
+    // Inject a transient value: dependents are recomputed, then the name is
+    // removed again (it never persists in the context).
+    manager_.UpdateExternalInput("c", EquationValue(3));
+    EXPECT_EQ(manager_.context().Get("x").Cast<int>(), 6);
+    EXPECT_FALSE(manager_.context().Contains("c"));
+}
+
+TEST_F(EquationManagerTest, ExternalInputRegisteredAfterEquation)
+{
+    // Dependency edges stay inactive until both endpoints exist: registering the
+    // external input after the equation activates the edge.
+    manager_.AddEquationGroup("x=c*2");
+    EXPECT_TRUE(manager_.AddExternalInput("c"));
+    manager_.Update();
+
+    EXPECT_EQ(manager_.GetEquation("x")->status(), ResultStatus::kNameError);
+
+    manager_.UpdateExternalInput("c", EquationValue(4));
+    EXPECT_EQ(manager_.context().Get("x").Cast<int>(), 8);
+    EXPECT_FALSE(manager_.context().Contains("c"));
+}
+
+TEST_F(EquationManagerTest, ExternalInputWithoutValueInvalidatesOnly)
+{
+    // Dataset-like scenario: the value lives outside the context (host owns it).
+    // UpdateExternalInput without a value only invalidates/propagates; the actual
+    // recompute happens on a later Update().
+    manager_.AddExternalInput("c");
+    manager_.AddEquationGroup("x=c+1");
+    manager_.Update();
+    EXPECT_EQ(manager_.GetEquation("x")->status(), ResultStatus::kNameError);
+
+    // Host provides the value outside the manager; manager only invalidates.
+    manager_.context().Set("c", EquationValue(10));
+    manager_.UpdateExternalInput("c");
+    EXPECT_TRUE(manager_.graph().GetNode("x")->dirty_flag());
+
+    manager_.Update();
+    EXPECT_EQ(manager_.context().Get("x").Cast<int>(), 11);
+}
+
+TEST_F(EquationManagerTest, ExternalInputPropagatesToExpressions)
+{
+    // Expressions that (transitively) depend on an external input are recomputed
+    // when the input is updated.
+    manager_.AddExternalInput("c");
+    manager_.AddEquationGroup("x=c+1");
+    ExpressionId expr_id = manager_.AddExpression("x*2");
+    manager_.Update();
+    EXPECT_EQ(manager_.GetEquation("x")->status(), ResultStatus::kNameError);
+
+    manager_.UpdateExternalInput("c", EquationValue(4));
+    EXPECT_EQ(manager_.context().Get("x").Cast<int>(), 5);
+    EXPECT_EQ(manager_.GetExpressionValue(expr_id).Cast<int>(), 10);
+    EXPECT_FALSE(manager_.context().Contains("c"));
 }
 
 int main(int argc, char **argv)

@@ -22,7 +22,12 @@ class EquationEngine
         return instance;
     }
 
-    virtual InterpretResult Interpret(const std::string& code, const EquationContext *context = nullptr, InterpretMode mode = InterpretMode::kExec) = 0;
+    // Evaluates a single expression (no writes to the context).
+    virtual InterpretResult Eval(const std::string &expression, const EquationContext *context = nullptr) = 0;
+
+    // Executes a statement (may write variables into the context).
+    virtual InterpretResult Exec(const std::string &statement, const EquationContext *context = nullptr) = 0;
+
     virtual ParseResult Parse(const std::string & code, ParseMode mode = ParseMode::kExpression) = 0;
     
     const EquationEngineInfo& GetEngineInfo() const { return engine_info_; }
@@ -33,15 +38,19 @@ class EquationEngine
     virtual std::unique_ptr<EquationManager> CreateEquationManager()
     {
 
-        InterpretHandler interpret_handler = [this](const std::string &code, EquationContext *context, InterpretMode mode) -> InterpretResult {
-            return Interpret(code, context, mode);
+        EvalHandler eval_handler = [this](const std::string &code, EquationContext *context) -> InterpretResult {
+            return Eval(code, context);
+        };
+
+        ExecHandler exec_handler = [this](const std::string &code, EquationContext *context) -> InterpretResult {
+            return Exec(code, context);
         };
 
         ParseHandler parse_callback = [this](const std::string &code, ParseMode mode) -> ParseResult {
             return Parse(code, mode);
         };
         
-        return std::unique_ptr<EquationManager>(new EquationManager(CreateContext(), interpret_handler, parse_callback, engine_info_));
+        return std::unique_ptr<EquationManager>(new EquationManager(CreateContext(), eval_handler, exec_handler, parse_callback, engine_info_));
     }
 
     virtual std::unique_ptr<EquationContext> CreateContext() = 0;

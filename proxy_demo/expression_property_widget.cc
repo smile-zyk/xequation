@@ -1,4 +1,4 @@
-#include "equation_property_widget.h"
+#include "expression_property_widget.h"
 
 #include "core/equation.h"
 #include "core/equation_common.h"
@@ -45,7 +45,7 @@ QString FormatSet(const Set &items)
 }
 } // namespace
 
-EquationPropertyWidget::EquationPropertyWidget(QWidget *parent)
+ExpressionPropertyWidget::ExpressionPropertyWidget(QWidget *parent)
     : QWidget(parent)
 {
     setWindowTitle("Equation Property");
@@ -70,9 +70,9 @@ EquationPropertyWidget::EquationPropertyWidget(QWidget *parent)
     SetEquation(nullptr);
 }
 
-EquationPropertyWidget::~EquationPropertyWidget() = default;
+ExpressionPropertyWidget::~ExpressionPropertyWidget() = default;
 
-void EquationPropertyWidget::SetEquation(const Equation *equation)
+void ExpressionPropertyWidget::SetEquation(const Equation *equation)
 {
     equation_ = equation;
 
@@ -144,7 +144,7 @@ void EquationPropertyWidget::SetEquation(const Equation *equation)
     // Compute failure: value unavailable (already shown as red Message above); nothing here.
 }
 
-void EquationPropertyWidget::OnEquationRemoving(const Equation *equation)
+void ExpressionPropertyWidget::OnEquationRemoving(const Equation *equation)
 {
     // kEquationRemoving is fired before erase; the Equation* is still valid here.
     if (!equation || !equation_ || equation->name() != equation_->name())
@@ -154,7 +154,7 @@ void EquationPropertyWidget::OnEquationRemoving(const Equation *equation)
     SetEquation(nullptr);
 }
 
-void EquationPropertyWidget::OnEquationUpdated(const Equation *equation,
+void ExpressionPropertyWidget::OnEquationUpdated(const Equation *equation,
                                                bitmask::bitmask<EquationUpdateFlag> /*flags*/)
 {
     if (!equation || !equation_ || equation->name() != equation_->name())
@@ -165,7 +165,7 @@ void EquationPropertyWidget::OnEquationUpdated(const Equation *equation,
     SetEquation(equation);
 }
 
-void EquationPropertyWidget::AddField(const QString &field, const QString &value, bool red)
+void ExpressionPropertyWidget::AddField(const QString &field, const QString &value, bool red)
 {
     const int row = table_->rowCount();
     table_->insertRow(row);

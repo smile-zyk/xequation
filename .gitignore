@@ -2,3 +2,7 @@
 build/
 .cache/
 .vscode/
+
+# build artifacts
+build_out*.txt
+Testing/

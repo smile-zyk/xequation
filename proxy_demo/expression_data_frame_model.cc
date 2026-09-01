@@ -1,4 +1,4 @@
-#include "equation_data_frame_model.h"
+#include "expression_data_frame_model.h"
 
 #include "core/equation.h"
 #include "data_frame.h"
@@ -12,19 +12,19 @@ namespace gui
 
 using namespace xequation;
 
-EquationDataFrameModel::EquationDataFrameModel(QObject *parent) : QAbstractTableModel(parent)
+ExpressionDataFrameModel::ExpressionDataFrameModel(QObject *parent) : QAbstractTableModel(parent)
 {
 }
 
-EquationDataFrameModel::~EquationDataFrameModel() = default;
+ExpressionDataFrameModel::~ExpressionDataFrameModel() = default;
 
-const xdataset::DataFrame &EquationDataFrameModel::frame() const
+const xdataset::DataFrame &ExpressionDataFrameModel::frame() const
 {
     // Only valid when there is a REL value (caller checks HasDataFrame() first).
     return equation_value_.AsRel().data_frame();
 }
 
-void EquationDataFrameModel::SetEquation(const Equation *equation)
+void ExpressionDataFrameModel::SetEquation(const Equation *equation)
 {
     if (!equation)
     {
@@ -54,7 +54,24 @@ void EquationDataFrameModel::SetEquation(const Equation *equation)
     endResetModel();
 }
 
-void EquationDataFrameModel::Clear()
+void ExpressionDataFrameModel::SetValue(const EquationValue &value)
+{
+    if (!value.IsRelValue())
+    {
+        Clear();
+        return;
+    }
+
+    beginResetModel();
+    equation_value_ = value;   // hold a copy so the frame stays alive
+    equation_name_.clear();    // a bare value is not equation-bound
+    loaded_rows_ = std::min<std::size_t>(
+        static_cast<std::size_t>(kLoadBatchSize), frame().row_count()
+    );
+    endResetModel();
+}
+
+void ExpressionDataFrameModel::Clear()
 {
     beginResetModel();
     equation_value_ = EquationValue();
@@ -63,7 +80,7 @@ void EquationDataFrameModel::Clear()
     endResetModel();
 }
 
-void EquationDataFrameModel::OnEquationRemoving(const Equation *removed)
+void ExpressionDataFrameModel::OnEquationRemoving(const Equation *removed)
 {
     // kEquationRemoving is fired before erase; the Equation* is still valid here.
     if (!removed || removed->name() != equation_name_)
@@ -73,7 +90,7 @@ void EquationDataFrameModel::OnEquationRemoving(const Equation *removed)
     Clear();
 }
 
-void EquationDataFrameModel::OnEquationUpdated(const Equation *equation,
+void ExpressionDataFrameModel::OnEquationUpdated(const Equation *equation,
                                                bitmask::bitmask<EquationUpdateFlag> /*flags*/)
 {
     if (!equation || equation->name() != equation_name_)
@@ -84,17 +101,17 @@ void EquationDataFrameModel::OnEquationUpdated(const Equation *equation,
     SetEquation(equation);
 }
 
-bool EquationDataFrameModel::HasDataFrame() const
+bool ExpressionDataFrameModel::HasDataFrame() const
 {
     return equation_value_.IsRelValue();
 }
 
-std::size_t EquationDataFrameModel::total_row_count() const
+std::size_t ExpressionDataFrameModel::total_row_count() const
 {
     return HasDataFrame() ? frame().row_count() : 0;
 }
 
-int EquationDataFrameModel::rowCount(const QModelIndex &parent) const
+int ExpressionDataFrameModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid() || !HasDataFrame())
     {
@@ -103,7 +120,7 @@ int EquationDataFrameModel::rowCount(const QModelIndex &parent) const
     return static_cast<int>(loaded_rows_);
 }
 
-int EquationDataFrameModel::columnCount(const QModelIndex &parent) const
+int ExpressionDataFrameModel::columnCount(const QModelIndex &parent) const
 {
     if (parent.isValid() || !HasDataFrame())
     {
@@ -113,7 +130,7 @@ int EquationDataFrameModel::columnCount(const QModelIndex &parent) const
     return static_cast<int>(frame().headers().size()) + 1;
 }
 
-QVariant EquationDataFrameModel::data(const QModelIndex &index, int role) const
+QVariant ExpressionDataFrameModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || !HasDataFrame())
     {
@@ -147,7 +164,7 @@ QVariant EquationDataFrameModel::data(const QModelIndex &index, int role) const
     return QString::fromStdString(row.fields[static_cast<std::size_t>(field_index)].to_string());
 }
 
-QVariant EquationDataFrameModel::headerData(
+QVariant ExpressionDataFrameModel::headerData(
     int section, Qt::Orientation orientation, int role
 ) const
 {
@@ -171,7 +188,7 @@ QVariant EquationDataFrameModel::headerData(
     return QString::fromStdString(headers[static_cast<std::size_t>(header_index)]);
 }
 
-bool EquationDataFrameModel::canFetchMore(const QModelIndex &parent) const
+bool ExpressionDataFrameModel::canFetchMore(const QModelIndex &parent) const
 {
     if (parent.isValid() || !HasDataFrame())
     {
@@ -180,7 +197,7 @@ bool EquationDataFrameModel::canFetchMore(const QModelIndex &parent) const
     return loaded_rows_ < frame().row_count();
 }
 
-void EquationDataFrameModel::fetchMore(const QModelIndex &parent)
+void ExpressionDataFrameModel::fetchMore(const QModelIndex &parent)
 {
     if (parent.isValid() || !HasDataFrame() || !canFetchMore(parent))
     {

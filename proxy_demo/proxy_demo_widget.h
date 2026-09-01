@@ -2,7 +2,7 @@
 
 #include <QWidget>
 
-#include "xequation_proxy.h"
+#include "core/equation_signals_manager.h"
 
 class QComboBox;
 class QLineEdit;
@@ -26,7 +26,7 @@ namespace gui
 //     + "Redefine" / "Rename" / "Properties" buttons act on the selected equation.
 //   - Middle-left: the current engine's Equation list (QListWidget), showing
 //     only that engine's equations.
-//   - Middle-right: EquationDataFrameView, showing the selected Equation's
+//   - Middle-right: ExpressionDataFrameView, showing the selected Equation's
 //     DataFrame table (lazy loading, fetchMore). REL engine shows a DataFrame;
 //     Python engine shows the object type name.
 // =========================================================================
@@ -43,18 +43,14 @@ class ProxyDemoWidget : public QWidget
     void SetupUI();
     void SetupConnections();
 
-    void OnEngineChanged(int index);
     void OnInsertEquation();
     void OnRedefineEquation();
     void OnRenameEquation();
     void OnDeleteEquation();
     void OnShowProperties();
+    void OnAddWatchExpression();
     void OnEquationListSelectionChanged();
     void RefreshEquationList();
-    void ShowEquation(const QString &equation_name);
-
-    /// Current engine (decided by engine_combo_: 0=Python, 1=REL).
-    int CurrentEngineIndex() const;
 
     /// Name of the currently selected list item (item text is "name  [N row(s)]").
     QString CurrentSelectedEquationName() const;
@@ -74,26 +70,27 @@ class ProxyDemoWidget : public QWidget
                                           const QString &new_name);
 
   private:
-    QComboBox *engine_combo_ = nullptr;
     QLineEdit *statement_edit_ = nullptr;
     QPushButton *insert_button_ = nullptr;
     QPushButton *redefine_button_ = nullptr;
     QPushButton *rename_button_ = nullptr;
     QPushButton *delete_button_ = nullptr;
     QPushButton *properties_button_ = nullptr;
+    QPushButton *watch_button_ = nullptr;
     QLabel *status_label_ = nullptr;
     QListWidget *equation_list_ = nullptr;
-    class EquationDataFrameView *data_frame_view_ = nullptr;
-    class EquationPropertyWidget *property_widget_ = nullptr;
+    class ExpressionDataFrameTabWidget *data_frame_view_ = nullptr;
+    class ExpressionPropertyWidget *property_widget_ = nullptr;
 
-    /// Connections to both engines' managers' kEquationRemoving signal (auto
-    /// disconnected on widget destruction); clear data_frame_view_ on deletion.
-    ScopedConnection removing_python_connection_;
-    ScopedConnection removing_rel_connection_;
-    /// Connections to both engines' managers' kEquationUpdated signal, for
-    /// auto-refresh of data_frame_view_ / property_widget_ on equation update.
-    ScopedConnection updated_python_connection_;
-    ScopedConnection updated_rel_connection_;
+    /// Connections to the REL manager's kEquationRemoving / kEquationRemoved
+    /// signals (auto disconnected on widget destruction); the tab widget
+    /// decides which tabs to clear / re-evaluate.
+    xequation::ScopedConnection removing_rel_connection_;
+    xequation::ScopedConnection removed_rel_connection_;
+    /// Connections to the REL manager's kEquationUpdated / kEquationAdded
+    /// signals, for auto-refresh of tabs on value-ready / add events.
+    xequation::ScopedConnection updated_rel_connection_;
+    xequation::ScopedConnection added_rel_connection_;
 };
 
 } // namespace gui

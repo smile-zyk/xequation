@@ -521,7 +521,7 @@ TEST_F(PythonParserTest, ParseExpressionSimple)
     auto result = parser_->ParseExpression("a + b");
     EXPECT_EQ(result.items.size(), 1);
     EXPECT_EQ(result.items[0].name, "__expression__");
-    EXPECT_EQ(result.items[0].type, ItemType::kExpression);
+    EXPECT_EQ(result.items[0].type, ItemType::kUnknown);
     EXPECT_THAT(result.items[0].dependencies, testing::UnorderedElementsAre("a", "b"));
 }
 

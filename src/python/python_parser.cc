@@ -139,7 +139,7 @@ ParseResult PythonParser::ParseExpression(const std::string &code)
         ParseResultItem parse_item;
         parse_item.name = "__expression__";
         parse_item.content = code;
-        parse_item.type = ItemType::kExpression;
+        parse_item.type = ItemType::kUnknown;
         parse_item.status = ResultStatus::kSuccess;
         for (const auto &item : py_parse_result)
         {

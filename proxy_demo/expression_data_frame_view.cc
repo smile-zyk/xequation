@@ -1,8 +1,9 @@
-#include "equation_data_frame_view.h"
+#include "expression_data_frame_view.h"
 
-#include "equation_data_frame_model.h"
+#include "expression_data_frame_model.h"
 
 #include <QHeaderView>
+#include <QLabel>
 #include <QResizeEvent>
 #include <QScrollBar>
 
@@ -13,17 +14,17 @@ namespace gui
 
 using namespace xequation;
 
-EquationDataFrameView::EquationDataFrameView(QWidget *parent) : QTableView(parent)
+ExpressionDataFrameView::ExpressionDataFrameView(QWidget *parent) : QTableView(parent)
 {
     SetupUI();
     SetupConnections();
 }
 
-EquationDataFrameView::~EquationDataFrameView() = default;
+ExpressionDataFrameView::~ExpressionDataFrameView() = default;
 
-void EquationDataFrameView::SetupUI()
+void ExpressionDataFrameView::SetupUI()
 {
-    table_model_ = new EquationDataFrameModel(this);
+    table_model_ = new ExpressionDataFrameModel(this);
     setModel(table_model_);
 
     setAlternatingRowColors(true);
@@ -40,17 +41,26 @@ void EquationDataFrameView::SetupUI()
 
     // Table size adapts to the window width.
     setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContentsOnFirstShow);
+
+    // Error overlay: centered on the viewport, replacing the table visually.
+    error_label_ = new QLabel(this);
+    error_label_->setWordWrap(true);
+    error_label_->setAlignment(Qt::AlignCenter);
+    error_label_->setStyleSheet(
+        QStringLiteral("color: #c0392b; background: rgba(255,255,255,235);")
+    );
+    error_label_->setVisible(false);
 }
 
-void EquationDataFrameView::SetupConnections()
+void ExpressionDataFrameView::SetupConnections()
 {
     connect(
         verticalScrollBar(), &QScrollBar::valueChanged, this,
-        &EquationDataFrameView::OnVerticalScrollbarValueChanged
+        &ExpressionDataFrameView::OnVerticalScrollbarValueChanged
     );
 }
 
-void EquationDataFrameView::SetEquation(const Equation *equation)
+void ExpressionDataFrameView::SetEquation(const Equation *equation)
 {
     table_model_->SetEquation(equation);
     // After the model resets, ensure the first screen is loaded (the Qt view
@@ -59,29 +69,70 @@ void EquationDataFrameView::SetEquation(const Equation *equation)
     FetchMoreIfNeeded();
 }
 
-void EquationDataFrameView::Clear()
+void ExpressionDataFrameView::SetValue(const EquationValue &value)
+{
+    table_model_->SetValue(value);
+    FetchMoreIfNeeded();
+}
+
+void ExpressionDataFrameView::Clear()
 {
     table_model_->Clear();
 }
 
-void EquationDataFrameView::resizeEvent(QResizeEvent *event)
+void ExpressionDataFrameView::SetError(const QString &message)
+{
+    if (!error_label_)
+    {
+        return;
+    }
+    if (message.isEmpty())
+    {
+        error_label_->clear();
+        error_label_->setVisible(false);
+        return;
+    }
+    table_model_->Clear();
+    error_label_->setText(message);
+    error_label_->setVisible(true);
+    CenterErrorLabel();
+}
+
+void ExpressionDataFrameView::CenterErrorLabel()
+{
+    if (!error_label_ || !error_label_->isVisible())
+    {
+        return;
+    }
+    // Overlay the viewport area (below headers), leaving a small margin.
+    const QRect vp = viewport()->geometry();
+    const QMargins margin(8, 8, 8, 8);
+    error_label_->setGeometry(
+        vp.adjusted(margin.left(), margin.top(), -margin.right(), -margin.bottom())
+    );
+    error_label_->raise();
+}
+
+void ExpressionDataFrameView::resizeEvent(QResizeEvent *event)
 {
     QTableView::resizeEvent(event);
+    CenterErrorLabel();
     FetchMoreIfNeeded();
 }
 
-void EquationDataFrameView::showEvent(QShowEvent *event)
+void ExpressionDataFrameView::showEvent(QShowEvent *event)
 {
     QTableView::showEvent(event);
+    CenterErrorLabel();
     FetchMoreIfNeeded();
 }
 
-void EquationDataFrameView::OnVerticalScrollbarValueChanged(int /*value*/)
+void ExpressionDataFrameView::OnVerticalScrollbarValueChanged(int /*value*/)
 {
     FetchMoreIfNeeded();
 }
 
-void EquationDataFrameView::FetchMoreIfNeeded()
+void ExpressionDataFrameView::FetchMoreIfNeeded()
 {
     if (!table_model_)
     {

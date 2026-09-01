@@ -1,13 +1,10 @@
 #include "proxy_demo_widget.h"
 
-#include "equation_data_frame_model.h"
-#include "equation_data_frame_view.h"
-#include "equation_property_widget.h"
+#include "expression_data_frame_tab_widget.h"
+#include "expression_property_widget.h"
 
 #include "xequation_proxy.h"
-#include "core/equation_group.h"
 
-#include <QComboBox>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -42,13 +39,7 @@ void ProxyDemoWidget::SetupUI()
     setWindowTitle("XEquation Proxy Demo");
     setMinimumSize(900, 600);
 
-    // ---- top: engine switch + statement input --------------------------
-    engine_combo_ = new QComboBox(this);
-    // Keep order consistent with CurrentEngineIndex(): 0=Python, 1=REL.
-    engine_combo_->addItem("Python");
-    engine_combo_->addItem("REL");
-    QLabel *engine_label = new QLabel("Engine:", this);
-
+    // ---- top: statement input ------------------------------------------
     statement_edit_ = new QLineEdit(this);
     statement_edit_->setPlaceholderText(
         "Insert equation, e.g.  y = [1, 2, 3]  (name = expression)"
@@ -58,27 +49,32 @@ void ProxyDemoWidget::SetupUI()
     rename_button_ = new QPushButton("Rename", this);
     delete_button_ = new QPushButton("Delete", this);
     properties_button_ = new QPushButton("Properties", this);
+    watch_button_ = new QPushButton("Watch", this);
     redefine_button_->setEnabled(false);  // requires a selected list item
     rename_button_->setEnabled(false);    // requires a selected list item
     delete_button_->setEnabled(false);    // requires a selected list item
     properties_button_->setEnabled(false); // requires a selected list item
 
     QHBoxLayout *input_layout = new QHBoxLayout();
-    input_layout->addWidget(engine_label);
-    input_layout->addWidget(engine_combo_);
     input_layout->addWidget(statement_edit_, 1);
     input_layout->addWidget(insert_button_);
     input_layout->addWidget(redefine_button_);
     input_layout->addWidget(rename_button_);
     input_layout->addWidget(delete_button_);
     input_layout->addWidget(properties_button_);
+    input_layout->addWidget(watch_button_);
 
     // ---- middle: equation list + dataframe view + property window -----
     equation_list_ = new QListWidget(this);
-    equation_list_->setSelectionMode(QAbstractItemView::SingleSelection);
+    equation_list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
-    data_frame_view_ = new EquationDataFrameView(this);
-    property_widget_ = new EquationPropertyWidget(this);
+    data_frame_view_ = new ExpressionDataFrameTabWidget(
+        // Pass the REL manager directly (DataFrames come only from REL);
+        // the tab widget only needs the manager's const query/parse/eval APIs.
+        XEquationProxy::GetInstance().rel_manager(),
+        this
+    );
+    property_widget_ = new ExpressionPropertyWidget(this);
     property_widget_->setMinimumHeight(180);
 
     // Right side: vertical splitter with the table on top, property window below.
@@ -109,10 +105,6 @@ void ProxyDemoWidget::SetupUI()
 
 void ProxyDemoWidget::SetupConnections()
 {
-    connect(
-        engine_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, &ProxyDemoWidget::OnEngineChanged
-    );
     connect(insert_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnInsertEquation);
     connect(
         statement_edit_, &QLineEdit::returnPressed, this, &ProxyDemoWidget::OnInsertEquation
@@ -121,74 +113,66 @@ void ProxyDemoWidget::SetupConnections()
     connect(rename_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnRenameEquation);
     connect(delete_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnDeleteEquation);
     connect(properties_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnShowProperties);
+    connect(watch_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnAddWatchExpression);
     connect(
         equation_list_, &QListWidget::itemSelectionChanged, this,
         &ProxyDemoWidget::OnEquationListSelectionChanged
     );
 
-    // Both engines' managers' removal signals are routed to the table model:
-    // on deletion, if the model currently displays the removed equation it is
-    // cleared automatically (the model does not manage connections).
+    // The REL manager's signals are routed to the tab widget / property widget:
+    // each decides which tabs to clear / re-evaluate (self-contained judgment;
+    // this widget only dispatches).
     XEquationProxy &proxy = XEquationProxy::GetInstance();
-    EquationDataFrameModel *model = data_frame_view_->table_model();
-    EquationPropertyWidget *property = property_widget_;
+    ExpressionDataFrameTabWidget *tabs = data_frame_view_;
+    ExpressionPropertyWidget *property = property_widget_;
 
-    // kEquationRemoving: on deletion, model / property each decide whether it
-    // is the currently displayed equation and clear (self-contained judgment;
-    // widget only dispatches).
-    removing_python_connection_ =
-        proxy.manager(Engine::kPython)
-            .signals_manager()
-            .ConnectScoped<EquationEvent::kEquationRemoving>(
-                [model, property](const Equation *eq)
-                {
-                    model->OnEquationRemoving(eq);
-                    property->OnEquationRemoving(eq);
-                }
-            );
+    // kEquationRemoving: value is about to disappear; equation tabs showing it
+    // are cleared, property widget clears its selection.
     removing_rel_connection_ =
-        proxy.manager(Engine::kRel)
+        proxy.rel_manager()
             .signals_manager()
             .ConnectScoped<EquationEvent::kEquationRemoving>(
-                [model, property](const Equation *eq)
+                [tabs, property](const Equation *eq)
                 {
-                    model->OnEquationRemoving(eq);
+                    tabs->OnEquationRemoving(eq);
                     property->OnEquationRemoving(eq);
                 }
             );
 
-    // kEquationUpdated: on equation update, likewise route to model / property,
-    // each deciding to refresh.
-    updated_python_connection_ =
-        proxy.manager(Engine::kPython)
+    // kEquationRemoved: name is gone; expression tabs depending on it are
+    // re-evaluated (they resolve to NameError and keep their tab).
+    removed_rel_connection_ =
+        proxy.rel_manager()
             .signals_manager()
-            .ConnectScoped<EquationEvent::kEquationUpdated>(
-                [model, property](const Equation *eq, bitmask::bitmask<EquationUpdateFlag> flags)
-                {
-                    model->OnEquationUpdated(eq, flags);
-                    property->OnEquationUpdated(eq, flags);
-                }
+            .ConnectScoped<EquationEvent::kEquationRemoved>(
+                [tabs](const std::string &name) { tabs->OnEquationRemoved(name); }
             );
-    updated_rel_connection_ =
-        proxy.manager(Engine::kRel)
-            .signals_manager()
-            .ConnectScoped<EquationEvent::kEquationUpdated>(
-                [model, property](const Equation *eq, bitmask::bitmask<EquationUpdateFlag> flags)
-                {
-                    model->OnEquationUpdated(eq, flags);
-                    property->OnEquationUpdated(eq, flags);
-                }
-            );
-}
 
-/// Map the combo index to XEquationProxy's Engine.
-static Engine EngineFromCombo(int index)
-{
-    return (index == 1) ? Engine::kRel : Engine::kPython;
+    // kEquationUpdated: on value-ready (kValue) each tab decides to refresh.
+    updated_rel_connection_ =
+        proxy.rel_manager()
+            .signals_manager()
+            .ConnectScoped<EquationEvent::kEquationUpdated>(
+                [tabs, property](const Equation *eq, bitmask::bitmask<EquationUpdateFlag> flags)
+                {
+                    tabs->OnEquationUpdated(eq, flags);
+                    property->OnEquationUpdated(eq, flags);
+                }
+            );
+
+    // kEquationAdded: a previously-missing dependency now exists; expression
+    // tabs that NameError'd on it are re-evaluated; a same-name equation tab
+    // is refreshed too.
+    added_rel_connection_ =
+        proxy.rel_manager()
+            .signals_manager()
+            .ConnectScoped<EquationEvent::kEquationAdded>(
+                [tabs](const Equation *eq) { tabs->OnEquationAdded(eq); }
+            );
 }
 
 /// Get the equation's "row count" for the list suffix.  Only REL values have a
-/// definite row count; Python values return 0.
+/// definite row count; other values return 0.
 static qlonglong GetRowCount(const Equation *equation)
 {
     if (!equation || equation->status() != ResultStatus::kSuccess)
@@ -201,20 +185,6 @@ static qlonglong GetRowCount(const Equation *equation)
         return static_cast<qlonglong>(value.AsRel().rows());
     }
     return 0;
-}
-
-int ProxyDemoWidget::CurrentEngineIndex() const
-{
-    return engine_combo_->currentIndex();
-}
-
-void ProxyDemoWidget::OnEngineChanged(int /*index*/)
-{
-    // Engine switch: clear the list and table, then re-fetch equations for the new engine.
-    equation_list_->clear();
-    data_frame_view_->Clear();
-    status_label_->setText("Switched engine. Insert an equation above.");
-    RefreshEquationList();
 }
 
 bool ProxyDemoWidget::SplitStatement(
@@ -321,9 +291,9 @@ void ProxyDemoWidget::OnInsertEquation()
     const std::string name_std = name.toStdString();
 
     XEquationProxy &proxy = XEquationProxy::GetInstance();
-    const Engine engine = EngineFromCombo(CurrentEngineIndex());
+    EquationManager &mgr = proxy.rel_manager();
 
-    if (proxy.IsEquationExist(engine, name_std))
+    if (mgr.IsEquationExist(name_std))
     {
         QMessageBox::warning(
             this, "Duplicate Equation",
@@ -334,8 +304,8 @@ void ProxyDemoWidget::OnInsertEquation()
 
     try
     {
-        proxy.AddEquation(engine, name_std, expr.toStdString());
-        proxy.Update(engine);
+        mgr.AddEquation(name_std, expr.toStdString());
+        mgr.Update();
     }
     catch (const EquationException &e)
     {
@@ -380,8 +350,8 @@ void ProxyDemoWidget::OnRedefineEquation()
     }
 
     XEquationProxy &proxy = XEquationProxy::GetInstance();
-    const Engine engine = EngineFromCombo(CurrentEngineIndex());
-    const Equation *equation = proxy.GetEquation(engine, current_name.toStdString());
+    EquationManager &mgr = proxy.rel_manager();
+    const Equation *equation = mgr.GetEquation(current_name.toStdString());
     if (!equation)
     {
         return;
@@ -412,8 +382,8 @@ void ProxyDemoWidget::OnRedefineEquation()
     {
         // Redefine formula: EditSingleEquation rebuilds dependency edges and
         // cascades invalidation to dependents; Update() re-computes in topo order.
-        proxy.EditSingleEquation(engine, group_id, name_std, trimmed.toStdString());
-        proxy.Update(engine);
+        mgr.EditSingleEquation(group_id, name_std, trimmed.toStdString());
+        mgr.Update();
     }
     catch (const EquationException &e)
     {
@@ -476,9 +446,9 @@ void ProxyDemoWidget::OnRenameEquation()
     }
 
     XEquationProxy &proxy = XEquationProxy::GetInstance();
-    const Engine engine = EngineFromCombo(CurrentEngineIndex());
+    EquationManager &mgr = proxy.rel_manager();
 
-    if (proxy.IsEquationExist(engine, trimmed_new.toStdString()))
+    if (mgr.IsEquationExist(trimmed_new.toStdString()))
     {
         QMessageBox::warning(
             this, "Duplicate Equation",
@@ -487,7 +457,7 @@ void ProxyDemoWidget::OnRenameEquation()
         return;
     }
 
-    const Equation *equation = proxy.GetEquation(engine, current_name.toStdString());
+    const Equation *equation = mgr.GetEquation(current_name.toStdString());
     if (!equation)
     {
         return;
@@ -502,12 +472,12 @@ void ProxyDemoWidget::OnRenameEquation()
         // adds the new one, rewrites all dependents' references, and cascades
         // invalidation; Update() triggers the chained recomputation.
         const std::string new_statement = ReplaceIdentifierToken(
-            QString::fromStdString(proxy.GetEquationGroup(engine, group_id)->statement()),
+            QString::fromStdString(mgr.GetEquationGroup(group_id)->statement()),
             current_name, trimmed_new
         ).toStdString();
 
-        proxy.EditEquationGroup(engine, group_id, new_statement);
-        proxy.Update(engine);
+        mgr.EditEquationGroup(group_id, new_statement);
+        mgr.Update();
     }
     catch (const EquationException &e)
     {
@@ -555,13 +525,20 @@ void ProxyDemoWidget::OnDeleteEquation()
     }
 
     XEquationProxy &proxy = XEquationProxy::GetInstance();
-    const Engine engine = EngineFromCombo(CurrentEngineIndex());
+    EquationManager &mgr = proxy.rel_manager();
     const std::string name_std = current_name.toStdString();
 
     try
     {
-        proxy.RemoveEquation(engine, name_std);
-        proxy.Update(engine);
+        // Remove a single Equation by name: locate the owning group (in the
+        // demo each equation maps to an independent group) and remove it.
+        const Equation *equation = mgr.GetEquation(name_std);
+        if (!equation)
+        {
+            throw xequation::EquationException::EquationNotFound(name_std);
+        }
+        mgr.RemoveEquationGroup(equation->group_id());
+        mgr.Update();
     }
     catch (const EquationException &e)
     {
@@ -574,9 +551,9 @@ void ProxyDemoWidget::OnDeleteEquation()
         return;
     }
 
-    // Refresh the list after deletion; kEquationRemoving clears the table, and
-    // this is a fallback.
-    data_frame_view_->Clear();
+    // Refresh the list after deletion.  kEquationRemoving/kEquationRemoved
+    // already handled the tabs (equation tab cleared, dependent expression
+    // tabs re-evaluated); no manual tab reset needed here.
     property_widget_->SetEquation(nullptr);
     RefreshEquationList();
 }
@@ -592,17 +569,43 @@ void ProxyDemoWidget::OnShowProperties()
     }
 }
 
+void ProxyDemoWidget::OnAddWatchExpression()
+{
+    bool ok = false;
+    const QString expression = QInputDialog::getText(
+        this, "Add Expression Watch",
+        "Expression (e.g.  y * 2 + 1):", QLineEdit::Normal,
+        QString(), &ok
+    );
+    if (!ok)
+    {
+        return;
+    }
+
+    const std::string trimmed = expression.trimmed().toStdString();
+    if (trimmed.empty())
+    {
+        QMessageBox::warning(this, "Invalid Expression", "Expression must not be empty.");
+        return;
+    }
+
+    // Add a watch tab that is NOT bound to any equation; it re-evaluates
+    // through the engine whenever its dependencies' values are ready.
+    // (DataFrame views are REL-only; the tab widget uses the REL engine.)
+    data_frame_view_->AddExpression(trimmed);
+}
+
 void ProxyDemoWidget::RefreshEquationList()
 {
     equation_list_->blockSignals(true);
     equation_list_->clear();
 
     XEquationProxy &proxy = XEquationProxy::GetInstance();
-    const Engine engine = EngineFromCombo(CurrentEngineIndex());
-    const std::vector<std::string> names = proxy.GetEquationNames(engine);
+    EquationManager &mgr = proxy.rel_manager();
+    const std::vector<std::string> names = mgr.GetEquationNames();
     for (const std::string &name : names)
     {
-        const Equation *equation = proxy.GetEquation(engine, name);
+        const Equation *equation = mgr.GetEquation(name);
         QString item_text = QString::fromStdString(name);
         if (equation && equation->status() == ResultStatus::kSuccess)
         {
@@ -617,33 +620,60 @@ void ProxyDemoWidget::RefreshEquationList()
 
     if (names.empty())
     {
-        data_frame_view_->Clear();
+        data_frame_view_->ClearAll();
         status_label_->setText("No equations yet. Insert one above.");
     }
 }
 
 void ProxyDemoWidget::OnEquationListSelectionChanged()
 {
-    const QListWidgetItem *item = equation_list_->currentItem();
+    const QList<QListWidgetItem *> items = equation_list_->selectedItems();
+
+    // Buttons / property widget act on the *current* (focus) item only.
+    QListWidgetItem *item = equation_list_->currentItem();
+    if (!item && !items.isEmpty())
+    {
+        item = items.first();
+    }
     if (!item)
     {
-        data_frame_view_->Clear();
+        // No selection at all: keep watch tabs as they are (only unpinned
+        // equation tabs get closed by SyncSelection with an empty set).
         property_widget_->SetEquation(nullptr);
         redefine_button_->setEnabled(false);
         rename_button_->setEnabled(false);
         delete_button_->setEnabled(false);
         properties_button_->setEnabled(false);
-        return;
+    }
+    else
+    {
+        redefine_button_->setEnabled(true);
+        rename_button_->setEnabled(true);
+        delete_button_->setEnabled(true);
+        properties_button_->setEnabled(true);
     }
 
-    // Item text format: "name  [N row(s)]" -- take the part before the space as the name.
-    const QString text = item->text();
-    const QString name = text.section(' ', 0, 0);
-    redefine_button_->setEnabled(true);
-    rename_button_->setEnabled(true);
-    delete_button_->setEnabled(true);
-    properties_button_->setEnabled(true);
-    ShowEquation(name);
+    // Collect all selected equation names (item text: "name  [N row(s)]").
+    std::vector<std::string> selected_names;
+    for (const QListWidgetItem *it : items)
+    {
+        selected_names.push_back(it->text().section(' ', 0, 0).toStdString());
+    }
+
+    // Sync the tab widget: open / close / refresh equation tabs to match the
+    // current selection (pinned and expression tabs are never closed).
+    // DataFrame views are REL-only, so the sync targets the REL engine.
+    data_frame_view_->SyncSelection(selected_names);
+
+    // Property widget follows the focus item.
+    if (item)
+    {
+        const QString name = item->text().section(' ', 0, 0);
+        XEquationProxy &proxy = XEquationProxy::GetInstance();
+        property_widget_->SetEquation(
+            proxy.rel_manager().GetEquation(name.toStdString())
+        );
+    }
 }
 
 QString ProxyDemoWidget::CurrentSelectedEquationName() const
@@ -664,70 +694,6 @@ void ProxyDemoWidget::SelectEquationByName(const QString &name)
     if (!items.isEmpty())
     {
         equation_list_->setCurrentItem(items.first());
-    }
-}
-
-void ProxyDemoWidget::ShowEquation(const QString &equation_name)
-{
-    XEquationProxy &proxy = XEquationProxy::GetInstance();
-    const Engine engine = EngineFromCombo(CurrentEngineIndex());
-    const std::string name_std = equation_name.toStdString();
-    const Equation *equation = proxy.GetEquation(engine, name_std);
-
-    // Refresh the property widget (shows placeholder if equation is null; even
-    // on compute failure, shows meta info + red Message).
-    property_widget_->SetEquation(equation);
-
-    if (!equation)
-    {
-        data_frame_view_->Clear();
-        status_label_->setText("Equation not found: " + equation_name);
-        return;
-    }
-
-    if (equation->status() != ResultStatus::kSuccess)
-    {
-        data_frame_view_->Clear();
-        status_label_->setText(
-            QString("%1: %2")
-                .arg(equation_name)
-                .arg(QString::fromStdString(equation->message()))
-        );
-        return;
-    }
-
-    const EquationValue &value = equation->GetValue();
-    data_frame_view_->SetEquation(equation);
-
-    if (value.IsRelValue())
-    {
-        const rel::Value &rel_value = value.AsRel();
-        status_label_->setText(
-            QString("%1  |  engine=REL  |  type=%2  |  shape=[%3]  |  rows=%4")
-                .arg(equation_name)
-                .arg(QString::fromStdString(
-                    xdataset::DataTypeToString(rel_value.data_type())
-                ))
-                .arg(QString::fromStdString(
-                    rel_value.data_shape().to_string()
-                ))
-                .arg(static_cast<qlonglong>(rel_value.rows()))
-        );
-    }
-    else if (value.IsPyObject())
-    {
-        status_label_->setText(
-            QString("%1  |  engine=Python  |  type=%2")
-                .arg(equation_name)
-                .arg(QString::fromStdString(value.AsPyObject().TypeName()))
-        );
-    }
-    else
-    {
-        status_label_->setText(
-            QString("%1: only REL / Python values are supported")
-                .arg(equation_name)
-        );
     }
 }
 

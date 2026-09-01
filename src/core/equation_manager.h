@@ -25,6 +25,7 @@ class EquationException : public std::exception
         kEquationGroupAlreadyExists,
         kEquationNotFound,
         kEquationAlreayExists,
+        kExpressionNotFound,
         // kEquationConflictsWithBuiltin,
     };
 
@@ -72,6 +73,11 @@ class EquationException : public std::exception
         return EquationException(ErrorCode::kEquationAlreayExists, equation_name);
     }
 
+    static EquationException ExpressionNotFound(const std::string &expression_id)
+    {
+        return EquationException(ErrorCode::kExpressionNotFound, expression_id);
+    }
+
     // static EquationException EquationConflictsWithBuiltin(const std::string &equation_name)
     // {
     //     return EquationException(ErrorCode::kEquationConflictsWithBuiltin, equation_name);
@@ -98,6 +104,10 @@ class EquationException : public std::exception
 
         case ErrorCode::kEquationAlreayExists:
             oss << "Equation already exists. Name: '" << equation_name_ << "'";
+            break;
+
+        case ErrorCode::kExpressionNotFound:
+            oss << "Expression not found. ID: '" << equation_name_ << "'";
             break;
 
         default:
@@ -128,11 +138,16 @@ class EquationManager
 {
   public:
     EquationManager(
-        std::unique_ptr<EquationContext> context, InterpretHandler interpret_handler, ParseHandler parse_handler, const EquationEngineInfo &engine_info) noexcept;
+        std::unique_ptr<EquationContext> context, EvalHandler eval_handler, ExecHandler exec_handler, ParseHandler parse_handler, const EquationEngineInfo &engine_info) noexcept;
 
     virtual ~EquationManager() noexcept = default;
 
     const EquationGroup *GetEquationGroup(const EquationGroupId &group_id) const;
+
+    /// The group that owns the given equation name (nullptr if the equation or
+    /// its owning group does not exist).  Convenience for group-centric flows:
+    /// pair with EquationGroup::FirstEquation() for single-equation groups.
+    const EquationGroup *GetEquationGroup(const std::string &equation_name) const;
 
     const Equation *GetEquation(const std::string &equation_name) const;
 
@@ -170,7 +185,9 @@ class EquationManager
 
     void UpdateEquationGroup(const EquationGroupId &group_id);
 
-    void UpdateEquationWithoutPropagate(const std::string &equation_name);
+    // Recomputes a single graph node without propagating to dependents
+    // (dispatches equations/expressions by node kind).
+    void UpdateNode(const std::string &node_name);
 
     void UpdateEquationStatus(const std::string &equation_name, ResultStatus status, const std::string& message = "");
 
@@ -179,6 +196,57 @@ class EquationManager
     // (e.g. cross-group equations that lost their dependency after a rename/removal).
     // Returns an empty vector if the group does not exist.
     std::vector<std::string> GetEquationsToUpdate(const EquationGroupId &group_id) const;
+
+    // =========================================================================
+    // Registered expressions (observe-only, never written into the context)
+    // =========================================================================
+
+    // Registers an expression; returns its id.
+    ExpressionId AddExpression(const std::string &expression);
+
+    // Removes a registered expression (and its graph node).
+    void RemoveExpression(const ExpressionId &id);
+
+    // Returns the expression object, or nullptr.
+    const Expression *GetExpression(const ExpressionId &id) const;
+
+    // Returns true when a registered expression with this id exists.
+    bool IsExpressionExist(const ExpressionId &id) const;
+
+    // All registered expression ids (insertion order not guaranteed).
+    std::vector<ExpressionId> GetExpressionIds() const;
+
+    // Value of a registered expression (Null when not found / not yet computed).
+    EquationValue GetExpressionValue(const ExpressionId &id) const;
+
+    // Computes the expression (does not propagate to dependents).
+    void UpdateExpression(const ExpressionId &id);
+
+    // =========================================================================
+    // External input symbols (named graph anchors, value owned by the host)
+    // =========================================================================
+
+    // Registers an external input symbol as a graph anchor.
+    bool AddExternalInput(const std::string &symbol_name);
+
+    // Removes the anchor (dangling edges to it are deactivated but retained).
+    void RemoveExternalInput(const std::string &symbol_name);
+
+    // True when the name is a registered external input.
+    bool IsExternalInput(const std::string &symbol_name) const;
+
+    // Names of all registered external inputs.
+    std::vector<std::string> GetExternalInputNames() const;
+
+    // Marks the external input dirty and invalidates its dependents.  With a
+    // value: inject into the context, recompute dependents, then remove again.
+    // Without (REL Dataset): only invalidate; recompute on a later Update().
+    void UpdateExternalInput(const std::string &symbol_name,
+                             const EquationValue &value = EquationValue::Null());
+
+    // Invalidates a batch of inputs (no value injection).  A single merged
+    // topological pass recomputes dependents, so shared dependents run once.
+    void InvalidateExternalInputs(const std::vector<std::string> &symbol_names);
 
     bool WriteDependencyGraphToDotFile(const std::string &file_path) const;
 
@@ -217,6 +285,7 @@ class EquationManager
     Equation *GetEquationInternal(const std::string &equation_name);
     EquationGroup *GetEquationGroupInternal(const EquationGroupId &group_id);
     void UpdateEquationInternal(const std::string &equation_name);
+    void UpdateExpressionInternal(const ExpressionId &id);
 
     void AddNodeToGraph(const std::string &node_name, const std::vector<std::string> &dependencies);
     void RemoveNodeInGraph(const std::string &node_name);
@@ -243,7 +312,16 @@ class EquationManager
     EquationGroupPtrOrderedMap equation_group_map_;
     std::unordered_map<std::string, boost::uuids::uuid> equation_name_to_group_id_map_;
 
-    InterpretHandler interpret_handler_ = nullptr;
+    // Registered expressions.  Keyed by name (same slot as equations).
+    std::unordered_map<std::string, Expression> expression_map_;
+    // Expression id -> internal graph/name slot.
+    std::unordered_map<ExpressionId, std::string> expression_id_to_name_map_;
+
+    // External input symbols.  Value is provided externally.
+    tsl::ordered_set<std::string> external_input_names_;
+
+    EvalHandler eval_handler_ = nullptr;
+    ExecHandler exec_handler_ = nullptr;
     ParseHandler parse_handler_ = nullptr;
     EquationEngineInfo engine_info_{};
 };

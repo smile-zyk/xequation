@@ -45,6 +45,24 @@ Equation *EquationGroup::GetEquation(const std::string &equation_name)
     return nullptr;
 }
 
+const Equation *EquationGroup::FirstEquation() const
+{
+    if (equation_map_.empty())
+    {
+        return nullptr;
+    }
+    return equation_map_.begin()->second.get();
+}
+
+Equation *EquationGroup::FirstEquation()
+{
+    if (equation_map_.empty())
+    {
+        return nullptr;
+    }
+    return equation_map_.begin()->second.get();
+}
+
 bool EquationGroup::IsEquationExist(const std::string &equation_name) const
 {
     return equation_map_.contains(equation_name);

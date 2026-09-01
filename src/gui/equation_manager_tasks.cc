@@ -50,7 +50,7 @@ void UpdateEquationGroupTask::Execute()
         }
         int progress = 10 + static_cast<int>(80.0 * i / update_equation_names.size());
         SetProgress(progress, "Updating equation: " + QString::fromStdString(update_equation_names[i]));
-        manager->UpdateEquationWithoutPropagate(update_equation_names[i]);
+        manager->UpdateNode(update_equation_names[i]);
     }
     if (cancel_requested_.load())
     {
@@ -77,7 +77,7 @@ void UpdateManagerTask::Execute()
         }
         int progress = 10 + static_cast<int>(80.0 * i / update_equation_names.size());
         SetProgress(progress, "Updating equation: " + QString::fromStdString(update_equation_names[i]));
-        manager->UpdateEquationWithoutPropagate(update_equation_names[i]);
+        manager->UpdateNode(update_equation_names[i]);
     }
     if (cancel_requested_.load())
     {
@@ -104,7 +104,7 @@ void UpdateEquationsTask::Execute()
         }
         int progress = 10 + static_cast<int>(80.0 * i / update_equation_names.size());
         SetProgress(progress, "Updating equation: " + QString::fromStdString(update_equation_names[i]));
-        manager->UpdateEquationWithoutPropagate(update_equation_names[i]);
+        manager->UpdateNode(update_equation_names[i]);
     }
     if (cancel_requested_.load())
     {
