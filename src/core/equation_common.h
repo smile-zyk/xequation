@@ -110,11 +110,11 @@ struct ParseResult
 //    - It has no Equation/EquationGroup, so it does not show up in
 //      GetEquationNames()/GetEquationGroupIds().
 // =========================================================================
-using ExpressionId = boost::uuids::uuid;
+using ObjectId = boost::uuids::uuid;
 
 struct Expression
 {
-    ExpressionId id;
+    ObjectId id;
     std::string content;
     // Full result of the last evaluation (Eval).  status/message/value
     // are accessed via result.status / result.message / result.value.

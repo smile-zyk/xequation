@@ -84,7 +84,7 @@ class EquationEditor : public QDialog
     }
   signals:
     void AddEquationRequest(const QString &equation_name, const QString &expression);
-    void EditEquationRequest(const EquationGroupId &group_id, const QString &equation_name, const QString &expression);
+    void EditEquationRequest(const ObjectId &group_id, const QString &equation_name, const QString &expression);
     void VariableInsertRequested(const QString &variable);
     void UseCodeEditorRequest(const QString &initial_text);
 

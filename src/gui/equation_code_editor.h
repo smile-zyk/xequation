@@ -29,7 +29,7 @@ public:
     
 signals:
     void AddEquationRequest(const QString &text);
-    void EditEquationRequest(const EquationGroupId& group_id, const QString &statement);
+    void EditEquationRequest(const ObjectId& group_id, const QString &statement);
     void StyleModeChanged(CodeEditor::StyleMode mode);
     void ZoomChanged(double zoom_factor);
 

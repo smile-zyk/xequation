@@ -22,7 +22,7 @@ using namespace xequation;
 // =========================================================================
 
 ExpressionDataFrameTabWidget::ExpressionDataFrameTabWidget(
-    const EquationManager &manager, QWidget *parent)
+    EquationManager &manager, QWidget *parent)
     : QTabWidget(parent), manager_(manager)
 {
     setTabsClosable(true);
@@ -39,14 +39,26 @@ ExpressionDataFrameTabWidget::ExpressionDataFrameTabWidget(
             this, &ExpressionDataFrameTabWidget::OnReevalTimer);
 }
 
-ExpressionDataFrameTabWidget::~ExpressionDataFrameTabWidget() = default;
+ExpressionDataFrameTabWidget::~ExpressionDataFrameTabWidget()
+{
+    // Unregister every remaining registered expression (equation tabs hold a
+    // group id; RemoveExpression is a no-op for them).  The view widgets are
+    // children and get destroyed by ~QTabWidget.
+    for (const TabData &tab : tabs_)
+    {
+        if (tab.kind == ObjectKind::kExpression)
+        {
+            manager_.RemoveExpression(tab.object_id);
+        }
+    }
+}
 
 // ---- tab lifecycle ------------------------------------------------------
 
-int ExpressionDataFrameTabWidget::FindTabIndex(const std::string &expression) const
+int ExpressionDataFrameTabWidget::FindTabIndex(const ObjectId &object_id) const
 {
-    const auto it = expression_to_index_.find(expression);
-    if (it == expression_to_index_.end())
+    const auto it = object_to_index_.find(object_id);
+    if (it == object_to_index_.end())
     {
         return -1;
     }
@@ -57,7 +69,7 @@ int ExpressionDataFrameTabWidget::OpenTab()
 {
     // Tab contents: a single table view; errors are rendered as an overlay
     // inside the view itself (ExpressionDataFrameView::SetError).
-    auto *view = new ExpressionDataFrameView(this);
+    auto *view = new ExpressionDataFrameView(manager_, this);
 
     const int index = addTab(view, QString());
     tabs_.emplace_back();
@@ -86,8 +98,8 @@ int ExpressionDataFrameTabWidget::OpenTab()
         }
     });
 
-    // The expression->index mapping is (re)built by RebuildKeyToIndex once the
-    // caller has set the tab's expression.
+    // The object->index mapping is (re)built by RebuildKeyToIndex once the
+    // caller has set the tab's object id.
     return static_cast<int>(tabs_.size()) - 1;
 }
 
@@ -99,10 +111,16 @@ void ExpressionDataFrameTabWidget::CloseTabInternal(int index)
     }
 
     const TabData tab = tabs_[static_cast<std::size_t>(index)];
-    UnregisterDependencies(tab.expression, tab.dependencies);
-    expression_to_index_.erase(tab.expression);
+    if (tab.kind == ObjectKind::kExpression)
+    {
+        // A registered expression is released from the manager (this also
+        // removes its graph node and dependency edges).
+        manager_.RemoveExpression(tab.object_id);
+    }
+    UnregisterDependencies(tab.object_id, tab.dependencies);
+    object_to_index_.erase(tab.object_id);
     dirty_keys_.erase(std::remove_if(dirty_keys_.begin(), dirty_keys_.end(),
-                                     [&tab](const std::string &k) { return k == tab.expression; }),
+                                     [&tab](const ObjectId &k) { return k == tab.object_id; }),
                       dirty_keys_.end());
 
     tabs_.erase(tabs_.begin() + index);
@@ -159,10 +177,10 @@ void ExpressionDataFrameTabWidget::MoveTab(int from, int to)
 
 void ExpressionDataFrameTabWidget::RebuildKeyToIndex()
 {
-    expression_to_index_.clear();
+    object_to_index_.clear();
     for (std::size_t i = 0; i < tabs_.size(); ++i)
     {
-        expression_to_index_[tabs_[i].expression] = static_cast<int>(i);
+        object_to_index_[tabs_[i].object_id] = static_cast<int>(i);
     }
 }
 
@@ -247,7 +265,7 @@ void ExpressionDataFrameTabWidget::SetTabError(int index, const QString &message
 // ---- dependency registration -----------------------------------------------
 
 void ExpressionDataFrameTabWidget::UnregisterDependencies(
-    const std::string &expression, const std::vector<std::string> &deps)
+    const ObjectId &object_id, const std::vector<std::string> &deps)
 {
     for (const std::string &dep : deps)
     {
@@ -257,7 +275,7 @@ void ExpressionDataFrameTabWidget::UnregisterDependencies(
             continue;
         }
         auto &keys = it->second;
-        keys.erase(std::remove(keys.begin(), keys.end(), expression), keys.end());
+        keys.erase(std::remove(keys.begin(), keys.end(), object_id), keys.end());
         if (keys.empty())
         {
             deps_to_keys_.erase(it);
@@ -266,16 +284,16 @@ void ExpressionDataFrameTabWidget::UnregisterDependencies(
 }
 
 void ExpressionDataFrameTabWidget::RegisterDependencies(
-    const std::string &expression, const std::vector<std::string> &deps)
+    const ObjectId &object_id, const std::vector<std::string> &deps)
 {
     // DataFrames come only from the REL engine; the dependency map keys are
     // equation names, which are engine-agnostic for refresh purposes.
     for (const std::string &dep : deps)
     {
         auto &keys = deps_to_keys_[dep];
-        if (std::find(keys.begin(), keys.end(), expression) == keys.end())
+        if (std::find(keys.begin(), keys.end(), object_id) == keys.end())
         {
-            keys.push_back(expression);
+            keys.push_back(object_id);
         }
     }
 }
@@ -290,44 +308,60 @@ void ExpressionDataFrameTabWidget::EvaluateTab(int index)
     }
     const TabData &tab = tabs_[static_cast<std::size_t>(index)];
 
-    // Short-circuit: when the expression is exactly the name of an existing
-    // equation, read its value directly -- no Eval re-evaluation needed
-    // (the kValue event that triggered us already carries the fresh state).
-    const Equation *existing = manager_.GetEquation(tab.expression);
-    if (existing && existing->status() == ResultStatus::kSuccess)
+    if (tab.kind == ObjectKind::kExpression)
     {
-        SetTabError(index, QString());
-        FillTab(tab.view, existing->GetValue());
+        // Registered expression: read the cached value straight from the
+        // manager (the kExpressionUpdated event that triggered us already
+        // carries the fresh state; the first computation is triggered by
+        // AddExpression).
+        const Expression *expr = manager_.GetExpression(tab.object_id);
+        if (expr && expr->result.status == ResultStatus::kSuccess)
+        {
+            SetTabError(index, QString());
+            FillTab(tab.view, expr->result.value);
+            setTabText(index, QString::fromStdString(tab.expression));
+            return;
+        }
+        // Not ready / failed: show the error (the value may simply not be
+        // computed yet -- e.g. its dependencies are not all defined).
+        tab.view->Clear();
+        const QString error_message =
+            expr ? QString("%1  (%2)")
+                       .arg(QString::fromStdString(expr->result.message))
+                       .arg(QString::fromStdString(ResultStatusConverter::ToString(expr->result.status)))
+                 : QStringLiteral("Expression not registered.");
+        SetTabError(index, error_message);
         setTabText(index, QString::fromStdString(tab.expression));
         return;
     }
 
-    // Otherwise evaluate the expression via the injected callback.
-    const InterpretResult result = manager_.Eval(tab.expression);
-    if (result.status != ResultStatus::kSuccess)
+    // Equation tab: read the value directly (group id -> single-equation group).
+    const EquationGroup *group = manager_.GetEquationGroup(tab.object_id);
+    const Equation *equation = group ? group->FirstEquation() : nullptr;
+    if (equation && equation->status() == ResultStatus::kSuccess)
     {
-        // Keep the tab; show the error in red below the (cleared) table.
-        tab.view->Clear();
-        const QString error_message = QString("%1  (%2)")
-            .arg(QString::fromStdString(result.message))
-            .arg(QString::fromStdString(ResultStatusConverter::ToString(result.status))
-            );
-        SetTabError(index, error_message);
-        setTabText(index, QString("%1").arg(QString::fromStdString(tab.expression)));
+        SetTabError(index, QString());
+        FillTab(tab.view, equation->GetValue());
+        setTabText(index, QString::fromStdString(tab.expression));
         return;
     }
-    SetTabError(index, QString());
-    FillTab(tab.view, result.value);
+    tab.view->Clear();
+    const QString error_message =
+        equation ? QString("%1  (%2)")
+                       .arg(QString::fromStdString(equation->message()))
+                       .arg(QString::fromStdString(ResultStatusConverter::ToString(equation->status())))
+                 : QStringLiteral("Equation does not exist.");
+    SetTabError(index, error_message);
     setTabText(index, QString::fromStdString(tab.expression));
 }
 
 // ---- change handling -----------------------------------------------------
 
-void ExpressionDataFrameTabWidget::MarkDirty(const std::string &key)
+void ExpressionDataFrameTabWidget::MarkDirty(const ObjectId &object_id)
 {
-    if (std::find(dirty_keys_.begin(), dirty_keys_.end(), key) == dirty_keys_.end())
+    if (std::find(dirty_keys_.begin(), dirty_keys_.end(), object_id) == dirty_keys_.end())
     {
-        dirty_keys_.push_back(key);
+        dirty_keys_.push_back(object_id);
     }
     ScheduleReeval();
 }
@@ -350,10 +384,10 @@ void ExpressionDataFrameTabWidget::OnReevalTimer()
         return;
     }
 
-    const std::vector<std::string> keys = dirty_keys_;
+    const std::vector<ObjectId> keys = dirty_keys_;
     dirty_keys_.clear();
 
-    for (const std::string &key : keys)
+    for (const ObjectId &key : keys)
     {
         const int index = FindTabIndex(key);
         if (index >= 0)
@@ -367,24 +401,26 @@ void ExpressionDataFrameTabWidget::OnReevalTimer()
 
 void ExpressionDataFrameTabWidget::OnEquationRemoving(const Equation *equation)
 {
-    (void)equation;
-    // Tabs are all expressions and never "belong" to an equation; nothing to
-    // clear pre-removal.  The post-removal re-evaluation (OnEquationRemoved)
-    // turns the tab into a NameError, keeping it open watch-like.
+    // The value is about to disappear.  Equation tabs showing it are cleared;
+    // watch-expression tabs are left to the post-removal re-evaluation
+    // (OnEquationRemoved) which turns them into errors but keeps them open.
+    MarkDirty(equation ? equation->group_id() : ObjectId());
 }
 
 void ExpressionDataFrameTabWidget::OnEquationRemoved(const std::string &equation_name)
 {
-    // Re-evaluate every tab that depended on the removed equation: they will
-    // resolve to NameError, but the tab stays open (watch-like).
+    // Re-evaluate every watch expression that depended on the removed
+    // equation: their registration is still alive (a missing dependency just
+    // stays inactive), so refresh shows the NameError, keeping the tab open
+    // watch-like.
     const auto it = deps_to_keys_.find(equation_name);
     if (it == deps_to_keys_.end())
     {
         return;
     }
-    for (const std::string &expression : it->second)
+    for (const ObjectId &object_id : it->second)
     {
-        MarkDirty(expression);
+        MarkDirty(object_id);
     }
 }
 
@@ -396,104 +432,144 @@ void ExpressionDataFrameTabWidget::OnEquationUpdated(
     {
         return;
     }
-
-    // A tab whose expression IS this equation's name is in its dependency set
-    // (a self-registered dependency), so it is covered by the deps_to_keys_
-    // path below.  Refresh only when the new value is ready.
+    // Refresh only when the new value is ready.
     if (!(flags & EquationUpdateFlag::kValue))
     {
         return;
     }
+
+    // An equation tab whose group_id matches this equation is refreshed by
+    // marking its id dirty.
+    MarkDirty(equation->group_id());
+
+    // Watch expressions that depend on this equation: their cached value is
+    // re-computed by the manager via UpdateNode (kExpressionUpdated comes
+    // separately), so just mark the dependent tabs dirty here too -- the
+    // consolidated OnReevalTimer reads the fresh value.
     const auto it = deps_to_keys_.find(equation->name());
-    if (it == deps_to_keys_.end())
+    if (it != deps_to_keys_.end())
     {
-        return;
-    }
-    for (const std::string &expression : it->second)
-    {
-        MarkDirty(expression);
+        for (const ObjectId &object_id : it->second)
+        {
+            MarkDirty(object_id);
+        }
     }
 }
 
-void ExpressionDataFrameTabWidget::OnEquationAdded(const Equation *equation)
+void ExpressionDataFrameTabWidget::OnExpressionUpdated(
+    const Expression *expression, bitmask::bitmask<ExpressionUpdateFlag> /*flags*/
+)
 {
-    if (!equation)
+    if (!expression)
     {
         return;
     }
-    // Re-evaluate tabs whose dependencies were previously missing: a tab that
-    // showed NameError for a removed dep can now resolve it.
-    const auto it = deps_to_keys_.find(equation->name());
-    if (it == deps_to_keys_.end())
-    {
-        return;
-    }
-    for (const std::string &expression : it->second)
-    {
-        MarkDirty(expression);
-    }
+    // Watch-expression tab: refresh from the (already recomputed) cached value.
+    MarkDirty(expression->id);
 }
 
-// ---- tabs: Add / Sync ---------------------------------------------------
+// ---- tabs: Add -----------------------------------------------------------
 
-void ExpressionDataFrameTabWidget::AddExpression(const std::string &expression,
-                                               bool auto_pin)
+void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &group_id, bool auto_pin)
 {
-    // Duplicate expression: focus existing tab instead of stacking a new one.
-    const int existing_index = FindTabIndex(expression);
+    if (group_id.is_nil())
+    {
+        return;
+    }
+
+    // Duplicate object: focus existing tab instead of stacking a new one.
+    const int existing_index = FindTabIndex(group_id);
     if (existing_index >= 0)
     {
         setCurrentIndex(existing_index);
         // Re-read the value so the tab is not stale (matching SyncSelection's
         // "re-selecting refreshes" semantics).
-        MarkDirty(expression);
+        MarkDirty(group_id);
         return;
     }
 
-    // Parse to discover dependencies (ExpressionWatchWidget pattern) via the
-    // injected callback.
-    ParseResult parse_result;
-    try
+    const EquationGroup *group = manager_.GetEquationGroup(group_id);
+    const Equation *equation = group ? group->FirstEquation() : nullptr;
+    if (!equation)
     {
-        parse_result = manager_.Parse(expression, ParseMode::kExpression);
-    }
-    catch (const std::exception &)
-    {
-        parse_result.items.clear();
+        return;
     }
 
     const int index = OpenTab();
     TabData &tab = tabs_[static_cast<std::size_t>(index)];
-    tab.expression = expression;
-    setTabText(index, QString::fromStdString(expression));
+    tab.kind = ObjectKind::kEquation;
+    tab.object_id = group_id;
+    tab.expression = equation->name();
+    tab.dependencies = {tab.expression};   // self-register (value-ready refresh)
+    setTabText(index, QString::fromStdString(tab.expression));
 
-    if (parse_result.items.size() == 1)
-    {
-        tab.dependencies = parse_result.items[0].dependencies;
-        // Self-register: a bare equation name (or any expression that is just
-        // an identifier) must also refresh when the equation's own value is
-        // ready, so its kValue event reaches this tab via deps_to_keys_.
-        if (std::find(tab.dependencies.begin(), tab.dependencies.end(),
-                      expression) == tab.dependencies.end())
-        {
-            tab.dependencies.push_back(expression);
-        }
-        RegisterDependencies(tab.expression, tab.dependencies);
-    }
-    // Note: even when parsing fails, the tab stays open and shows whatever
-    // EvaluateTab can produce (NameError etc.).
-
+    RegisterDependencies(tab.object_id, tab.dependencies);
     RebuildKeyToIndex();
     EvaluateTab(index);
     setCurrentIndex(index);
 
-    // New / edited expressions are auto-pinned unless the caller opts out
-    // (SyncSelection passes false so selection-driven tabs keep following the
-    // selection).  SetTabPinned re-orders the tab into the pinned group, and
-    // the index may change.
     if (auto_pin)
     {
-        const int pinned_index = FindTabIndex(expression);
+        const int pinned_index = FindTabIndex(group_id);
+        SetTabPinned(pinned_index, true);
+    }
+}
+
+void ExpressionDataFrameTabWidget::AddExpression(const ObjectId &expression_id,
+                                               bool auto_pin)
+{
+    if (expression_id.is_nil())
+    {
+        return;
+    }
+
+    // Duplicate object: focus existing tab instead of stacking a new one.
+    const int existing_index = FindTabIndex(expression_id);
+    if (existing_index >= 0)
+    {
+        setCurrentIndex(existing_index);
+        // Re-read the value so the tab is not stale.
+        MarkDirty(expression_id);
+        return;
+    }
+
+    const Expression *expr = manager_.GetExpression(expression_id);
+    if (!expr)
+    {
+        return;
+    }
+
+    const int index = OpenTab();
+    TabData &tab = tabs_[static_cast<std::size_t>(index)];
+    tab.kind = ObjectKind::kExpression;
+    tab.object_id = expression_id;
+    tab.expression = expr->content;
+    tab.dependencies = expr->dependencies;
+    setTabText(index, QString::fromStdString(tab.expression));
+
+    RegisterDependencies(tab.object_id, tab.dependencies);
+    RebuildKeyToIndex();
+
+    // Trigger the first computation synchronously so the tab shows a value
+    // immediately (AddExpression only registered + marked the graph node
+    // dirty; the actual Eval happens here).  Afterwards the kExpressionUpdated
+    // signal keeps the tab fresh -- EvaluateTab reads the cached value without
+    // re-evaluating (no feedback loop).
+    try
+    {
+        manager_.UpdateExpression(expression_id);
+    }
+    catch (const std::exception &)
+    {
+        // Keep the tab open; EvaluateTab renders the error state.
+    }
+
+    EvaluateTab(index);
+    setCurrentIndex(index);
+
+    if (auto_pin)
+    {
+        const int pinned_index = FindTabIndex(expression_id);
         SetTabPinned(pinned_index, true);
     }
 }
@@ -501,51 +577,35 @@ void ExpressionDataFrameTabWidget::AddExpression(const std::string &expression,
 void ExpressionDataFrameTabWidget::SyncSelection(
     const std::vector<std::string> &selected_equation_names)
 {
-    // 1. Close unpinned tabs whose expression is an equation name that is no
-    //    longer selected.  Compound-expression (watch) tabs and pinned tabs
-    //    always survive.
+    // 1. Close unpinned equation tabs whose equation is no longer selected.
+    //    Watch-expression tabs and pinned tabs always survive.
     for (int i = static_cast<int>(tabs_.size()) - 1; i >= 0; --i)
     {
         TabData &tab = tabs_[static_cast<std::size_t>(i)];
-        if (tab.pinned)
-        {
-            continue;
-        }
-        // Only bare identifiers can be equation-name tabs; anything with
-        // operators / spaces / etc. is a plain watch expression.
-        const std::string &expr = tab.expression;
-        const bool is_bare_identifier =
-            !expr.empty() &&
-            std::all_of(expr.begin(), expr.end(), [](unsigned char c) {
-                return std::isalnum(c) || c == '_';
-            }) &&
-            !std::isdigit(static_cast<unsigned char>(expr.front()));
-        if (!is_bare_identifier)
+        if (tab.pinned || tab.kind == ObjectKind::kExpression)
         {
             continue;
         }
         const bool still_selected =
             std::find(selected_equation_names.begin(), selected_equation_names.end(),
-                      expr) != selected_equation_names.end();
-        if (still_selected)
-        {
-            continue;
-        }
-        // Only auto-close if the name was actually an equation (a plain
-        // identifier that was never an equation stays open as a watch).
-        if (manager_.IsEquationExist(expr))
+                      tab.expression) != selected_equation_names.end();
+        if (!still_selected && manager_.IsEquationExist(tab.expression))
         {
             CloseTabInternal(i);
         }
     }
 
-    // 2. Open / refresh tabs for the selected items (AddExpression focuses /
-    //    refreshes the tab each call, matching "re-selecting refreshes").
-    //    Selection-driven tabs are not auto-pinned: they keep following the
-    //    selection until the user pins them manually.
+    // 2. Open / refresh equation tabs for the selected items (AddEquation
+    //    focuses / refreshes the tab each call, matching "re-selecting
+    //    refreshes").  Selection-driven tabs are not auto-pinned: they keep
+    //    following the selection until the user pins them manually.
     for (const std::string &name : selected_equation_names)
     {
-        AddExpression(name, /*auto_pin=*/false);
+        const Equation *equation = manager_.GetEquation(name);
+        if (equation)
+        {
+            AddEquation(equation->group_id(), /*auto_pin=*/false);
+        }
     }
 }
 
@@ -557,6 +617,13 @@ void ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked(int index)
     }
 
     TabData &tab = tabs_[static_cast<std::size_t>(index)];
+
+    // Only registered expressions are editable; equation tabs are identified
+    // by their name and edited through the main editor.
+    if (tab.kind != ObjectKind::kExpression)
+    {
+        return;
+    }
 
     bool ok = false;
     const QString new_expression = QInputDialog::getText(
@@ -573,44 +640,57 @@ void ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked(int index)
         return;
     }
 
-    // Re-parse the new expression; only accept it if it parses to one item
-    // (bad input leaves the tab unchanged).
-    ParseResult parse_result;
+    // Re-register: remove the old watch expression, register the new one with
+    // the manager and adopt its id.
+    manager_.RemoveExpression(tab.object_id);
+    UnregisterDependencies(tab.object_id, tab.dependencies);
+    object_to_index_.erase(tab.object_id);
+
+    ObjectId new_id;
     try
     {
-        parse_result = manager_.Parse(trimmed, ParseMode::kExpression);
+        new_id = manager_.AddExpression(trimmed);
     }
     catch (const std::exception &)
     {
-        parse_result.items.clear();
+        new_id = ObjectId();
     }
-    if (parse_result.items.size() != 1)
+    if (new_id.is_nil())
     {
+        // Registration failed (parse error): restore the old tab state.
+        tab.dependencies.clear();
+        RegisterDependencies(tab.object_id, tab.dependencies);
+        object_to_index_[tab.object_id] = index;
+        RebuildKeyToIndex();
+        EvaluateTab(index);
         return;
     }
 
-    // Swap dependencies: unregister the old key first, then adopt the new
-    // expression as the tab's identity and register under it.
-    UnregisterDependencies(tab.expression, tab.dependencies);
-    expression_to_index_.erase(tab.expression);
+    const Expression *new_expr = manager_.GetExpression(new_id);
+    tab.object_id = new_id;
     tab.expression = trimmed;
-    tab.dependencies = parse_result.items[0].dependencies;
-    // Self-register (same rule as AddExpression): a bare identifier must also
-    // refresh when its own equation's value is ready.
-    if (std::find(tab.dependencies.begin(), tab.dependencies.end(),
-                  trimmed) == tab.dependencies.end())
-    {
-        tab.dependencies.push_back(trimmed);
-    }
-    RegisterDependencies(tab.expression, tab.dependencies);
+    tab.dependencies = new_expr ? new_expr->dependencies : std::vector<std::string>{};
+    RegisterDependencies(tab.object_id, tab.dependencies);
 
-    expression_to_index_[trimmed] = index;
+    object_to_index_[new_id] = index;
     setTabText(index, QString::fromStdString(trimmed));
+
+    // Trigger the first computation of the edited expression synchronously.
+    try
+    {
+        manager_.UpdateExpression(new_id);
+    }
+    catch (const std::exception &)
+    {
+        // Keep the tab open; EvaluateTab renders the error state.
+    }
+
     EvaluateTab(index);
+    RebuildKeyToIndex();
 
     // Edited expressions are auto-pinned like new ones (SetTabPinned re-orders
     // the tab into the pinned group; the index may change).
-    const int pinned_index = FindTabIndex(trimmed);
+    const int pinned_index = FindTabIndex(new_id);
     SetTabPinned(pinned_index, true);
 }
 

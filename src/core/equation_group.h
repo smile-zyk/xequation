@@ -7,7 +7,7 @@ namespace xequation
 class EquationGroup;
 class EquationManager;
 using EquationGroupPtr = std::unique_ptr<EquationGroup>;
-using EquationGroupPtrOrderedMap = tsl::ordered_map<boost::uuids::uuid, EquationGroupPtr>;
+using EquationGroupPtrOrderedMap = tsl::ordered_map<ObjectId, EquationGroupPtr>;
 
 class EquationGroup
 {
@@ -47,7 +47,7 @@ class EquationGroup
         return manager_;
     }
 
-    const EquationGroupId &id() const
+    const ObjectId &id() const
     {
         return id_;
     }
@@ -59,7 +59,7 @@ class EquationGroup
 
   private:
     EquationPtrOrderedMap equation_map_;
-    EquationGroupId id_;
+    ObjectId id_;
     std::string statement_;
     const EquationManager *manager_;
 };

@@ -362,7 +362,7 @@ void DemoWidget::OnInsertEquationRequest()
     equation_editor_->exec();
 }
 
-void DemoWidget::OnEditEquationGroupRequest(const xequation::EquationGroupId &id)
+void DemoWidget::OnEditEquationGroupRequest(const xequation::ObjectId &id)
 {
     auto group = equation_manager_->GetEquationGroup(id);
     if (!group)
@@ -385,7 +385,7 @@ void DemoWidget::OnEditEquationGroupRequest(const xequation::EquationGroupId &id
     }
 }
 
-void DemoWidget::OnRemoveEquationGroupRequest(const xequation::EquationGroupId &id)
+void DemoWidget::OnRemoveEquationGroupRequest(const xequation::ObjectId &id)
 {
     if (RemoveEquationGroup(id))
     {
@@ -393,17 +393,17 @@ void DemoWidget::OnRemoveEquationGroupRequest(const xequation::EquationGroupId &
     }
 }
 
-void DemoWidget::OnCopyEquationGroupRequest(const xequation::EquationGroupId &id)
+void DemoWidget::OnCopyEquationGroupRequest(const xequation::ObjectId &id)
 {
     QApplication::clipboard()->setText(QString::fromStdString(equation_manager_->GetEquationGroup(id)->statement()));
 }
 
-void DemoWidget::OnUpdateEquationGroupRequest(const xequation::EquationGroupId &id)
+void DemoWidget::OnUpdateEquationGroupRequest(const xequation::ObjectId &id)
 {
     AsyncUpdateEquationGroup(id);
 }
 
-void DemoWidget::OnAddEquationGroupToExpressionWatchRequest(const xequation::EquationGroupId &id)
+void DemoWidget::OnAddEquationGroupToExpressionWatchRequest(const xequation::ObjectId &id)
 {
     const EquationGroup *group = equation_manager_->GetEquationGroup(id);
     if (!group)
@@ -454,7 +454,7 @@ bool DemoWidget::AddEquationGroup(const std::string &statement)
         return false;
     }
 }
-bool DemoWidget::EditEquationGroup(const xequation::EquationGroupId &id, const std::string &statement)
+bool DemoWidget::EditEquationGroup(const xequation::ObjectId &id, const std::string &statement)
 {
     if (!task_manager_->IsIdle())
     {
@@ -530,7 +530,7 @@ bool DemoWidget::AddEquation(const QString &equation_name, const QString &expres
 }
 
 bool DemoWidget::EditEquation(
-    const xequation::EquationGroupId &group_id, const QString &equation_name, const QString &expression
+    const xequation::ObjectId &group_id, const QString &equation_name, const QString &expression
 )
 {
     if (!task_manager_->IsIdle())
@@ -568,7 +568,7 @@ bool DemoWidget::EditEquation(
     }
 }
 
-bool DemoWidget::RemoveEquationGroup(const xequation::EquationGroupId &id)
+bool DemoWidget::RemoveEquationGroup(const xequation::ObjectId &id)
 {
     if (!task_manager_->IsIdle())
     {
@@ -601,7 +601,7 @@ bool DemoWidget::RemoveEquationGroup(const xequation::EquationGroupId &id)
     }
 }
 
-void DemoWidget::AsyncUpdateEquationGroup(const xequation::EquationGroupId &id)
+void DemoWidget::AsyncUpdateEquationGroup(const xequation::ObjectId &id)
 {
     auto task = std::unique_ptr<xequation::gui::UpdateEquationGroupTask>(
         new xequation::gui::UpdateEquationGroupTask("Update Equation Group", equation_manager_.get(), id)
@@ -628,12 +628,12 @@ void DemoWidget::AsyncUpdateEquationsAfterRemoveGroup(const std::vector<std::str
     task_manager_->EnqueueTask(std::move(task));
 }
 
-void DemoWidget::OnEquationGroupSelected(const xequation::EquationGroupId &id)
+void DemoWidget::OnEquationGroupSelected(const xequation::ObjectId &id)
 {
     OnEquationGroupsSelected({id});
 }
 
-void DemoWidget::OnEquationGroupsSelected(const std::vector<xequation::EquationGroupId> &ids)
+void DemoWidget::OnEquationGroupsSelected(const std::vector<xequation::ObjectId> &ids)
 {
     equation_browser_widget_->blockSignals(true);
     variable_inspect_widget_->blockSignals(true);
@@ -846,7 +846,7 @@ void DemoWidget::OnEquationEditorAddEquationRequest(const QString &equation_name
 }
 
 void DemoWidget::OnEquationEditorEditEquationRequest(
-    const xequation::EquationGroupId &group_id, const QString &equation_name, const QString &expression
+    const xequation::ObjectId &group_id, const QString &equation_name, const QString &expression
 )
 {
     if (EditEquation(group_id, equation_name, expression))
@@ -879,7 +879,7 @@ void DemoWidget::OnCodeEditorAddEquationRequest(const QString &statement)
     }
 }
 
-void DemoWidget::OnCodeEditorEditEquationRequest(const xequation::EquationGroupId &group_id, const QString &statement)
+void DemoWidget::OnCodeEditorEditEquationRequest(const xequation::ObjectId &group_id, const QString &statement)
 {
     if (EditEquationGroup(group_id, statement.toStdString()))
     {

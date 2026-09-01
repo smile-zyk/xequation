@@ -1,6 +1,5 @@
 #include "expression_data_frame_model.h"
 
-#include "core/equation.h"
 #include "data_frame.h"
 
 #include <algorithm>
@@ -12,7 +11,8 @@ namespace gui
 
 using namespace xequation;
 
-ExpressionDataFrameModel::ExpressionDataFrameModel(QObject *parent) : QAbstractTableModel(parent)
+ExpressionDataFrameModel::ExpressionDataFrameModel(const EquationManager &manager, QObject *parent)
+    : QAbstractTableModel(parent), manager_(manager)
 {
 }
 
@@ -24,8 +24,45 @@ const xdataset::DataFrame &ExpressionDataFrameModel::frame() const
     return equation_value_.AsRel().data_frame();
 }
 
-void ExpressionDataFrameModel::SetEquation(const Equation *equation)
+void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
 {
+    object_id_ = object_id;
+
+    // A registered expression wins over an equation with the same id (the
+    // Equation identity is its group_id; the two namespaces are disjoint).
+    const Expression *expression = manager_.GetExpression(object_id);
+    if (expression)
+    {
+        const EquationValue value = expression->result.value;
+        if (expression->result.status != ResultStatus::kSuccess || !value.IsRelValue())
+        {
+            Clear();
+            return;
+        }
+
+        // rel::Value::data_frame() returns a stable reference owned by the
+        // underlying DataArray (see REL value.h contract: caller must keep this
+        // Value alive while using the frame).  So we hold a copy of the
+        // EquationValue, whose rel::Value (via shared_ptr<DataArray>) becomes the
+        // frame's owner, avoiding dangling references; the id is kept only for
+        // event matching.
+        beginResetModel();
+        equation_value_ = value;   // hold a copy so the frame stays alive
+        loaded_rows_ = std::min<std::size_t>(
+            static_cast<std::size_t>(kLoadBatchSize), frame().row_count()
+        );
+        endResetModel();
+        return;
+    }
+
+    // Otherwise resolve as an equation (group id -> single-equation group).
+    const EquationGroup *group = manager_.GetEquationGroup(object_id);
+    if (!group)
+    {
+        Clear();
+        return;
+    }
+    const Equation *equation = group->FirstEquation();
     if (!equation)
     {
         Clear();
@@ -36,8 +73,8 @@ void ExpressionDataFrameModel::SetEquation(const Equation *equation)
     // underlying DataArray (see REL value.h contract: caller must keep this
     // Value alive while using the frame).  So we hold a copy of the
     // EquationValue, whose rel::Value (via shared_ptr<DataArray>) becomes the
-    // frame's owner, avoiding dangling references; the Equation pointer is not
-    // held.
+    // frame's owner, avoiding dangling references; the id is kept only for
+    // event matching.
     const EquationValue value = equation->GetValue();
     if (!value.IsRelValue())
     {
@@ -47,7 +84,6 @@ void ExpressionDataFrameModel::SetEquation(const Equation *equation)
 
     beginResetModel();
     equation_value_ = value;                 // hold a copy so the frame stays alive
-    equation_name_ = equation->name();       // record name for removal comparison
     loaded_rows_ = std::min<std::size_t>(
         static_cast<std::size_t>(kLoadBatchSize), frame().row_count()
     );
@@ -64,7 +100,7 @@ void ExpressionDataFrameModel::SetValue(const EquationValue &value)
 
     beginResetModel();
     equation_value_ = value;   // hold a copy so the frame stays alive
-    equation_name_.clear();    // a bare value is not equation-bound
+    object_id_ = ObjectId();   // a bare value is not object-bound
     loaded_rows_ = std::min<std::size_t>(
         static_cast<std::size_t>(kLoadBatchSize), frame().row_count()
     );
@@ -75,7 +111,7 @@ void ExpressionDataFrameModel::Clear()
 {
     beginResetModel();
     equation_value_ = EquationValue();
-    equation_name_.clear();
+    object_id_ = ObjectId();
     loaded_rows_ = 0;
     endResetModel();
 }
@@ -83,7 +119,12 @@ void ExpressionDataFrameModel::Clear()
 void ExpressionDataFrameModel::OnEquationRemoving(const Equation *removed)
 {
     // kEquationRemoving is fired before erase; the Equation* is still valid here.
-    if (!removed || removed->name() != equation_name_)
+    if (!removed || object_id_.is_nil())
+    {
+        return;
+    }
+    // An Equation's identity is its group_id.
+    if (removed->group_id() != object_id_)
     {
         return;
     }
@@ -93,12 +134,33 @@ void ExpressionDataFrameModel::OnEquationRemoving(const Equation *removed)
 void ExpressionDataFrameModel::OnEquationUpdated(const Equation *equation,
                                                bitmask::bitmask<EquationUpdateFlag> /*flags*/)
 {
-    if (!equation || equation->name() != equation_name_)
+    if (!equation || object_id_.is_nil())
+    {
+        return;
+    }
+    // Already-removed objects are handled by OnEquationRemoving; a registered
+    // expression never fires kEquationUpdated, so comparing group_id is enough.
+    if (equation->group_id() != object_id_)
     {
         return;
     }
     // The value may have changed (recomputed after redefinition); reload the DataFrame.
-    SetEquation(equation);
+    SetObject(object_id_);
+}
+
+void ExpressionDataFrameModel::OnExpressionUpdated(const Expression *expression,
+                                                 bitmask::bitmask<ExpressionUpdateFlag> /*flags*/)
+{
+    if (!expression || object_id_.is_nil())
+    {
+        return;
+    }
+    if (expression->id != object_id_)
+    {
+        return;
+    }
+    // The value may have changed; reload the DataFrame.
+    SetObject(object_id_);
 }
 
 bool ExpressionDataFrameModel::HasDataFrame() const

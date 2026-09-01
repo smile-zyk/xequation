@@ -15,7 +15,7 @@ protected:
 
     std::unique_ptr<Equation> CreateMockEquation(const std::string& name)
     {
-        return std::unique_ptr<Equation>(new Equation(name, boost::uuids::uuid(), nullptr));
+        return std::unique_ptr<Equation>(new Equation(name, ObjectId(), nullptr));
     }
 
     std::unique_ptr<EquationGroup> CreateMockEquationGroup()

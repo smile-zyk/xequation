@@ -33,7 +33,7 @@ class UpdateEquationGroupTask : public EquationManagerTask
 {
     Q_OBJECT
   public:
-    UpdateEquationGroupTask(const QString &title, EquationManager *manager, EquationGroupId group_id)
+    UpdateEquationGroupTask(const QString &title, EquationManager *manager, ObjectId group_id)
         : EquationManagerTask(title, manager), group_id_(group_id)
     {
     }
@@ -42,7 +42,7 @@ class UpdateEquationGroupTask : public EquationManagerTask
     void Execute() override;
 
   private:
-    EquationGroupId group_id_;
+    ObjectId group_id_;
 };
 
 class UpdateManagerTask : public EquationManagerTask

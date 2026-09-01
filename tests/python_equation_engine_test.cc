@@ -34,7 +34,7 @@ TEST(PythonEquationEngine, TestEquationManager)
     pybind11::gil_scoped_acquire acquire;
     auto equation_manager = engine.CreateEquationManager();
 
-    EquationGroupId id_0 = equation_manager->AddEquationGroup(
+    ObjectId id_0 = equation_manager->AddEquationGroup(
         R"(
 a=1
 b=3
@@ -61,7 +61,7 @@ d=a+b*c
     obj = pybind11::cast(v);
     EXPECT_EQ(obj.cast<int>(), 26);
 
-    EquationGroupId id_1 = equation_manager->AddEquationGroup("test=sum([a,b,c,d])");
+    ObjectId id_1 = equation_manager->AddEquationGroup("test=sum([a,b,c,d])");
     equation_manager->UpdateEquation("test");
 
     v = equation_manager->context().Get("test");

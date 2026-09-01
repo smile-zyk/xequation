@@ -48,13 +48,13 @@ public:
 private:
     void OnOpen();
     void OnInsertEquationRequest();
-    void OnEditEquationGroupRequest(const xequation::EquationGroupId& id);
-    void OnRemoveEquationGroupRequest(const xequation::EquationGroupId& id);
-    void OnCopyEquationGroupRequest(const xequation::EquationGroupId& id);
-    void OnUpdateEquationGroupRequest(const xequation::EquationGroupId& id);
-    void OnAddEquationGroupToExpressionWatchRequest(const xequation::EquationGroupId& id);
-    void OnEquationGroupSelected(const xequation::EquationGroupId& id);
-    void OnEquationGroupsSelected(const std::vector<xequation::EquationGroupId>& ids);
+    void OnEditEquationGroupRequest(const xequation::ObjectId& id);
+    void OnRemoveEquationGroupRequest(const xequation::ObjectId& id);
+    void OnCopyEquationGroupRequest(const xequation::ObjectId& id);
+    void OnUpdateEquationGroupRequest(const xequation::ObjectId& id);
+    void OnAddEquationGroupToExpressionWatchRequest(const xequation::ObjectId& id);
+    void OnEquationGroupSelected(const xequation::ObjectId& id);
+    void OnEquationGroupsSelected(const std::vector<xequation::ObjectId>& ids);
     void OnEquationSelected(const xequation::Equation* equation);
     void OnShowDependencyGraph();
     void OnShowEquationManager();
@@ -69,20 +69,20 @@ private:
     void OnEquationDependencyGraphImageRequested();
 
     bool AddEquationGroup(const std::string& statement);
-    bool EditEquationGroup(const xequation::EquationGroupId& id, const std::string& statement);
+    bool EditEquationGroup(const xequation::ObjectId& id, const std::string& statement);
     bool AddEquation(const QString& equation_name, const QString& expression);
-    bool EditEquation(const xequation::EquationGroupId& group_id, const QString& equation_name, const QString& expression);
-    bool RemoveEquationGroup(const xequation::EquationGroupId& id);
-    void AsyncUpdateEquationGroup(const xequation::EquationGroupId& id);
+    bool EditEquation(const xequation::ObjectId& group_id, const QString& equation_name, const QString& expression);
+    bool RemoveEquationGroup(const xequation::ObjectId& id);
+    void AsyncUpdateEquationGroup(const xequation::ObjectId& id);
     void AsyncUpdateManager();
     void AsyncUpdateEquationsAfterRemoveGroup(const std::vector<std::string>& equation_names);
     
     // Slots for persistent editors
     void OnEquationEditorAddEquationRequest(const QString &equation_name, const QString &expression);
     void OnEquationEditorUseCodeEditorRequest(const QString &initial_text);
-    void OnEquationEditorEditEquationRequest(const xequation::EquationGroupId &group_id, const QString &equation_name, const QString &expression);
+    void OnEquationEditorEditEquationRequest(const xequation::ObjectId &group_id, const QString &equation_name, const QString &expression);
     void OnCodeEditorAddEquationRequest(const QString &statement);
-    void OnCodeEditorEditEquationRequest(const xequation::EquationGroupId& group_id, const QString &statement);
+    void OnCodeEditorEditEquationRequest(const xequation::ObjectId& group_id, const QString &statement);
     
 private:
     void SetupUI();
@@ -109,7 +109,7 @@ private:
     std::unique_ptr<xequation::EquationManager> equation_manager_;
     xequation::gui::ToastTaskManager* task_manager_;
     
-    std::unordered_map<xequation::EquationGroupId, EditorType> editor_type_map_;
+    std::unordered_map<xequation::ObjectId, EditorType> editor_type_map_;
     
     MockEquationGroupListWidget* mock_equation_list_widget_;
     xequation::gui::EquationBrowserWidget* equation_browser_widget_;

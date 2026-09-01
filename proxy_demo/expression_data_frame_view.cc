@@ -14,8 +14,11 @@ namespace gui
 
 using namespace xequation;
 
-ExpressionDataFrameView::ExpressionDataFrameView(QWidget *parent) : QTableView(parent)
+ExpressionDataFrameView::ExpressionDataFrameView(const EquationManager &manager, QWidget *parent)
+    : QTableView(parent)
 {
+    table_model_ = new ExpressionDataFrameModel(manager, this);
+    setModel(table_model_);
     SetupUI();
     SetupConnections();
 }
@@ -24,9 +27,6 @@ ExpressionDataFrameView::~ExpressionDataFrameView() = default;
 
 void ExpressionDataFrameView::SetupUI()
 {
-    table_model_ = new ExpressionDataFrameModel(this);
-    setModel(table_model_);
-
     setAlternatingRowColors(true);
     setSelectionBehavior(QAbstractItemView::SelectRows);
     setSelectionMode(QAbstractItemView::SingleSelection);
@@ -60,9 +60,9 @@ void ExpressionDataFrameView::SetupConnections()
     );
 }
 
-void ExpressionDataFrameView::SetEquation(const Equation *equation)
+void ExpressionDataFrameView::SetObject(const ObjectId &object_id)
 {
-    table_model_->SetEquation(equation);
+    table_model_->SetObject(object_id);
     // After the model resets, ensure the first screen is loaded (the Qt view
     // does not call fetchMore automatically after setModel/reset; trigger it
     // once explicitly).

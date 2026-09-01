@@ -1,11 +1,10 @@
 #pragma once
 
 #include <cstddef>
-#include <string>
 
 #include <QAbstractTableModel>
 
-#include "core/equation.h"
+#include "core/equation_manager.h"
 #include "core/equation_value.h"
 
 namespace xdataset
@@ -23,14 +22,14 @@ namespace gui
 // EquationValue(REL) as a two-dimensional table model with Qt's fetchMore
 // lazy-loading.
 //
-// Data source:
-//   - SetEquation(): supports only REL values (Measurement / DataArray).
-//     It calls Equation::GetValue() to obtain an EquationValue and holds a
-//     copy of it as the DataFrame's stable owner -- because
-//     rel::Value::data_frame() returns a stable reference owned by the
-//     underlying DataArray (see REL value.h contract); the caller must keep
-//     that Value alive while using the frame.  Other types (or a null
-//     pointer) clear the model.
+// The displayed object is identified by an ObjectId (see
+// ExpressionPropertyWidget): either a registered Expression (its Expression::id)
+// or an Equation (its group_id, resolved via EquationGroup::FirstEquation).
+// SetObject() resolves the id through the injected EquationManager& and holds a
+// copy of the resulting EquationValue as the DataFrame's stable owner -- because
+// rel::Value::data_frame() returns a stable reference owned by the underlying
+// DataArray (see REL value.h contract); the caller must keep that Value alive
+// while using the frame.  Other types (or a nil id) clear the model.
 //
 // Lazy loading:
 //   rowCount() returns the number of *loaded* rows (not the DataFrame total);
@@ -46,19 +45,21 @@ class ExpressionDataFrameModel : public QAbstractTableModel
     /// Rows appended per fetchMore (an integer multiple of xdataset chunks).
     static constexpr int kLoadBatchSize = 256;
 
-    explicit ExpressionDataFrameModel(QObject *parent = nullptr);
+    explicit ExpressionDataFrameModel(const xequation::EquationManager &manager,
+                                      QObject *parent = nullptr);
     ~ExpressionDataFrameModel() override;
 
-    /// Set the Equation to display.
-    /// Supports only REL values (Measurement / DataArray); other types clear
-    /// the model.  Note: copies Equation::GetValue()'s result and holds it as
-    /// the DataFrame owner; does not hold the Equation pointer.
-    void SetEquation(const xequation::Equation *equation);
+    /// Set the object (equation or registered expression) to display.
+    /// The id is resolved through the manager; only REL values
+    /// (Measurement / DataArray) display a table, other kinds clear the model.
+    /// Note: the resolved EquationValue is copied into the model as the
+    /// DataFrame's stable owner; the id is kept for event matching.
+    void SetObject(const xequation::ObjectId &object_id);
 
-    /// Set a value directly (no Equation binding; e.g. an expression watch's
-    /// eval result).  Only REL values display a table; other kinds clear the
-    /// model.  Like SetEquation(), the EquationValue is copied into the model
-    /// as the DataFrame's stable owner.
+    /// Set a value directly (no Equation/Expression binding; e.g. an
+    /// expression watch's eval result).  Only REL values display a table;
+    /// other kinds clear the model.  Like SetObject(), the EquationValue is
+    /// copied into the model as the DataFrame's stable owner.
     void SetValue(const xequation::EquationValue &value);
 
     /// Clear the model; show no data.
@@ -82,6 +83,12 @@ class ExpressionDataFrameModel : public QAbstractTableModel
     void OnEquationUpdated(const xequation::Equation *equation,
                            bitmask::bitmask<xequation::EquationUpdateFlag> flags);
 
+    /// Receive kExpressionUpdated callbacks (fired on registered-expression
+    /// update).  If the updated expression is the one being displayed, the
+    /// DataFrame is reloaded.
+    void OnExpressionUpdated(const xequation::Expression *expression,
+                             bitmask::bitmask<xequation::ExpressionUpdateFlag> flags);
+
     // ---- QAbstractItemModel --------------------------------------------
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
@@ -103,8 +110,11 @@ class ExpressionDataFrameModel : public QAbstractTableModel
     xequation::EquationValue equation_value_;
     std::size_t loaded_rows_ = 0;  // rows loaded (exposed to callers)
 
-    /// Name of the currently displayed equation (compared in OnEquationRemoving).
-    std::string equation_name_;
+    /// Manager used to resolve the displayed ObjectId into an Equation / Expression.
+    const xequation::EquationManager &manager_;
+
+    /// ObjectId of the currently displayed object (nil = no binding).
+    xequation::ObjectId object_id_;
 };
 
 } // namespace gui

@@ -2,7 +2,7 @@
 
 #include <QTableView>
 
-#include "core/equation.h"
+#include "core/equation_manager.h"
 
 class QLabel;
 
@@ -16,30 +16,32 @@ class ExpressionDataFrameModel;
 // =========================================================================
 // ExpressionDataFrameView -- a QTableView for displaying a DataFrame table.
 //
-// SetEquation() passes an Equation* (currently supports only REL values; it is
-// turned into a DataFrame table via ExpressionDataFrameModel) and supports Qt's
-// fetchMore lazy loading: requesting the next batch of rows when scrolled to
-// the bottom.  Errors are rendered as an overlay label centered on the table
-// viewport (SetError), replacing the table content visually.
+// SetObject() passes the ObjectId of an Equation or a registered Expression
+// (currently supports only REL values; it is turned into a DataFrame table via
+// ExpressionDataFrameModel) and supports Qt's fetchMore lazy loading:
+// requesting the next batch of rows when scrolled to the bottom.  Errors are
+// rendered as an overlay label centered on the table viewport (SetError),
+// replacing the table content visually.
 // =========================================================================
 
 class ExpressionDataFrameView : public QTableView
 {
     Q_OBJECT
   public:
-    explicit ExpressionDataFrameView(QWidget *parent = nullptr);
+    explicit ExpressionDataFrameView(const xequation::EquationManager &manager,
+                                     QWidget *parent = nullptr);
     ~ExpressionDataFrameView() override;
 
-    /// Display the DataFrame view of an Equation.
-    /// Supports only REL values (Measurement / DataArray); other types clear
-    /// the table.  Note: the Equation is only read during this call and is
-    /// forwarded to the model, which converts it to an owned DataFrame; this
-    /// class does not hold the Equation pointer.
-    void SetEquation(const xequation::Equation *equation);
+    /// Display the DataFrame view of an Equation or registered Expression
+    /// (identified by ObjectId).  Supports only REL values (Measurement /
+    /// DataArray); other types clear the table.  Note: the object is only read
+    /// during this call and is forwarded to the model, which converts its value
+    /// to an owned DataFrame; this class does not hold the object pointer.
+    void SetObject(const xequation::ObjectId &object_id);
 
-    /// Display a bare value (no Equation binding; e.g. an expression watch's
-    /// eval result).  Forwards to the model's SetValue(); only REL values
-    /// render a table.
+    /// Display a bare value (no Equation/Expression binding; e.g. an expression
+    /// watch's eval result).  Forwards to the model's SetValue(); only REL
+    /// values render a table.
     void SetValue(const xequation::EquationValue &value);
 
     /// Clear the table.

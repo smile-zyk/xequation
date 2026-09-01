@@ -87,10 +87,10 @@ class ProxyDemoWidget : public QWidget
     /// decides which tabs to clear / re-evaluate.
     xequation::ScopedConnection removing_rel_connection_;
     xequation::ScopedConnection removed_rel_connection_;
-    /// Connections to the REL manager's kEquationUpdated / kEquationAdded
-    /// signals, for auto-refresh of tabs on value-ready / add events.
+    /// Connections to the REL manager's kEquationUpdated / kExpressionUpdated
+    /// signals, for auto-refresh of tabs / property on value-ready events.
     xequation::ScopedConnection updated_rel_connection_;
-    xequation::ScopedConnection added_rel_connection_;
+    xequation::ScopedConnection expression_updated_rel_connection_;
 };
 
 } // namespace gui

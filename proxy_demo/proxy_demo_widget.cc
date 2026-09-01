@@ -68,13 +68,16 @@ void ProxyDemoWidget::SetupUI()
     equation_list_ = new QListWidget(this);
     equation_list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
+    XEquationProxy &proxy = XEquationProxy::GetInstance();
+    EquationManager &mgr = proxy.rel_manager();
+
     data_frame_view_ = new ExpressionDataFrameTabWidget(
-        // Pass the REL manager directly (DataFrames come only from REL);
-        // the tab widget only needs the manager's const query/parse/eval APIs.
-        XEquationProxy::GetInstance().rel_manager(),
+        // Pass the REL manager directly (DataFrames come only from REL); the
+        // tab widget needs the manager's query/register APIs.
+        mgr,
         this
     );
-    property_widget_ = new ExpressionPropertyWidget(this);
+    property_widget_ = new ExpressionPropertyWidget(mgr, this);
     property_widget_->setMinimumHeight(180);
 
     // Right side: vertical splitter with the table on top, property window below.
@@ -160,14 +163,17 @@ void ProxyDemoWidget::SetupConnections()
                 }
             );
 
-    // kEquationAdded: a previously-missing dependency now exists; expression
-    // tabs that NameError'd on it are re-evaluated; a same-name equation tab
-    // is refreshed too.
-    added_rel_connection_ =
+    // kExpressionUpdated: a registered watch expression has a fresh value;
+    // refresh its tab and the property widget if it displays that expression.
+    expression_updated_rel_connection_ =
         proxy.rel_manager()
             .signals_manager()
-            .ConnectScoped<EquationEvent::kEquationAdded>(
-                [tabs](const Equation *eq) { tabs->OnEquationAdded(eq); }
+            .ConnectScoped<EquationEvent::kExpressionUpdated>(
+                [tabs, property](const Expression *expr, bitmask::bitmask<ExpressionUpdateFlag> flags)
+                {
+                    tabs->OnExpressionUpdated(expr, flags);
+                    property->OnExpressionUpdated(expr, flags);
+                }
             );
 }
 
@@ -375,7 +381,7 @@ void ProxyDemoWidget::OnRedefineEquation()
         return;
     }
 
-    const EquationGroupId group_id = equation->group_id();
+    const ObjectId group_id = equation->group_id();
     const std::string name_std = current_name.toStdString();
 
     try
@@ -463,7 +469,7 @@ void ProxyDemoWidget::OnRenameEquation()
         return;
     }
 
-    const EquationGroupId group_id = equation->group_id();
+    const ObjectId group_id = equation->group_id();
 
     try
     {
@@ -554,7 +560,7 @@ void ProxyDemoWidget::OnDeleteEquation()
     // Refresh the list after deletion.  kEquationRemoving/kEquationRemoved
     // already handled the tabs (equation tab cleared, dependent expression
     // tabs re-evaluated); no manual tab reset needed here.
-    property_widget_->SetEquation(nullptr);
+    property_widget_->SetObject(xequation::ObjectId());
     RefreshEquationList();
 }
 
@@ -589,10 +595,29 @@ void ProxyDemoWidget::OnAddWatchExpression()
         return;
     }
 
-    // Add a watch tab that is NOT bound to any equation; it re-evaluates
-    // through the engine whenever its dependencies' values are ready.
-    // (DataFrame views are REL-only; the tab widget uses the REL engine.)
-    data_frame_view_->AddExpression(trimmed);
+    // Add a watch tab that is NOT bound to any equation.  The host registers
+    // the expression with the manager (AddExpression) to get its id, then
+    // hands the id to the tab widget -- the tab widget itself never inspects
+    // expression strings.  (DataFrame views are REL-only; the tab widget uses
+    // the REL engine.)
+    XEquationProxy &proxy = XEquationProxy::GetInstance();
+    EquationManager &mgr = proxy.rel_manager();
+
+    ObjectId expr_id;
+    try
+    {
+        expr_id = mgr.AddExpression(trimmed);
+    }
+    catch (const std::exception &e)
+    {
+        QMessageBox::warning(this, "Parse Failed", e.what());
+        return;
+    }
+    if (expr_id.is_nil())
+    {
+        return;
+    }
+    data_frame_view_->AddExpression(expr_id);
 }
 
 void ProxyDemoWidget::RefreshEquationList()
@@ -639,7 +664,7 @@ void ProxyDemoWidget::OnEquationListSelectionChanged()
     {
         // No selection at all: keep watch tabs as they are (only unpinned
         // equation tabs get closed by SyncSelection with an empty set).
-        property_widget_->SetEquation(nullptr);
+        property_widget_->SetObject(xequation::ObjectId());
         redefine_button_->setEnabled(false);
         rename_button_->setEnabled(false);
         delete_button_->setEnabled(false);
@@ -665,14 +690,15 @@ void ProxyDemoWidget::OnEquationListSelectionChanged()
     // DataFrame views are REL-only, so the sync targets the REL engine.
     data_frame_view_->SyncSelection(selected_names);
 
-    // Property widget follows the focus item.
+    // Property widget follows the focus item.  The object identity is:
+    // an equation's group_id (a single-equation group resolves via
+    // EquationGroup::FirstEquation) -- the same id the tab widget uses.
     if (item)
     {
         const QString name = item->text().section(' ', 0, 0);
         XEquationProxy &proxy = XEquationProxy::GetInstance();
-        property_widget_->SetEquation(
-            proxy.rel_manager().GetEquation(name.toStdString())
-        );
+        const Equation *equation = proxy.rel_manager().GetEquation(name.toStdString());
+        property_widget_->SetObject(equation ? equation->group_id() : xequation::ObjectId());
     }
 }
 

@@ -341,7 +341,7 @@ class EquationManagerTest : public testing::Test
 
 TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
 {
-    EquationGroupId id_0 = manager_.AddEquationGroup("A=1");
+    ObjectId id_0 = manager_.AddEquationGroup("A=1");
     EXPECT_TRUE(manager_.IsEquationGroupExist(id_0));
     EXPECT_TRUE(manager_.IsEquationExist("A"));
 
@@ -420,7 +420,7 @@ TEST_F(EquationManagerTest, EquationGroupAddRemoveEditGet)
     EXPECT_EQ(equation_c->type(), ItemType::kVariable);
     EXPECT_EQ(equation_c->status(), ResultStatus::kPending);
 
-    EquationGroupId id_1 = manager_.AddEquationGroup("D=B+2;E=D+B");
+    ObjectId id_1 = manager_.AddEquationGroup("D=B+2;E=D+B");
     EXPECT_TRUE(manager_.IsEquationGroupExist(id_1));
     EXPECT_TRUE(manager_.IsEquationExist("D"));
     EXPECT_TRUE(manager_.IsEquationExist("E"));
@@ -534,8 +534,8 @@ TEST_F(EquationManagerTest, EquationException)
 
 TEST_F(EquationManagerTest, EquationManagerUpdate)
 {
-    EquationGroupId id_0 = manager_.AddEquationGroup("A=B+C;B=D+E;C=F;D=1;F=10");
-    EquationGroupId id_1 = manager_.AddEquationGroup("E=5");
+    ObjectId id_0 = manager_.AddEquationGroup("A=B+C;B=D+E;C=F;D=1;F=10");
+    ObjectId id_1 = manager_.AddEquationGroup("E=5");
     manager_.Update();
     EXPECT_TRUE(manager_.context().Contains("A"));
     EXPECT_TRUE(manager_.context().Contains("B"));
@@ -593,7 +593,7 @@ TEST_F(EquationManagerTest, EquationManagerUpdate)
 
 TEST_F(EquationManagerTest, Eval) 
 {
-    EquationGroupId id_0 = manager_.AddEquationGroup("A=B+C;B=D+E;C=F;D=1;E=5;F=10");
+    ObjectId id_0 = manager_.AddEquationGroup("A=B+C;B=D+E;C=F;D=1;E=5;F=10");
     manager_.UpdateEquationGroup(id_0);
     InterpretResult res = manager_.Eval("A+B");
 
@@ -610,8 +610,8 @@ TEST_F(EquationManagerTest, RenameDependencyAcrossGroupsDoesNotUpdateDependent)
     // User scenario: AddEquation(a,1) / AddEquation(b,a) in two groups;
     // after renaming "a" to "c" in group 0, UpdateEquationGroup(group 0) must also
     // recompute "b" in group 1.
-    EquationGroupId id_0 = manager_.AddEquationGroup("A=1");
-    EquationGroupId id_1 = manager_.AddEquationGroup("B=A");
+    ObjectId id_0 = manager_.AddEquationGroup("A=1");
+    ObjectId id_1 = manager_.AddEquationGroup("B=A");
     manager_.Update();
 
     EXPECT_TRUE(manager_.context().Contains("B"));
@@ -641,8 +641,8 @@ TEST_F(EquationManagerTest, UpdateEquationAfterRenameRecomputesDirtyDependents)
     // User scenario: A=1 (group 0), B=A (group 1). After renaming "A" to "C" in group 0,
     // even an explicit UpdateEquation("C") must recompute the invalidated "B";
     // it must not keep the stale value 1 and Success status.
-    EquationGroupId id_0 = manager_.AddEquationGroup("A=1");
-    EquationGroupId id_1 = manager_.AddEquationGroup("B=A");
+    ObjectId id_0 = manager_.AddEquationGroup("A=1");
+    ObjectId id_1 = manager_.AddEquationGroup("B=A");
     manager_.Update();
 
     EXPECT_TRUE(manager_.context().Get("B").Cast<int>() == 1);
@@ -663,7 +663,7 @@ TEST_F(EquationManagerTest, ResetContextThenUpdateRecoversAllValues)
     // Fallback scenario for the clear semantics: after ResetContext() clears the context,
     // Update() must recompute everything and restore the values, not no-op because the
     // nodes are no longer dirty.
-    EquationGroupId id_0 = manager_.AddEquationGroup("A=B+C;B=D+E;C=F;D=1;E=5;F=10");
+    ObjectId id_0 = manager_.AddEquationGroup("A=B+C;B=D+E;C=F;D=1;E=5;F=10");
     manager_.Update();
 
     EXPECT_TRUE(manager_.context().Get("A").Cast<int>() == 16);
@@ -697,7 +697,7 @@ TEST_F(EquationManagerTest, ResetContextThenUpdateRecoversAllValues)
 TEST_F(EquationManagerTest, UpdateEquationStatusThenUpdateRecovers)
 {
     // After UpdateEquationStatus removes the context value, Update() must recompute it.
-    EquationGroupId id_0 = manager_.AddEquationGroup("A=1;B=A");
+    ObjectId id_0 = manager_.AddEquationGroup("A=1;B=A");
     manager_.Update();
 
     EXPECT_TRUE(manager_.context().Get("B").Cast<int>() == 1);
@@ -726,7 +726,7 @@ TEST_F(EquationManagerTest, ExpressionRegisterAndEvaluate)
     manager_.AddEquationGroup("A=1;B=2");
     manager_.Update();
 
-    ExpressionId expr_id = manager_.AddExpression("A+B");
+    ObjectId expr_id = manager_.AddExpression("A+B");
     EXPECT_TRUE(manager_.IsExpressionExist(expr_id));
     EXPECT_EQ(manager_.GetExpressionIds().size(), 1u);
 
@@ -752,10 +752,10 @@ TEST_F(EquationManagerTest, ExpressionRecomputesWhenEquationChanges)
 {
     // The expression depends on equation A; editing A and running Update() must
     // recompute the expression automatically.
-    EquationGroupId id_0 = manager_.AddEquationGroup("A=1");
+    ObjectId id_0 = manager_.AddEquationGroup("A=1");
     manager_.Update();
 
-    ExpressionId expr_id = manager_.AddExpression("A*2");
+    ObjectId expr_id = manager_.AddExpression("A*2");
     manager_.Update();
     EXPECT_EQ(manager_.GetExpressionValue(expr_id).Cast<int>(), 2);
 
@@ -770,10 +770,10 @@ TEST_F(EquationManagerTest, ExpressionRecomputesOnUpdateEquation)
     // A registered expression that depends on equation A must be recomputed when a
     // dependent equation is edited AND updated via the single-equation path
     // (UpdateEquation) -- not only through Update()/UpdateEquationGroup().
-    EquationGroupId id_0 = manager_.AddEquationGroup("A=1;H=A");
+    ObjectId id_0 = manager_.AddEquationGroup("A=1;H=A");
     manager_.Update();
 
-    ExpressionId expr_id = manager_.AddExpression("H*2");
+    ObjectId expr_id = manager_.AddExpression("H*2");
     manager_.Update();
     EXPECT_EQ(manager_.GetExpressionValue(expr_id).Cast<int>(), 2);
 
@@ -789,7 +789,7 @@ TEST_F(EquationManagerTest, ExpressionFailureStaysDirtyThenRecovers)
 {
     // "X" is undefined at registration: the expression fails with NameError and
     // stays dirty.  Defining X and updating must recover it.
-    ExpressionId expr_id = manager_.AddExpression("X+1");
+    ObjectId expr_id = manager_.AddExpression("X+1");
     const Expression *expr = manager_.GetExpression(expr_id);
     ASSERT_NE(expr, nullptr);
 
@@ -815,7 +815,7 @@ TEST_F(EquationManagerTest, ExpressionFailureStaysDirtyThenRecovers)
 
 TEST_F(EquationManagerTest, ExpressionRemove)
 {
-    ExpressionId expr_id = manager_.AddExpression("A+1");
+    ObjectId expr_id = manager_.AddExpression("A+1");
     EXPECT_TRUE(manager_.IsExpressionExist(expr_id));
     EXPECT_EQ(manager_.GetExpressionIds().size(), 1u);
 
@@ -829,7 +829,7 @@ TEST_F(EquationManagerTest, ExpressionRemove)
 
 TEST_F(EquationManagerTest, UpdateExpressionNotFoundThrows)
 {
-    ExpressionId bogus;  // default-constructed (nil) -> not registered
+    ObjectId bogus;  // default-constructed (nil) -> not registered
     EXPECT_THROW(manager_.UpdateExpression(bogus), EquationException);
 }
 
@@ -910,7 +910,7 @@ TEST_F(EquationManagerTest, ExternalInputPropagatesToExpressions)
     // when the input is updated.
     manager_.AddExternalInput("c");
     manager_.AddEquationGroup("x=c+1");
-    ExpressionId expr_id = manager_.AddExpression("x*2");
+    ObjectId expr_id = manager_.AddExpression("x*2");
     manager_.Update();
     EXPECT_EQ(manager_.GetEquation("x")->status(), ResultStatus::kNameError);
 

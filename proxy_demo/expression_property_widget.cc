@@ -1,8 +1,10 @@
 #include "expression_property_widget.h"
 
-#include "core/equation.h"
 #include "core/equation_common.h"
+#include "core/equation_manager.h"
 #include "core/equation_value.h"
+
+#include <boost/uuid/uuid_io.hpp>
 
 #include <QHeaderView>
 #include <QTableWidget>
@@ -45,8 +47,8 @@ QString FormatSet(const Set &items)
 }
 } // namespace
 
-ExpressionPropertyWidget::ExpressionPropertyWidget(QWidget *parent)
-    : QWidget(parent)
+ExpressionPropertyWidget::ExpressionPropertyWidget(const EquationManager &manager, QWidget *parent)
+    : QWidget(parent), manager_(manager)
 {
     setWindowTitle("Equation Property");
 
@@ -66,20 +68,47 @@ ExpressionPropertyWidget::ExpressionPropertyWidget(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(table_);
 
-    // Initially empty (no selected equation); filled by SetEquation.
-    SetEquation(nullptr);
+    // Initially empty (no selected object); filled by SetObject.
+    SetObject(ObjectId());
 }
 
 ExpressionPropertyWidget::~ExpressionPropertyWidget() = default;
 
-void ExpressionPropertyWidget::SetEquation(const Equation *equation)
+void ExpressionPropertyWidget::SetObject(const ObjectId &object_id)
 {
-    equation_ = equation;
+    object_id_ = object_id;
 
     // Clear the table.
     table_->setRowCount(0);
 
-    // No selected equation: show a placeholder row.
+    // No selected object: show a placeholder row.
+    if (object_id.is_nil())
+    {
+        AddField("Status", "No object selected.");
+        return;
+    }
+
+    // Registered expression wins over an equation with the same id (an
+    // Equation's identity is its group_id; the two namespaces are disjoint).
+    const Expression *expression = manager_.GetExpression(object_id);
+    if (expression)
+    {
+        ShowExpression(expression);
+        return;
+    }
+
+    // Otherwise resolve as an equation (group id -> single-equation group).
+    const EquationGroup *group = manager_.GetEquationGroup(object_id);
+    if (!group)
+    {
+        AddField("Status", "Object no longer exists.");
+        return;
+    }
+    ShowEquation(group->FirstEquation());
+}
+
+void ExpressionPropertyWidget::ShowEquation(const Equation *equation)
+{
     if (!equation)
     {
         AddField("Status", "No equation selected.");
@@ -89,30 +118,30 @@ void ExpressionPropertyWidget::SetEquation(const Equation *equation)
     // =====================================================================
     // 1. Equation meta info (mirrors EquationBrowser)
     // =====================================================================
-    AddField("Name", QString::fromStdString(equation_->name()));
-    AddField("Expression", QString::fromStdString(equation_->content()));
-    AddField("Type", QString::fromStdString(ItemTypeConverter::ToString(equation_->type())));
-    AddField("Status", QString::fromStdString(ResultStatusConverter::ToString(equation_->status())));
+    AddField("Name", QString::fromStdString(equation->name()));
+    AddField("Expression", QString::fromStdString(equation->content()));
+    AddField("Type", QString::fromStdString(ItemTypeConverter::ToString(equation->type())));
+    AddField("Status", QString::fromStdString(ResultStatusConverter::ToString(equation->status())));
 
     // Message row: only shown when non-empty; highlighted red on compute failure
     // (no duplicate Error row).
-    const std::string &message = equation_->message();
+    const std::string &message = equation->message();
     if (!message.empty())
     {
-        const bool has_error = equation_->status() != ResultStatus::kSuccess;
+        const bool has_error = equation->status() != ResultStatus::kSuccess;
         AddField("Message", QString::fromStdString(message), has_error);
     }
 
     // Dependencies / dependents (expression dependency graph).
-    AddField("Dependencies", FormatSet(equation_->GetDependencies()));
-    AddField("Dependents", FormatSet(equation_->GetDependents()));
+    AddField("Dependencies", FormatSet(equation->GetDependencies()));
+    AddField("Dependents", FormatSet(equation->GetDependents()));
 
     // =====================================================================
     // 2. Engine value info (not shown on compute failure, to avoid misleading)
     // =====================================================================
-    const EquationValue &value = equation_->GetValue();
+    const EquationValue &value = equation->GetValue();
 
-    if (equation_->status() == ResultStatus::kSuccess && value.IsRelValue())
+    if (equation->status() == ResultStatus::kSuccess && value.IsRelValue())
     {
         // ---- REL engine: mirrors builtin_library's what(x) output ----
         const rel::Value &rel_value = value.AsRel();
@@ -135,7 +164,7 @@ void ExpressionPropertyWidget::SetEquation(const Equation *equation)
         // Value body is not shown here: the DataFrame table handles it, avoiding
         // duplicating lengthy content.
     }
-    else if (equation_->status() == ResultStatus::kSuccess && value.IsPyObject())
+    else if (equation->status() == ResultStatus::kSuccess && value.IsPyObject())
     {
         // ---- Python engine: show the object type name (class name) ----
         AddField("Python Type", QString::fromStdString(value.AsPyObject().TypeName()));
@@ -144,25 +173,109 @@ void ExpressionPropertyWidget::SetEquation(const Equation *equation)
     // Compute failure: value unavailable (already shown as red Message above); nothing here.
 }
 
+void ExpressionPropertyWidget::ShowExpression(const Expression *expression)
+{
+    if (!expression)
+    {
+        AddField("Status", "No expression selected.");
+        return;
+    }
+
+    // =====================================================================
+    // Registered-expression meta info
+    // =====================================================================
+    AddField("ID", QString::fromStdString(boost::uuids::to_string(expression->id)));
+    AddField("Expression", QString::fromStdString(expression->content));
+    AddField("Status", QString::fromStdString(ResultStatusConverter::ToString(expression->result.status)));
+
+    // Message row: only shown when non-empty; highlighted red on compute failure.
+    const std::string &message = expression->result.message;
+    if (!message.empty())
+    {
+        const bool has_error = expression->result.status != ResultStatus::kSuccess;
+        AddField("Message", QString::fromStdString(message), has_error);
+    }
+
+    // Dependencies (a registered expression has no dependents of its own).
+    AddField("Dependencies", FormatSet(expression->dependencies));
+
+    // =====================================================================
+    // 2. Engine value info (not shown on compute failure)
+    // =====================================================================
+    const EquationValue &value = expression->result.value;
+    if (expression->result.status == ResultStatus::kSuccess && value.IsRelValue())
+    {
+        // ---- REL engine: mirrors builtin_library's what(x) output ----
+        const rel::Value &rel_value = value.AsRel();
+
+        AddField("Indep", FormatSet(rel_value.indep_names()));
+        AddField(
+            "Kind",
+            QString::fromStdString(rel_value.is_dependent() ? "Dependent" : "Independent")
+        );
+        AddField("Dimension", QString::fromStdString(rel_value.dimension_spec().to_string()));
+        AddField("Data Shape", QString::fromStdString(rel_value.data_shape().to_string()));
+        AddField(
+            "Data Type",
+            QString::fromStdString(xdataset::DataTypeToString(rel_value.data_type()))
+        );
+        if (rel_value.unit().has_dimension())
+        {
+            AddField("Unit", QString::fromStdString(rel_value.unit().to_string()));
+        }
+    }
+    else if (expression->result.status == ResultStatus::kSuccess && value.IsPyObject())
+    {
+        // ---- Python engine: show the object type name (class name) ----
+        AddField("Python Type", QString::fromStdString(value.AsPyObject().TypeName()));
+    }
+    // Compute failure: value unavailable (already shown as red Message above); nothing here.
+}
+
 void ExpressionPropertyWidget::OnEquationRemoving(const Equation *equation)
 {
     // kEquationRemoving is fired before erase; the Equation* is still valid here.
-    if (!equation || !equation_ || equation->name() != equation_->name())
+    if (!equation || object_id_.is_nil())
     {
         return;
     }
-    SetEquation(nullptr);
+    if (equation->group_id() != object_id_)
+    {
+        return;
+    }
+    SetObject(ObjectId());
 }
 
 void ExpressionPropertyWidget::OnEquationUpdated(const Equation *equation,
                                                bitmask::bitmask<EquationUpdateFlag> /*flags*/)
 {
-    if (!equation || !equation_ || equation->name() != equation_->name())
+    if (!equation || object_id_.is_nil())
+    {
+        return;
+    }
+    // Already-removed objects are handled by OnEquationRemoving; a registered
+    // expression never fires kEquationUpdated, so comparing group_id is enough.
+    if (equation->group_id() != object_id_)
     {
         return;
     }
     // Value/properties may have changed; reload.
-    SetEquation(equation);
+    SetObject(object_id_);
+}
+
+void ExpressionPropertyWidget::OnExpressionUpdated(const Expression *expression,
+                                                 bitmask::bitmask<ExpressionUpdateFlag> /*flags*/)
+{
+    if (!expression || object_id_.is_nil())
+    {
+        return;
+    }
+    if (expression->id != object_id_)
+    {
+        return;
+    }
+    // Value/properties may have changed; reload.
+    SetObject(object_id_);
 }
 
 void ExpressionPropertyWidget::AddField(const QString &field, const QString &value, bool red)

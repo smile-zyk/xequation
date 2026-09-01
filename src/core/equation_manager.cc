@@ -24,7 +24,7 @@ EquationManager::EquationManager(
 {
 }
 
-bool EquationManager::IsEquationGroupExist(const EquationGroupId &group_id) const
+bool EquationManager::IsEquationGroupExist(const ObjectId &group_id) const
 {
     return equation_group_map_.contains(group_id);
 }
@@ -37,7 +37,7 @@ bool EquationManager::IsEquationExist(const std::string &equation_name) const
         return false;
     }
 
-    const EquationGroupId &id = equation_name_to_group_id_map_.at(equation_name);
+    const ObjectId &id = equation_name_to_group_id_map_.at(equation_name);
     bool is_group_exist = equation_group_map_.contains(id);
     if (!is_group_exist)
     {
@@ -49,7 +49,7 @@ bool EquationManager::IsEquationExist(const std::string &equation_name) const
     return is_equation_exist;
 }
 
-const EquationGroup *EquationManager::GetEquationGroup(const EquationGroupId &group_id) const
+const EquationGroup *EquationManager::GetEquationGroup(const ObjectId &group_id) const
 {
     if (equation_group_map_.contains(group_id))
     {
@@ -76,7 +76,7 @@ const Equation *EquationManager::GetEquation(const std::string &equation_name) c
         return nullptr;
     }
 
-    const EquationGroupId &id = equation_name_to_group_id_map_.at(equation_name);
+    const ObjectId &id = equation_name_to_group_id_map_.at(equation_name);
     bool is_group_exist = equation_group_map_.contains(id);
     if (!is_group_exist)
     {
@@ -93,9 +93,9 @@ const Equation *EquationManager::GetEquation(const std::string &equation_name) c
     return group->GetEquation(equation_name);
 }
 
-std::vector<EquationGroupId> EquationManager::GetEquationGroupIds() const
+std::vector<ObjectId> EquationManager::GetEquationGroupIds() const
 {
-    std::vector<EquationGroupId> result;
+    std::vector<ObjectId> result;
     for (const auto &entry : equation_group_map_)
     {
         result.push_back(entry.first);
@@ -115,7 +115,7 @@ std::vector<std::string> EquationManager::GetEquationNames() const
     return result;
 }
 
-EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_statement)
+ObjectId EquationManager::AddEquationGroup(const std::string &equation_statement)
 {
     auto res = Parse(equation_statement, ParseMode::kStatement);
 
@@ -142,7 +142,7 @@ EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_st
 
     EquationGroupPtr group = EquationGroup::Create(this);
     group->set_statement(equation_statement);
-    const EquationGroupId &id = group->id();
+    const ObjectId &id = group->id();
     auto group_ptr = group.get();
     equation_group_map_.insert({id, std::move(group)});
     for (const auto &item : res.items)
@@ -167,7 +167,7 @@ EquationGroupId EquationManager::AddEquationGroup(const std::string &equation_st
     return id;
 }
 
-EquationGroupId EquationManager::AddEquation(const std::string& equation_name, const std::string& equation_content)
+ObjectId EquationManager::AddEquation(const std::string& equation_name, const std::string& equation_content)
 {
     if (IsEquationExist(equation_name))
     {
@@ -193,7 +193,7 @@ EquationGroupId EquationManager::AddEquation(const std::string& equation_name, c
     return AddEquationGroup(statement);
 }
 
-void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const std::string &equation_statement)
+void EquationManager::EditEquationGroup(const ObjectId &group_id, const std::string &equation_statement)
 {
     if (IsEquationGroupExist(group_id) == false)
     {
@@ -333,7 +333,7 @@ void EquationManager::EditEquationGroup(const EquationGroupId &group_id, const s
     }
 }
 
-void EquationManager::EditSingleEquation(const EquationGroupId &group_id, const std::string& equation_name, const std::string& equation_content)
+void EquationManager::EditSingleEquation(const ObjectId &group_id, const std::string& equation_name, const std::string& equation_content)
 {
     if (IsEquationGroupExist(group_id) == false)
     {
@@ -371,7 +371,7 @@ void EquationManager::EditSingleEquation(const EquationGroupId &group_id, const 
     return EditEquationGroup(group_id, statement);
 }
 
-void EquationManager::RemoveEquationGroup(const EquationGroupId &group_id)
+void EquationManager::RemoveEquationGroup(const ObjectId &group_id)
 {
     if (IsEquationGroupExist(group_id) == false)
     {
@@ -574,7 +574,7 @@ void EquationManager::UpdateEquation(const std::string &equation_name)
     }
 }
 
-void EquationManager::UpdateEquationGroup(const EquationGroupId &group_id)
+void EquationManager::UpdateEquationGroup(const ObjectId &group_id)
 {
     if (IsEquationGroupExist(group_id) == false)
     {
@@ -604,7 +604,7 @@ void EquationManager::UpdateEquationGroup(const EquationGroupId &group_id)
 // Registered expressions (只算不存)
 // =========================================================================
 
-ExpressionId EquationManager::AddExpression(const std::string &expression)
+ObjectId EquationManager::AddExpression(const std::string &expression)
 {
     static boost::uuids::random_generator rgen;
 
@@ -629,13 +629,13 @@ ExpressionId EquationManager::AddExpression(const std::string &expression)
     // Dirty the expression so it is computed on the next Update/UpdateExpression.
     graph_->InvalidateNode(name);
 
-    const ExpressionId id = expr.id;
+    const ObjectId id = expr.id;
     expression_map_.insert({name, std::move(expr)});
     expression_id_to_name_map_.insert({id, name});
     return id;
 }
 
-void EquationManager::RemoveExpression(const ExpressionId &id)
+void EquationManager::RemoveExpression(const ObjectId &id)
 {
     const auto it = expression_id_to_name_map_.find(id);
     if (it == expression_id_to_name_map_.end())
@@ -648,7 +648,7 @@ void EquationManager::RemoveExpression(const ExpressionId &id)
     expression_id_to_name_map_.erase(it);
 }
 
-const Expression *EquationManager::GetExpression(const ExpressionId &id) const
+const Expression *EquationManager::GetExpression(const ObjectId &id) const
 {
     const auto it = expression_id_to_name_map_.find(id);
     if (it == expression_id_to_name_map_.end())
@@ -663,14 +663,21 @@ const Expression *EquationManager::GetExpression(const ExpressionId &id) const
     return &expr_it->second;
 }
 
-bool EquationManager::IsExpressionExist(const ExpressionId &id) const
+bool EquationManager::IsExpressionExist(const ObjectId &id) const
 {
     return expression_id_to_name_map_.count(id) != 0;
 }
 
-std::vector<ExpressionId> EquationManager::GetExpressionIds() const
+bool EquationManager::IsExpressionNode(const std::string &name) const
 {
-    std::vector<ExpressionId> ids;
+    // The expression_map_ is keyed by the internal graph-node slot
+    // ("expr_<uuid>"), which is what shows up in dependency / dependent sets.
+    return expression_map_.count(name) != 0;
+}
+
+std::vector<ObjectId> EquationManager::GetExpressionIds() const
+{
+    std::vector<ObjectId> ids;
     ids.reserve(expression_map_.size());
     for (const auto &entry : expression_map_)
     {
@@ -679,7 +686,7 @@ std::vector<ExpressionId> EquationManager::GetExpressionIds() const
     return ids;
 }
 
-EquationValue EquationManager::GetExpressionValue(const ExpressionId &id) const
+EquationValue EquationManager::GetExpressionValue(const ObjectId &id) const
 {
     const Expression *expr = GetExpression(id);
     if (expr == nullptr)
@@ -689,7 +696,7 @@ EquationValue EquationManager::GetExpressionValue(const ExpressionId &id) const
     return expr->result.value;
 }
 
-void EquationManager::UpdateExpression(const ExpressionId &id)
+void EquationManager::UpdateExpression(const ObjectId &id)
 {
     if (!IsExpressionExist(id))
     {
@@ -698,7 +705,7 @@ void EquationManager::UpdateExpression(const ExpressionId &id)
     UpdateExpressionInternal(id);
 }
 
-void EquationManager::UpdateExpressionInternal(const ExpressionId &id)
+void EquationManager::UpdateExpressionInternal(const ObjectId &id)
 {
     if (!IsExpressionExist(id))
     {
@@ -852,7 +859,7 @@ void EquationManager::UpdateNode(const std::string &node_name)
     // External inputs and unknown/unresolved names have nothing to compute.
 }
 
-std::vector<std::string> EquationManager::GetEquationsToUpdate(const EquationGroupId &group_id) const
+std::vector<std::string> EquationManager::GetEquationsToUpdate(const ObjectId &group_id) const
 {
     if (IsEquationGroupExist(group_id) == false)
     {
@@ -905,7 +912,7 @@ Equation *EquationManager::GetEquationInternal(const std::string &equation_name)
         return nullptr;
     }
 
-    const EquationGroupId &id = equation_name_to_group_id_map_.at(equation_name);
+    const ObjectId &id = equation_name_to_group_id_map_.at(equation_name);
     bool is_group_exist = equation_group_map_.contains(id);
     if (!is_group_exist)
     {
@@ -922,7 +929,7 @@ Equation *EquationManager::GetEquationInternal(const std::string &equation_name)
     return group->GetEquation(equation_name);
 }
 
-EquationGroup *EquationManager::GetEquationGroupInternal(const EquationGroupId &group_id)
+EquationGroup *EquationManager::GetEquationGroupInternal(const ObjectId &group_id)
 {
     if (equation_group_map_.contains(group_id))
     {

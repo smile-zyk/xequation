@@ -15,18 +15,17 @@ class Equation;
 class EquationManager;
 class ParseResultItem;
 
-using EquationGroupId = boost::uuids::uuid;
 using EquationPtr = std::unique_ptr<Equation>;
 using EquationPtrOrderedMap = tsl::ordered_map<std::string, EquationPtr>;
 
 class Equation
 {
   public:
-    explicit Equation(const ParseResultItem& item, const boost::uuids::uuid &group_id, EquationManager *manager);
-    explicit Equation(const std::string &name, const boost::uuids::uuid &group_id, EquationManager *manager);
+    explicit Equation(const ParseResultItem& item, const ObjectId &group_id, EquationManager *manager);
+    explicit Equation(const std::string &name, const ObjectId &group_id, EquationManager *manager);
     virtual ~Equation() = default;
 
-    static EquationPtr Create(const ParseResultItem& item, const boost::uuids::uuid &group_id, EquationManager *manager);
+    static EquationPtr Create(const ParseResultItem& item, const ObjectId &group_id, EquationManager *manager);
 
     void set_content(const std::string &content)
     {
@@ -78,14 +77,20 @@ class Equation
         return manager_;
     }
 
-    const EquationGroupId &group_id() const
+    const ObjectId &group_id() const
     {
         return group_id_;
     }
 
     EquationValue GetValue() const;
-    const tsl::ordered_set<std::string> & GetDependencies() const;
-    const tsl::ordered_set<std::string> & GetDependents() const;
+    /// Dependencies as user-facing equation names.  Registered-expression graph
+    /// nodes ("expr_<uuid>") are filtered out: only other equations are shown.
+    /// Returns a copy (filtering), not a reference into the graph.
+    tsl::ordered_set<std::string> GetDependencies() const;
+    /// Dependents as user-facing equation names.  Registered-expression graph
+    /// nodes ("expr_<uuid>") are filtered out: only other equations are shown.
+    /// Returns a copy (filtering), not a reference into the graph.
+    tsl::ordered_set<std::string> GetDependents() const;
 
     bool operator==(const Equation &other) const;
     bool operator!=(const Equation &other) const;
@@ -96,7 +101,7 @@ class Equation
     ItemType type_;
     ResultStatus status_;
     std::string message_;
-    EquationGroupId group_id_;
+    ObjectId group_id_;
     EquationManager *manager_ = nullptr;
 };
 

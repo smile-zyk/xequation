@@ -75,7 +75,7 @@ TEST(EmbedProxySingleton, TestRelFlow)
     auto &proxy = Proxy();
     auto &manager = proxy.rel_manager();
 
-    EquationGroupId id_0 = manager.AddEquationGroup("a = 1\nb = 3\nc = 5\nd = a + b * c");
+    ObjectId id_0 = manager.AddEquationGroup("a = 1\nb = 3\nc = 5\nd = a + b * c");
     manager.Update();
     EXPECT_EQ(manager.context().Get("d").Cast<int>(), 16);
 
@@ -92,7 +92,7 @@ TEST(EmbedProxySingleton, TestPythonFlow)
     auto &proxy = Proxy();
     auto &manager = proxy.python_manager();
 
-    EquationGroupId id_0 = manager.AddEquationGroup("a = 1\nb = 3\nc = 5\nd = a + b * c");
+    ObjectId id_0 = manager.AddEquationGroup("a = 1\nb = 3\nc = 5\nd = a + b * c");
     manager.Update();
     EXPECT_EQ(PyInt(manager, "d"), 16);
 

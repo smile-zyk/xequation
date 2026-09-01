@@ -223,7 +223,7 @@ TEST(RelEquationEngine, TestEquationManager)
     auto& engine = RelEquationEngine::GetInstance();
     auto equation_manager = engine.CreateEquationManager();
 
-    EquationGroupId id_0 = equation_manager->AddEquationGroup(
+    ObjectId id_0 = equation_manager->AddEquationGroup(
         R"(
 a=1
 b=3
@@ -249,7 +249,7 @@ d=a+b*c
     EXPECT_EQ(v.Cast<int>(), 26);
 
     // REL 内置常量/函数
-    EquationGroupId id_1 = equation_manager->AddEquationGroup("p=pi");
+    ObjectId id_1 = equation_manager->AddEquationGroup("p=pi");
     equation_manager->UpdateEquationGroup(id_1);
     v = equation_manager->context().Get("p");
     EXPECT_TRUE(v.IsRelValue());

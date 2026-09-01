@@ -43,7 +43,7 @@ class EquationException : public std::exception
         return equation_name_;
     }
 
-    const EquationGroupId &group_id() const
+    const ObjectId &group_id() const
     {
         return group_id_;
     }
@@ -53,12 +53,12 @@ class EquationException : public std::exception
         return error_code_;
     }
 
-    static EquationException EquationGroupNotFound(EquationGroupId group_id)
+    static EquationException EquationGroupNotFound(ObjectId group_id)
     {
         return EquationException(ErrorCode::kEquationGroupNotFound, group_id);
     }
 
-    static EquationException EquationGroupAlreadyExists(EquationGroupId group_id)
+    static EquationException EquationGroupAlreadyExists(ObjectId group_id)
     {
         return EquationException(ErrorCode::kEquationGroupAlreadyExists, group_id);
     }
@@ -123,14 +123,14 @@ class EquationException : public std::exception
     {
     }
 
-    EquationException(ErrorCode error_code, const EquationGroupId &group_id)
+    EquationException(ErrorCode error_code, const ObjectId &group_id)
         : error_code_(error_code), group_id_(group_id)
     {
     }
 
     ErrorCode error_code_;
     std::string equation_name_;
-    EquationGroupId group_id_;
+    ObjectId group_id_;
     mutable std::string message_cache_;
 };
 
@@ -142,7 +142,7 @@ class EquationManager
 
     virtual ~EquationManager() noexcept = default;
 
-    const EquationGroup *GetEquationGroup(const EquationGroupId &group_id) const;
+    const EquationGroup *GetEquationGroup(const ObjectId &group_id) const;
 
     /// The group that owns the given equation name (nullptr if the equation or
     /// its owning group does not exist).  Convenience for group-centric flows:
@@ -151,23 +151,23 @@ class EquationManager
 
     const Equation *GetEquation(const std::string &equation_name) const;
 
-    std::vector<EquationGroupId> GetEquationGroupIds() const;
+    std::vector<ObjectId> GetEquationGroupIds() const;
 
     std::vector<std::string> GetEquationNames() const;
 
-    bool IsEquationGroupExist(const EquationGroupId &group_id) const;
+    bool IsEquationGroupExist(const ObjectId &group_id) const;
 
     bool IsEquationExist(const std::string &eqn_name) const;
 
-    EquationGroupId AddEquationGroup(const std::string &equation_statement);
+    ObjectId AddEquationGroup(const std::string &equation_statement);
 
-    EquationGroupId AddEquation(const std::string& equation_name, const std::string& equation_content);
+    ObjectId AddEquation(const std::string& equation_name, const std::string& equation_content);
 
-    void EditEquationGroup(const EquationGroupId &group_id, const std::string &equation_statement);
+    void EditEquationGroup(const ObjectId &group_id, const std::string &equation_statement);
 
-    void EditSingleEquation(const EquationGroupId &group_id, const std::string& equation_name, const std::string& equation_content);
+    void EditSingleEquation(const ObjectId &group_id, const std::string& equation_name, const std::string& equation_content);
 
-    void RemoveEquationGroup(const EquationGroupId &group_id);
+    void RemoveEquationGroup(const ObjectId &group_id);
 
     ParseResult Parse(const std::string &expression, ParseMode mode) const;
 
@@ -183,7 +183,7 @@ class EquationManager
 
     void UpdateEquation(const std::string &equation_name);
 
-    void UpdateEquationGroup(const EquationGroupId &group_id);
+    void UpdateEquationGroup(const ObjectId &group_id);
 
     // Recomputes a single graph node without propagating to dependents
     // (dispatches equations/expressions by node kind).
@@ -195,32 +195,37 @@ class EquationManager
     // dependents (propagated by TopologicalSort) plus every dirty (invalidated) node
     // (e.g. cross-group equations that lost their dependency after a rename/removal).
     // Returns an empty vector if the group does not exist.
-    std::vector<std::string> GetEquationsToUpdate(const EquationGroupId &group_id) const;
+    std::vector<std::string> GetEquationsToUpdate(const ObjectId &group_id) const;
 
     // =========================================================================
     // Registered expressions (observe-only, never written into the context)
     // =========================================================================
 
     // Registers an expression; returns its id.
-    ExpressionId AddExpression(const std::string &expression);
+    ObjectId AddExpression(const std::string &expression);
 
     // Removes a registered expression (and its graph node).
-    void RemoveExpression(const ExpressionId &id);
+    void RemoveExpression(const ObjectId &id);
 
     // Returns the expression object, or nullptr.
-    const Expression *GetExpression(const ExpressionId &id) const;
+    const Expression *GetExpression(const ObjectId &id) const;
 
     // Returns true when a registered expression with this id exists.
-    bool IsExpressionExist(const ExpressionId &id) const;
+    bool IsExpressionExist(const ObjectId &id) const;
+
+    // Returns true when the given name is the internal graph-node slot of a
+    // registered expression (i.e. "expr_<uuid>").  Hosts can use this to hide
+    // expression nodes from user-facing dependency / dependent listings.
+    bool IsExpressionNode(const std::string &name) const;
 
     // All registered expression ids (insertion order not guaranteed).
-    std::vector<ExpressionId> GetExpressionIds() const;
+    std::vector<ObjectId> GetExpressionIds() const;
 
     // Value of a registered expression (Null when not found / not yet computed).
-    EquationValue GetExpressionValue(const ExpressionId &id) const;
+    EquationValue GetExpressionValue(const ObjectId &id) const;
 
     // Computes the expression (does not propagate to dependents).
-    void UpdateExpression(const ExpressionId &id);
+    void UpdateExpression(const ObjectId &id);
 
     // =========================================================================
     // External input symbols (named graph anchors, value owned by the host)
@@ -283,9 +288,9 @@ class EquationManager
     EquationManager &operator=(EquationManager &&) noexcept = delete;
 
     Equation *GetEquationInternal(const std::string &equation_name);
-    EquationGroup *GetEquationGroupInternal(const EquationGroupId &group_id);
+    EquationGroup *GetEquationGroupInternal(const ObjectId &group_id);
     void UpdateEquationInternal(const std::string &equation_name);
-    void UpdateExpressionInternal(const ExpressionId &id);
+    void UpdateExpressionInternal(const ObjectId &id);
 
     void AddNodeToGraph(const std::string &node_name, const std::vector<std::string> &dependencies);
     void RemoveNodeInGraph(const std::string &node_name);
@@ -310,12 +315,12 @@ class EquationManager
     std::unique_ptr<EquationSignalsManager> signals_manager_;
 
     EquationGroupPtrOrderedMap equation_group_map_;
-    std::unordered_map<std::string, boost::uuids::uuid> equation_name_to_group_id_map_;
+    std::unordered_map<std::string, ObjectId> equation_name_to_group_id_map_;
 
     // Registered expressions.  Keyed by name (same slot as equations).
     std::unordered_map<std::string, Expression> expression_map_;
     // Expression id -> internal graph/name slot.
-    std::unordered_map<ExpressionId, std::string> expression_id_to_name_map_;
+    std::unordered_map<ObjectId, std::string> expression_id_to_name_map_;
 
     // External input symbols.  Value is provided externally.
     tsl::ordered_set<std::string> external_input_names_;

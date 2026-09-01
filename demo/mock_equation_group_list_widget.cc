@@ -20,7 +20,7 @@ MockEquationGroupListWidget::MockEquationGroupListWidget(xequation::EquationMana
     SetupConnections();
 }
 
-void MockEquationGroupListWidget::SetCurrentEquationGroup(const xequation::EquationGroupId &id)
+void MockEquationGroupListWidget::SetCurrentEquationGroup(const xequation::ObjectId &id)
 {
     if (id_to_item_map_.contains(id))
     {
@@ -29,7 +29,7 @@ void MockEquationGroupListWidget::SetCurrentEquationGroup(const xequation::Equat
     }
 }
 
-const xequation::EquationGroupId &MockEquationGroupListWidget::GetCurrentEquationGroupId() const
+const xequation::ObjectId &MockEquationGroupListWidget::GetCurrentEquationGroupId() const
 {
     QListWidgetItem *current_item = currentItem();
     if (current_item && item_to_id_map_.contains(current_item))
@@ -40,13 +40,13 @@ const xequation::EquationGroupId &MockEquationGroupListWidget::GetCurrentEquatio
             return it.value();
         }
     }
-    static const xequation::EquationGroupId empty_id = EquationGroupId();
+    static const xequation::ObjectId empty_id = ObjectId();
     return empty_id;
 }
 
-std::vector<xequation::EquationGroupId> MockEquationGroupListWidget::GetSelectedEquationGroupIds() const
+std::vector<xequation::ObjectId> MockEquationGroupListWidget::GetSelectedEquationGroupIds() const
 {
-    std::vector<xequation::EquationGroupId> ids;
+    std::vector<xequation::ObjectId> ids;
     const auto selected_items = selectedItems();
     ids.reserve(selected_items.size());
 
@@ -64,7 +64,7 @@ std::vector<xequation::EquationGroupId> MockEquationGroupListWidget::GetSelected
 
 void MockEquationGroupListWidget::SetupUI()
 {
-    std::vector<EquationGroupId> ids = manager_->GetEquationGroupIds();
+    std::vector<ObjectId> ids = manager_->GetEquationGroupIds();
     for (const auto &id : ids)
     {
         const EquationGroup *group = manager_->GetEquationGroup(id);

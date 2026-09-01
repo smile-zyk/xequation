@@ -14,18 +14,18 @@ public:
     MockEquationGroupListWidget(xequation::EquationManager* manager, QWidget* parent = nullptr);
     ~MockEquationGroupListWidget() override = default;
 
-    void SetCurrentEquationGroup(const xequation::EquationGroupId& id);
-    const xequation::EquationGroupId& GetCurrentEquationGroupId() const;
-    std::vector<xequation::EquationGroupId> GetSelectedEquationGroupIds() const;
+    void SetCurrentEquationGroup(const xequation::ObjectId& id);
+    const xequation::ObjectId& GetCurrentEquationGroupId() const;
+    std::vector<xequation::ObjectId> GetSelectedEquationGroupIds() const;
 
 signals:
-    void EditEquationGroupRequested(const xequation::EquationGroupId& id);
-    void RemoveEquationGroupRequested(const xequation::EquationGroupId& id);
-    void CopyEquationGroupRequested(const xequation::EquationGroupId& id);
-    void UpdateEquationGroupRequested(const xequation::EquationGroupId& id);
-    void AddEquationGroupToExpressionWatchRequested(const xequation::EquationGroupId& id);
-    void EquationGroupSelected(const xequation::EquationGroupId& id);
-    void EquationGroupsSelected(const std::vector<xequation::EquationGroupId>& ids);
+    void EditEquationGroupRequested(const xequation::ObjectId& id);
+    void RemoveEquationGroupRequested(const xequation::ObjectId& id);
+    void CopyEquationGroupRequested(const xequation::ObjectId& id);
+    void UpdateEquationGroupRequested(const xequation::ObjectId& id);
+    void AddEquationGroupToExpressionWatchRequested(const xequation::ObjectId& id);
+    void EquationGroupSelected(const xequation::ObjectId& id);
+    void EquationGroupsSelected(const std::vector<xequation::ObjectId>& ids);
 
 private:
     void SetupUI();
@@ -41,6 +41,6 @@ private:
 
 private:
     xequation::EquationManager* manager_;
-    QMap<xequation::EquationGroupId, QListWidgetItem*> id_to_item_map_;
-    QMap<QListWidgetItem*, xequation::EquationGroupId> item_to_id_map_;
+    QMap<xequation::ObjectId, QListWidgetItem*> id_to_item_map_;
+    QMap<QListWidgetItem*, xequation::ObjectId> item_to_id_map_;
 };
