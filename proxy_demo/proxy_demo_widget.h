@@ -82,14 +82,13 @@ class ProxyDemoWidget : public QWidget
     class ExpressionDataFrameTabWidget *data_frame_view_ = nullptr;
     class ExpressionPropertyWidget *property_widget_ = nullptr;
 
-    /// Connections to the REL manager's kEquationRemoving / kEquationRemoved
+    /// Connections to the REL manager's kEquationRemoving / kEquationUpdated
     /// signals (auto disconnected on widget destruction); the tab widget
-    /// decides which tabs to clear / re-evaluate.
+    /// decides which tabs to clear / refresh.
     xequation::ScopedConnection removing_rel_connection_;
-    xequation::ScopedConnection removed_rel_connection_;
-    /// Connections to the REL manager's kEquationUpdated / kExpressionUpdated
-    /// signals, for auto-refresh of tabs / property on value-ready events.
     xequation::ScopedConnection updated_rel_connection_;
+    /// Connection to the REL manager's kExpressionUpdated signal, for
+    /// auto-refresh of watch-expression tabs / property on value-ready.
     xequation::ScopedConnection expression_updated_rel_connection_;
 };
 

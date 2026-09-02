@@ -2,10 +2,12 @@
 
 #include "expression_data_frame_view.h"
 
+#include <QEvent>
+#include <QHBoxLayout>
 #include <QInputDialog>
-#include <QSignalBlocker>
+#include <QMenu>
+#include <QPainter>
 #include <QTabBar>
-#include <QTimer>
 #include <QToolButton>
 
 #include <algorithm>
@@ -17,6 +19,92 @@ namespace gui
 
 using namespace xequation;
 
+namespace
+{
+/// Transparent 16x16 icon: used for the unpinned pin button while it is not
+/// hovered -- the button keeps its slot in the layout (no width collapse)
+/// but draws nothing.
+QIcon MakeBlankIcon()
+{
+    QPixmap pm(16, 16);
+    pm.fill(Qt::transparent);
+    return QIcon(pm);
+}
+
+/// Horizontal (lying-down) pushpin: cap on the LEFT, needle pointing RIGHT.
+/// Used while the tab is unpinned (shown only on hover, like VS).
+QIcon MakePinIconHorizontal(const QPalette &pal)
+{
+    const QColor fg = pal.color(QPalette::Foreground);
+    QPixmap pm(16, 16);
+    pm.fill(Qt::transparent);
+    QPainter painter(&pm);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(fg, 1.5));
+    painter.setBrush(Qt::NoBrush);
+
+    // Cap: rounded rect on the left.
+    painter.drawRoundedRect(QRectF(2.0, 3.6, 6.6, 8.8), 1.8, 1.8);
+    // Shoulder: vertical line just right of the cap.
+    painter.drawLine(QPointF(9.5, 2.8), QPointF(9.5, 13.2));
+    // Needle: horizontal from the shoulder to the right.
+    painter.drawLine(QPointF(9.5, 8.0), QPointF(14.0, 8.0));
+
+    return QIcon(pm);
+}
+
+/// Vertical (upright) pushpin: cap on TOP, needle pointing DOWN.
+/// Used while the tab is pinned (always shown).
+QIcon MakePinIconVertical(const QPalette &pal)
+{
+    const QColor fg = pal.color(QPalette::Foreground);
+    QPixmap pm(16, 16);
+    pm.fill(Qt::transparent);
+    QPainter painter(&pm);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(fg, 1.5));
+    painter.setBrush(QBrush(fg));   // pinned = solid cap
+
+    // Cap: rounded rect on top.
+    painter.drawRoundedRect(QRectF(3.6, 2.0, 8.8, 6.6), 1.8, 1.8);
+    // Shoulder: horizontal line just below the cap.
+    painter.setBrush(Qt::NoBrush);
+    painter.drawLine(QPointF(2.8, 9.5), QPointF(13.2, 9.5));
+    // Needle: vertical from the shoulder down to the bottom.
+    painter.drawLine(QPointF(8.0, 9.5), QPointF(8.0, 14.0));
+
+    return QIcon(pm);
+}
+
+/// 16x16 icon: an "X" cross (same weight as the pin circle).
+QIcon MakeCloseIcon(const QPalette &pal)
+{
+    const QColor fg = pal.color(QPalette::Foreground);
+    QPixmap pm(16, 16);
+    pm.fill(Qt::transparent);
+    QPainter painter(&pm);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(fg, 1.4));
+    painter.drawLine(QPointF(4.5, 4.5), QPointF(11.5, 11.5));
+    painter.drawLine(QPointF(11.5, 4.5), QPointF(4.5, 11.5));
+    return QIcon(pm);
+}
+
+/// Tab-bar button shared look: small, flat, no focus rect, hand cursor.
+QToolButton *MakeTabBarButton(QWidget *parent, const QIcon &icon, const QString &tooltip)
+{
+    auto *button = new QToolButton(parent);
+    button->setIcon(icon);
+    button->setIconSize(QSize(16, 16));
+    button->setFixedSize(QSize(16, 16));
+    button->setAutoRaise(true);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setCursor(Qt::PointingHandCursor);
+    button->setToolTip(tooltip);
+    return button;
+}
+} // namespace
+
 // =========================================================================
 // ExpressionDataFrameTabWidget
 // =========================================================================
@@ -25,18 +113,16 @@ ExpressionDataFrameTabWidget::ExpressionDataFrameTabWidget(
     EquationManager &manager, QWidget *parent)
     : QTabWidget(parent), manager_(manager)
 {
-    setTabsClosable(true);
+    // Built-in close buttons are disabled: pin + close are both custom and
+    // share the same look (see OpenTab), packed [pin][close] on the right.
+    setTabsClosable(false);
     setDocumentMode(true);
-    connect(this, &QTabWidget::tabCloseRequested,
-            this, &ExpressionDataFrameTabWidget::CloseTab);
     connect(tabBar(), &QTabBar::tabBarDoubleClicked,
             this, &ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked);
-
-    reeval_timer_ = new QTimer(this);
-    reeval_timer_->setSingleShot(true);
-    reeval_timer_->setInterval(0);
-    connect(reeval_timer_, &QTimer::timeout,
-            this, &ExpressionDataFrameTabWidget::OnReevalTimer);
+    // Right-click on a tab: Edit / Delete / Add Watch Expression.
+    tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(tabBar(), &QTabBar::customContextMenuRequested,
+            this, &ExpressionDataFrameTabWidget::OnTabContextMenu);
 }
 
 ExpressionDataFrameTabWidget::~ExpressionDataFrameTabWidget()
@@ -74,25 +160,65 @@ int ExpressionDataFrameTabWidget::OpenTab()
     const int index = addTab(view, QString());
     tabs_.emplace_back();
     tabs_.back().view = view;
+    TabData &tab = tabs_.back();
 
-    // Pin button as the tab's left-side widget: toggling it pins / unpins the
-    // tab (pinned tabs survive deselection and are ordered first).
-    auto *pin_button = new QToolButton(tabBar());
-    pin_button->setCheckable(true);
-    pin_button->setText(QStringLiteral("○"));
-    pin_button->setToolTip(QStringLiteral("Pin this tab: keep it when deselected"));
-    pin_button->setAutoRaise(true);
-    pin_button->setCursor(Qt::PointingHandCursor);
-    tabs_.back().pin_button = pin_button;
-    tabBar()->setTabButton(index, QTabBar::LeftSide, pin_button);
+    // ------------------------------------------------------------------
+    // Tab bar buttons: pin + close share the same look and are packed on the
+    // right side of the tab with pin on the LEFT of close:  [pin][close].
+    // ------------------------------------------------------------------
+    auto *container = new QWidget(tabBar());
+    auto *layout = new QHBoxLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    // Not checkable: the pin on/off is shown by the icon direction (lying =
+    // unpinned, upright = pinned).  autoRaise gives hover + press feedback.
+    auto *pin_button = MakeTabBarButton(
+        container, MakeBlankIcon(),
+        QStringLiteral("Pin this tab: keep it when deselected")
+    );
+    auto *close_button = MakeTabBarButton(
+        container, MakeCloseIcon(tabBar()->palette()),
+        QStringLiteral("Close this tab")
+    );
+
+    tab.pin_button = pin_button;
+    tab.close_button = close_button;
+
+    layout->addWidget(pin_button);
+    layout->addWidget(close_button);
+
+    tabBar()->setTabButton(index, QTabBar::RightSide, container);
+
+    // A transparent left spacer mirroring the right button area keeps the
+    // title visually centered.
+    auto *left_spacer = new QWidget(tabBar());
+    left_spacer->setFixedSize(container->sizeHint());
+    tabBar()->setTabButton(index, QTabBar::LeftSide, left_spacer);
+
+    // The pin button must be visible (blank icon) to receive Enter/Leave.
+    pin_button->installEventFilter(this);
+
     // Resolve the tab index by button identity at click time: tabs may have
-    // been re-ordered by pin/unpin since the button was created.
-    connect(pin_button, &QToolButton::toggled, this, [this, pin_button](bool checked) {
+    // been re-ordered by pin/unpin since the button was created.  The button
+    // is not checkable; a click toggles the tab's pinned state.
+    connect(pin_button, &QToolButton::clicked, this, [this, pin_button]() {
         for (int i = 0; i < static_cast<int>(tabs_.size()); ++i)
         {
             if (tabs_[static_cast<std::size_t>(i)].pin_button == pin_button)
             {
-                OnPinButtonClicked(i, checked);
+                TabData &t = tabs_[static_cast<std::size_t>(i)];
+                SetTabPinned(i, !t.pinned);
+                return;
+            }
+        }
+    });
+    connect(close_button, &QToolButton::clicked, this, [this, close_button]() {
+        for (int i = 0; i < static_cast<int>(tabs_.size()); ++i)
+        {
+            if (tabs_[static_cast<std::size_t>(i)].close_button == close_button)
+            {
+                CloseTab(i);
                 return;
             }
         }
@@ -117,11 +243,7 @@ void ExpressionDataFrameTabWidget::CloseTabInternal(int index)
         // removes its graph node and dependency edges).
         manager_.RemoveExpression(tab.object_id);
     }
-    UnregisterDependencies(tab.object_id, tab.dependencies);
     object_to_index_.erase(tab.object_id);
-    dirty_keys_.erase(std::remove_if(dirty_keys_.begin(), dirty_keys_.end(),
-                                     [&tab](const ObjectId &k) { return k == tab.object_id; }),
-                      dirty_keys_.end());
 
     tabs_.erase(tabs_.begin() + index);
     removeTab(index);   // deletes the view widget (and the pin button)
@@ -150,7 +272,6 @@ void ExpressionDataFrameTabWidget::ClearAll()
     {
         CloseTabInternal(0);
     }
-    dirty_keys_.clear();
 }
 
 void ExpressionDataFrameTabWidget::FillTab(ExpressionDataFrameView *view,
@@ -160,6 +281,19 @@ void ExpressionDataFrameTabWidget::FillTab(ExpressionDataFrameView *view,
 }
 
 // ---- pinning / ordering ---------------------------------------------------
+
+/// Find the tab index owning the given pin button (by identity); -1 if none.
+int ExpressionDataFrameTabWidget::IndexOfPinButton(const QToolButton *pin) const
+{
+    for (std::size_t i = 0; i < tabs_.size(); ++i)
+    {
+        if (tabs_[i].pin_button == pin)
+        {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
 
 void ExpressionDataFrameTabWidget::MoveTab(int from, int to)
 {
@@ -196,15 +330,11 @@ void ExpressionDataFrameTabWidget::UpdatePinButton(int index)
         return;
     }
     const bool checked = tab.pinned;
-    // Avoid recursive toggled signal while syncing the visual state.
-    QSignalBlocker blocker(tab.pin_button);
-    tab.pin_button->setChecked(checked);
-    tab.pin_button->setText(checked ? QStringLiteral("◉") : QStringLiteral("○"));
-}
-
-void ExpressionDataFrameTabWidget::OnPinButtonClicked(int index, bool checked)
-{
-    SetTabPinned(index, checked);
+    // Pinned -> upright solid pin (always drawn); unpinned -> blank (the
+    // hover overlay draws the lying pin).  The button is not checkable, so
+    // there is no sunken checked look -- state is conveyed by the icon.
+    tab.pin_button->setIcon(checked ? MakePinIconVertical(tabBar()->palette())
+                                    : MakeBlankIcon());
 }
 
 void ExpressionDataFrameTabWidget::SetTabPinned(int index, bool pinned)
@@ -262,42 +392,38 @@ void ExpressionDataFrameTabWidget::SetTabError(int index, const QString &message
     tab.view->SetError(message);
 }
 
-// ---- dependency registration -----------------------------------------------
-
-void ExpressionDataFrameTabWidget::UnregisterDependencies(
-    const ObjectId &object_id, const std::vector<std::string> &deps)
+bool ExpressionDataFrameTabWidget::eventFilter(QObject *obj, QEvent *event)
 {
-    for (const std::string &dep : deps)
+    // Pin buttons are visible (empty icon) and installed with this filter:
+    // on Enter, draw the lying pin (if unpinned); on Leave, blank it back.
+    auto *pin = qobject_cast<QToolButton *>(obj);
+    if (pin)
     {
-        auto it = deps_to_keys_.find(dep);
-        if (it == deps_to_keys_.end())
+        // Find the owning tab by button identity.
+        const int index = IndexOfPinButton(pin);
+        if (index >= 0)
         {
-            continue;
-        }
-        auto &keys = it->second;
-        keys.erase(std::remove(keys.begin(), keys.end(), object_id), keys.end());
-        if (keys.empty())
-        {
-            deps_to_keys_.erase(it);
+            TabData &tab = tabs_[static_cast<std::size_t>(index)];
+            if (event->type() == QEvent::Enter)
+            {
+                if (!tab.pinned)
+                {
+                    tab.pin_button->setIcon(MakePinIconHorizontal(tabBar()->palette()));
+                }
+                return false;
+            }
+            if (event->type() == QEvent::Leave)
+            {
+                if (!tab.pinned)
+                {
+                    tab.pin_button->setIcon(MakeBlankIcon());
+                }
+                return false;
+            }
         }
     }
+    return QWidget::eventFilter(obj, event);
 }
-
-void ExpressionDataFrameTabWidget::RegisterDependencies(
-    const ObjectId &object_id, const std::vector<std::string> &deps)
-{
-    // DataFrames come only from the REL engine; the dependency map keys are
-    // equation names, which are engine-agnostic for refresh purposes.
-    for (const std::string &dep : deps)
-    {
-        auto &keys = deps_to_keys_[dep];
-        if (std::find(keys.begin(), keys.end(), object_id) == keys.end())
-        {
-            keys.push_back(object_id);
-        }
-    }
-}
-
 // ---- evaluation ----------------------------------------------------------
 
 void ExpressionDataFrameTabWidget::EvaluateTab(int index)
@@ -355,72 +481,24 @@ void ExpressionDataFrameTabWidget::EvaluateTab(int index)
     setTabText(index, QString::fromStdString(tab.expression));
 }
 
-// ---- change handling -----------------------------------------------------
-
-void ExpressionDataFrameTabWidget::MarkDirty(const ObjectId &object_id)
-{
-    if (std::find(dirty_keys_.begin(), dirty_keys_.end(), object_id) == dirty_keys_.end())
-    {
-        dirty_keys_.push_back(object_id);
-    }
-    ScheduleReeval();
-}
-
-void ExpressionDataFrameTabWidget::ScheduleReeval()
-{
-    if (reeval_scheduled_)
-    {
-        return;
-    }
-    reeval_scheduled_ = true;
-    reeval_timer_->start();
-}
-
-void ExpressionDataFrameTabWidget::OnReevalTimer()
-{
-    reeval_scheduled_ = false;
-    if (dirty_keys_.empty())
-    {
-        return;
-    }
-
-    const std::vector<ObjectId> keys = dirty_keys_;
-    dirty_keys_.clear();
-
-    for (const ObjectId &key : keys)
-    {
-        const int index = FindTabIndex(key);
-        if (index >= 0)
-        {
-            EvaluateTab(index);
-        }
-    }
-}
-
 // ---- change routing ------------------------------------------------------
 
 void ExpressionDataFrameTabWidget::OnEquationRemoving(const Equation *equation)
 {
-    // The value is about to disappear.  Equation tabs showing it are cleared;
-    // watch-expression tabs are left to the post-removal re-evaluation
-    // (OnEquationRemoved) which turns them into errors but keeps them open.
-    MarkDirty(equation ? equation->group_id() : ObjectId());
-}
-
-void ExpressionDataFrameTabWidget::OnEquationRemoved(const std::string &equation_name)
-{
-    // Re-evaluate every watch expression that depended on the removed
-    // equation: their registration is still alive (a missing dependency just
-    // stays inactive), so refresh shows the NameError, keeping the tab open
-    // watch-like.
-    const auto it = deps_to_keys_.find(equation_name);
-    if (it == deps_to_keys_.end())
+    if (!equation)
     {
         return;
     }
-    for (const ObjectId &object_id : it->second)
+    // kEquationRemoving is emitted *before* the equation is erased from the
+    // manager, so a synchronous EvaluateTab here would re-read the old value.
+    // The equation is going away: close its tab entirely.  (CloseTabInternal
+    // calls RemoveExpression on the group id, which is a no-op -- it only
+    // releases registered expressions.)  Watch-expression tabs are untouched;
+    // the removal recomputation arrives via kExpressionUpdated(kValue).
+    const int index = FindTabIndex(equation->group_id());
+    if (index >= 0)
     {
-        MarkDirty(object_id);
+        CloseTabInternal(index);
     }
 }
 
@@ -438,34 +516,39 @@ void ExpressionDataFrameTabWidget::OnEquationUpdated(
         return;
     }
 
-    // An equation tab whose group_id matches this equation is refreshed by
-    // marking its id dirty.
-    MarkDirty(equation->group_id());
-
-    // Watch expressions that depend on this equation: their cached value is
-    // re-computed by the manager via UpdateNode (kExpressionUpdated comes
-    // separately), so just mark the dependent tabs dirty here too -- the
-    // consolidated OnReevalTimer reads the fresh value.
-    const auto it = deps_to_keys_.find(equation->name());
-    if (it != deps_to_keys_.end())
+    // Equation tabs whose group_id matches this equation are refreshed.
+    // Watch-expression tabs are NOT touched here: the manager recomputes
+    // dependent expressions during the same update pass and their own
+    // kExpressionUpdated(kValue) event refreshes them.
+    const int index = FindTabIndex(equation->group_id());
+    if (index >= 0)
     {
-        for (const ObjectId &object_id : it->second)
-        {
-            MarkDirty(object_id);
-        }
+        EvaluateTab(index);
     }
 }
 
 void ExpressionDataFrameTabWidget::OnExpressionUpdated(
-    const Expression *expression, bitmask::bitmask<ExpressionUpdateFlag> /*flags*/
+    const Expression *expression, bitmask::bitmask<ExpressionUpdateFlag> flags
 )
 {
     if (!expression)
     {
         return;
     }
+    // Refresh only when the new value is ready: the manager emits twice per
+    // computation (a "Calculating..." kStatus|kMessage event first, then
+    // kStatus|kMessage|kValue), so filtering on kValue drops the intermediate
+    // state and avoids re-filling the tab with a stale/"Calculating" cache.
+    if (!(flags & ExpressionUpdateFlag::kValue))
+    {
+        return;
+    }
     // Watch-expression tab: refresh from the (already recomputed) cached value.
-    MarkDirty(expression->id);
+    const int index = FindTabIndex(expression->id);
+    if (index >= 0)
+    {
+        EvaluateTab(index);
+    }
 }
 
 // ---- tabs: Add -----------------------------------------------------------
@@ -484,7 +567,7 @@ void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &group_id, bool au
         setCurrentIndex(existing_index);
         // Re-read the value so the tab is not stale (matching SyncSelection's
         // "re-selecting refreshes" semantics).
-        MarkDirty(group_id);
+        EvaluateTab(existing_index);
         return;
     }
 
@@ -500,10 +583,8 @@ void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &group_id, bool au
     tab.kind = ObjectKind::kEquation;
     tab.object_id = group_id;
     tab.expression = equation->name();
-    tab.dependencies = {tab.expression};   // self-register (value-ready refresh)
     setTabText(index, QString::fromStdString(tab.expression));
 
-    RegisterDependencies(tab.object_id, tab.dependencies);
     RebuildKeyToIndex();
     EvaluateTab(index);
     setCurrentIndex(index);
@@ -529,7 +610,7 @@ void ExpressionDataFrameTabWidget::AddExpression(const ObjectId &expression_id,
     {
         setCurrentIndex(existing_index);
         // Re-read the value so the tab is not stale.
-        MarkDirty(expression_id);
+        EvaluateTab(existing_index);
         return;
     }
 
@@ -544,10 +625,8 @@ void ExpressionDataFrameTabWidget::AddExpression(const ObjectId &expression_id,
     tab.kind = ObjectKind::kExpression;
     tab.object_id = expression_id;
     tab.expression = expr->content;
-    tab.dependencies = expr->dependencies;
     setTabText(index, QString::fromStdString(tab.expression));
 
-    RegisterDependencies(tab.object_id, tab.dependencies);
     RebuildKeyToIndex();
 
     // Trigger the first computation synchronously so the tab shows a value
@@ -577,22 +656,25 @@ void ExpressionDataFrameTabWidget::AddExpression(const ObjectId &expression_id,
 void ExpressionDataFrameTabWidget::SyncSelection(
     const std::vector<std::string> &selected_equation_names)
 {
-    // 1. Close unpinned equation tabs whose equation is no longer selected.
-    //    Watch-expression tabs and pinned tabs always survive.
+    // Sync: keep ONLY pinned tabs and tabs whose equation is currently
+    // selected.  Everything else (unpinned equation tabs AND unpinned
+    // expression/watch tabs) is closed -- that is what makes pinning useful.
     for (int i = static_cast<int>(tabs_.size()) - 1; i >= 0; --i)
     {
         TabData &tab = tabs_[static_cast<std::size_t>(i)];
-        if (tab.pinned || tab.kind == ObjectKind::kExpression)
+        if (tab.pinned)
         {
             continue;
         }
+        // Is this tab's expression one of the selected equation names?
         const bool still_selected =
             std::find(selected_equation_names.begin(), selected_equation_names.end(),
                       tab.expression) != selected_equation_names.end();
-        if (!still_selected && manager_.IsEquationExist(tab.expression))
+        if (still_selected)
         {
-            CloseTabInternal(i);
+            continue;
         }
+        CloseTabInternal(i);
     }
 
     // 2. Open / refresh equation tabs for the selected items (AddEquation
@@ -611,6 +693,11 @@ void ExpressionDataFrameTabWidget::SyncSelection(
 
 void ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked(int index)
 {
+    EditTab(index);
+}
+
+void ExpressionDataFrameTabWidget::EditTab(int index)
+{
     if (index < 0 || index >= static_cast<int>(tabs_.size()))
     {
         return;
@@ -618,13 +705,9 @@ void ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked(int index)
 
     TabData &tab = tabs_[static_cast<std::size_t>(index)];
 
-    // Only registered expressions are editable; equation tabs are identified
-    // by their name and edited through the main editor.
-    if (tab.kind != ObjectKind::kExpression)
-    {
-        return;
-    }
-
+    // Both Equation and Expression tabs are editable.  Editing an Equation
+    // tab turns it into a registered watch Expression (the equation itself is
+    // left untouched in the manager).
     bool ok = false;
     const QString new_expression = QInputDialog::getText(
         this, QStringLiteral("Edit Expression"),
@@ -640,12 +723,8 @@ void ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked(int index)
         return;
     }
 
-    // Re-register: remove the old watch expression, register the new one with
-    // the manager and adopt its id.
-    manager_.RemoveExpression(tab.object_id);
-    UnregisterDependencies(tab.object_id, tab.dependencies);
-    object_to_index_.erase(tab.object_id);
-
+    // Register the new expression first; only on success release the old one,
+    // so a failed parse leaves the tab (and its old object) intact.
     ObjectId new_id;
     try
     {
@@ -657,20 +736,20 @@ void ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked(int index)
     }
     if (new_id.is_nil())
     {
-        // Registration failed (parse error): restore the old tab state.
-        tab.dependencies.clear();
-        RegisterDependencies(tab.object_id, tab.dependencies);
-        object_to_index_[tab.object_id] = index;
-        RebuildKeyToIndex();
-        EvaluateTab(index);
-        return;
+        return;   // parse failed: tab unchanged
     }
 
-    const Expression *new_expr = manager_.GetExpression(new_id);
+    // Release the previous registered expression (no-op for an equation
+    // group_id).  Re-key the tab to the new expression.
+    if (tab.kind == ObjectKind::kExpression)
+    {
+        manager_.RemoveExpression(tab.object_id);
+    }
+    object_to_index_.erase(tab.object_id);
+
+    tab.kind = ObjectKind::kExpression;
     tab.object_id = new_id;
     tab.expression = trimmed;
-    tab.dependencies = new_expr ? new_expr->dependencies : std::vector<std::string>{};
-    RegisterDependencies(tab.object_id, tab.dependencies);
 
     object_to_index_[new_id] = index;
     setTabText(index, QString::fromStdString(trimmed));
@@ -692,6 +771,63 @@ void ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked(int index)
     // the tab into the pinned group; the index may change).
     const int pinned_index = FindTabIndex(new_id);
     SetTabPinned(pinned_index, true);
+}
+
+void ExpressionDataFrameTabWidget::OnTabContextMenu(const QPoint &pos)
+{
+    const int index = tabBar()->tabAt(pos);
+    if (index < 0)
+    {
+        return;
+    }
+
+    QMenu menu(this);
+    QAction *edit_action = menu.addAction(QStringLiteral("Edit"));
+    QAction *delete_action = menu.addAction(QStringLiteral("Delete"));
+    menu.addSeparator();
+    QAction *add_watch_action = menu.addAction(QStringLiteral("Add Watch Expression"));
+
+    QAction *chosen = menu.exec(tabBar()->mapToGlobal(pos));
+    if (chosen == edit_action)
+    {
+        EditTab(index);
+    }
+    else if (chosen == delete_action)
+    {
+        CloseTab(index);
+    }
+    else if (chosen == add_watch_action)
+    {
+        bool ok = false;
+        const QString expression = QInputDialog::getText(
+            this, QStringLiteral("Add Watch Expression"),
+            QStringLiteral("Expression:"), QLineEdit::Normal, QString(), &ok);
+        if (ok)
+        {
+            AddWatchExpression(expression.trimmed().toStdString());
+        }
+    }
+}
+
+void ExpressionDataFrameTabWidget::AddWatchExpression(const std::string &expression)
+{
+    if (expression.empty())
+    {
+        return;
+    }
+    ObjectId id;
+    try
+    {
+        id = manager_.AddExpression(expression);
+    }
+    catch (const std::exception &)
+    {
+        id = ObjectId();
+    }
+    if (!id.is_nil())
+    {
+        AddExpression(id);
+    }
 }
 
 } // namespace gui

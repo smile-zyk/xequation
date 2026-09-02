@@ -8,7 +8,7 @@
 #include "core/equation_common.h"
 #include "core/equation_manager.h"
 
-class QTimer;
+class QMenu;
 class QToolButton;
 
 namespace xresults
@@ -70,6 +70,11 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     /// @param auto_pin  see AddEquation.
     void AddExpression(const xequation::ObjectId &expression_id, bool auto_pin = true);
 
+    /// Register a watch expression with the manager and open a tab for it
+    /// (the tab becomes an Expression tab).  No-op if the text is empty or
+    /// registration fails.
+    void AddWatchExpression(const std::string &expression);
+
     /// Close the tab at index (no-op for the last tab).
     void CloseTab(int index);
 
@@ -87,7 +92,6 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     // ---- change routing (external code connects the engine) -----------
 
     void OnEquationRemoving(const xequation::Equation *equation);
-    void OnEquationRemoved(const std::string &equation_name);
     void OnEquationUpdated(const xequation::Equation *equation,
                            bitmask::bitmask<xequation::EquationUpdateFlag> flags);
     void OnExpressionUpdated(const xequation::Expression *expression,
@@ -107,10 +111,10 @@ class ExpressionDataFrameTabWidget : public QTabWidget
         ObjectKind kind = ObjectKind::kEquation;
         xequation::ObjectId object_id;       // equation group_id / expression id
         std::string expression;              // display text + edit source
-        std::vector<std::string> dependencies;      // equation names the tab watches
         ExpressionDataFrameView *view = nullptr;
         bool pinned = false;                 // pinned tabs survive deselection
         QToolButton *pin_button = nullptr;
+        QToolButton *close_button = nullptr;
     };
 
     // ---- tab lifecycle ----
@@ -122,16 +126,11 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     // ---- evaluation ----
     void EvaluateTab(int index);
 
-    // ---- change handling ----
-    void MarkDirty(const xequation::ObjectId &object_id);
-    void ScheduleReeval();
-    void OnReevalTimer();
-
     // ---- pinning / ordering ----
+    int IndexOfPinButton(const QToolButton *pin) const;
     void MoveTab(int from, int to);
     void RebuildKeyToIndex();
     void UpdatePinButton(int index);
-    void OnPinButtonClicked(int index, bool checked);
     /// Set the tab's pinned state, update the pin button, and re-order the
     /// tab into the pinned / unpinned group.  Shared by the pin button and the
     /// auto-pin behavior (new / edited expressions are pinned by default).
@@ -139,14 +138,16 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     /// Show / clear the error overlay on the tab's table view.
     void SetTabError(int index, const QString &message);
 
-    // ---- dependency registration ----
-    void UnregisterDependencies(const xequation::ObjectId &object_id,
-                                const std::vector<std::string> &deps);
-    void RegisterDependencies(const xequation::ObjectId &object_id,
-                              const std::vector<std::string> &deps);
-
     // ---- label editing ----
     void OnTabLabelDoubleClicked(int index);
+    void OnTabContextMenu(const QPoint &pos);
+    /// Edit a tab's text; an Equation tab becomes a watch Expression (its
+    /// equation is kept as-is).
+    void EditTab(int index);
+
+    /// Show / hide an unpinned pin button on hover (pinned buttons stay
+    /// visible).  Installed as an event filter on each pin button.
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
   private:
     /// REL manager used for resolve / register / unregister (host-provided;
@@ -154,12 +155,6 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     xequation::EquationManager &manager_;
     std::vector<TabData> tabs_;
     std::unordered_map<xequation::ObjectId, int> object_to_index_;
-    /// equation name -> tab ObjectIds that depend on it (bimap, watch-like)
-    std::unordered_map<std::string, std::vector<xequation::ObjectId>> deps_to_keys_;
-    /// ObjectIds marked dirty by a change event; coalesced re-eval
-    std::vector<xequation::ObjectId> dirty_keys_;
-    bool reeval_scheduled_ = false;
-    QTimer *reeval_timer_ = nullptr;
 };
 
 } // namespace gui

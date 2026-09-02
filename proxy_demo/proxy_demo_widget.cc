@@ -142,15 +142,6 @@ void ProxyDemoWidget::SetupConnections()
                 }
             );
 
-    // kEquationRemoved: name is gone; expression tabs depending on it are
-    // re-evaluated (they resolve to NameError and keep their tab).
-    removed_rel_connection_ =
-        proxy.rel_manager()
-            .signals_manager()
-            .ConnectScoped<EquationEvent::kEquationRemoved>(
-                [tabs](const std::string &name) { tabs->OnEquationRemoved(name); }
-            );
-
     // kEquationUpdated: on value-ready (kValue) each tab decides to refresh.
     updated_rel_connection_ =
         proxy.rel_manager()
@@ -645,7 +636,9 @@ void ProxyDemoWidget::RefreshEquationList()
 
     if (names.empty())
     {
-        data_frame_view_->ClearAll();
+        // Do NOT clear the tab widget here: watch-expression tabs must survive
+        // even when the last equation is deleted.  Equation tabs are removed by
+        // kEquationRemoving; expression tabs are independent.
         status_label_->setText("No equations yet. Insert one above.");
     }
 }
