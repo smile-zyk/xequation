@@ -2,7 +2,6 @@
 #include <iostream>
 #include <string>
 
-#include "core/equation.h"
 #include "core/equation_common.h"
 #include "core/equation_manager.h"
 #include "core/equation_value.h"
@@ -34,7 +33,7 @@ void Dump(const std::string &tag, EquationManager *m)
         std::cout << " to_string=[" << ValueToString(v) << "]\n";
     }
     std::cout << "  env vars:";
-    for (const std::string &n : m->env().VariableNames())
+    for (const std::string &n : m->environment().VariableNames())
         std::cout << " " << n;
     std::cout << "\n";
 }
@@ -54,7 +53,7 @@ TEST(RelEngineRepro, RedefineChainDiagnose)
 
     const Equation *a = manager.GetEquation("a");
     ASSERT_NE(a, nullptr);
-    manager.EditEquation("a", "2");
+    manager.EditEquation(a->id, "2");
     manager.Update();
     Dump("after redefine a=2", &manager);
 }

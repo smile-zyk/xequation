@@ -1,19 +1,31 @@
 #pragma once
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <exception>
+#include <memory>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
-#include <boost/uuid/uuid.hpp>
+#include <tsl/ordered_map.h>
 
 #include "bitmask.hpp"
 #include "equation_value.h"
 
 namespace xequation
 {
-// 结果状态：粗粒度。具体错误细节（如“变量 x 未定义”/“除以零”）统一放在
-// InterpretResult::message / Equation::message 中，这里不再细分错误类型。
+// Identity-tag default values.  An Equation is tagged "Equation" (default) or
+// "Marker"; an Expression is tagged "Watch" (default) or "Graph".  Tags are
+// free-form strings so hosts can introduce new identities without core changes.
+constexpr char kEquationTagDefault[] = "Equation";
+constexpr char kMarkerTagDefault[] = "Marker";
+constexpr char kWatchTagDefault[] = "Watch";
+constexpr char kGraphTagDefault[] = "Graph";
+
+// Coarse-grained result status. Fine-grained errors (e.g. undefined variable,
+// division by zero) are carried in InterpretResult::message / Equation::message.
 enum class ResultStatus
 {
     kPending,
@@ -29,40 +41,145 @@ struct InterpretResult
     EquationValue value;
 };
 
-// =========================================================================
-//  Registered expression (只算不存)
-//
-//  A registered expression is an "observe-only" computation:
-//    - It is parsed for dependencies and participates in the dependency graph,
-//      so it is recomputed whenever the equations it depends on change.
-//    - It is NEVER written into the environment.  Its result is stored in
-//      this object (via EquationManager::GetExpressionValue) and can only be
-//      consumed by the host.
-//    - It has no Equation, so it does not show up in GetEquationNames().
-// =========================================================================
 using ObjectId = boost::uuids::uuid;
 
+// An equation binds a name in the environment to an expression.
+struct Equation
+{
+    ObjectId id;
+    std::string name;
+    std::string content;
+    ResultStatus status = ResultStatus::kPending;
+    std::string message;
+    std::vector<std::string> dependencies;
+    std::string tag = kEquationTagDefault;
+};
+
+using EquationPtr = std::unique_ptr<Equation>;
+using EquationPtrOrderedMap = tsl::ordered_map<std::string, EquationPtr>;
+
+class EquationException : public std::exception
+{
+  public:
+    enum class ErrorCode
+    {
+        kEquationNotFound,
+        kEquationAlreadyExists,
+        kExpressionNotFound,
+    };
+
+    const char *what() const noexcept override
+    {
+        if (message_cache_.empty())
+        {
+            message_cache_ = GenerateErrorMessage();
+        }
+        return message_cache_.c_str();
+    }
+
+    const std::string &equation_name() const
+    {
+        return equation_name_;
+    }
+
+    const ObjectId &id() const
+    {
+        return id_;
+    }
+
+    ErrorCode error_code() const
+    {
+        return error_code_;
+    }
+
+    static EquationException EquationNotFound(const std::string &equation_name)
+    {
+        return EquationException(ErrorCode::kEquationNotFound, equation_name);
+    }
+
+    static EquationException EquationNotFound(const ObjectId &id)
+    {
+        return EquationException(ErrorCode::kEquationNotFound, id);
+    }
+
+    static EquationException EquationAlreadyExists(const std::string &equation_name)
+    {
+        return EquationException(ErrorCode::kEquationAlreadyExists, equation_name);
+    }
+
+    static EquationException ExpressionNotFound(const std::string &expression_id)
+    {
+        return EquationException(ErrorCode::kExpressionNotFound, expression_id);
+    }
+
+  private:
+    std::string GenerateErrorMessage() const
+    {
+        std::ostringstream oss;
+
+        switch (error_code_)
+        {
+        case ErrorCode::kEquationNotFound:
+            if (!id_.is_nil())
+            {
+                oss << "Equation not found. ID: '" << boost::uuids::to_string(id_) << "'";
+            }
+            else
+            {
+                oss << "Equation not found. Name: '" << equation_name_ << "'";
+            }
+            break;
+
+        case ErrorCode::kEquationAlreadyExists:
+            oss << "Equation already exists. Name: '" << equation_name_ << "'";
+            break;
+
+        case ErrorCode::kExpressionNotFound:
+            oss << "Expression not found. ID: '" << equation_name_ << "'";
+            break;
+
+        default:
+            oss << "Unknown equation error occurred.";
+            break;
+        }
+
+        return oss.str();
+    }
+
+    EquationException(ErrorCode error_code, const std::string &equation_name)
+        : error_code_(error_code), equation_name_(equation_name)
+    {
+    }
+
+    EquationException(ErrorCode error_code, const ObjectId &id)
+        : error_code_(error_code), id_(id)
+    {
+    }
+
+    ErrorCode error_code_;
+    std::string equation_name_;
+    ObjectId id_;
+    mutable std::string message_cache_;
+};
+
+// A registered expression: observe-only computation. It participates in the
+// dependency graph (so it recomputes when its inputs change) but is never
+// written into the environment.
 struct Expression
 {
     ObjectId id;
     std::string content;
-    // Full result of the last evaluation (Eval).  status/message/value
-    // are accessed via result.status / result.message / result.value.
     InterpretResult result;
     std::vector<std::string> dependencies;
+    std::string tag = kWatchTagDefault;
 };
 
-// =========================================================================
-//  Parse 结果（单个表达式）
-//
-//  引擎只负责“解析一个表达式”：做语法校验并提取它引用的依赖符号。
-//  名字绑定（Equation 的 name）由 EquationManager 自己完成，不在 Parse 里。
-// =========================================================================
+// Result of parsing a single expression: syntax check + extracted dependencies.
 struct ParseResult
 {
-    ResultStatus status = ResultStatus::kSuccess;  // 语法校验结果
-    std::string message;                            // 语法错误详情
-    std::vector<std::string> dependencies;          // 该表达式引用的符号
+    ResultStatus status = ResultStatus::kSuccess;
+    std::string message;
+    std::vector<std::string> dependencies;
 };
 
 class ParseException : public std::exception

@@ -1,5 +1,6 @@
 ﻿#include "proxy_demo_widget.h"
 
+#include "equation_manager_tree_view.h"
 #include "expression_data_frame_tab_widget.h"
 #include "expression_property_widget.h"
 
@@ -14,6 +15,7 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -22,6 +24,8 @@
 #include <QRegularExpression>
 #include <QSplitter>
 #include <QVBoxLayout>
+
+#include <boost/uuid/string_generator.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -109,11 +113,19 @@ void ProxyDemoWidget::SetupUI()
         "Insert equation, e.g.  y = [1, 2, 3]  (name = expression)"
     );
     insert_button_ = new QPushButton("Insert", this);
+    equation_tag_combo_ = new QComboBox(this);
+    equation_tag_combo_->addItems({QString::fromLatin1(kEquationTagDefault),
+                                   QString::fromLatin1(kMarkerTagDefault)});
+    equation_tag_combo_->setToolTip("Tag applied when Insert creates the equation.");
     redefine_button_ = new QPushButton("Redefine", this);
     rename_button_ = new QPushButton("Rename", this);
     delete_button_ = new QPushButton("Delete", this);
     properties_button_ = new QPushButton("Properties", this);
     watch_button_ = new QPushButton("Watch", this);
+    expression_tag_combo_ = new QComboBox(this);
+    expression_tag_combo_->addItems({QString::fromLatin1(kWatchTagDefault),
+                                     QString::fromLatin1(kGraphTagDefault)});
+    expression_tag_combo_->setToolTip("Tag applied when Watch registers the expression.");
     redefine_button_->setEnabled(false);  // requires a selected list item
     rename_button_->setEnabled(false);    // requires a selected list item
     delete_button_->setEnabled(false);    // requires a selected list item
@@ -121,18 +133,23 @@ void ProxyDemoWidget::SetupUI()
 
     QHBoxLayout *input_layout = new QHBoxLayout();
     input_layout->addWidget(statement_edit_, 1);
+    input_layout->addWidget(equation_tag_combo_);
     input_layout->addWidget(insert_button_);
     input_layout->addWidget(redefine_button_);
     input_layout->addWidget(rename_button_);
     input_layout->addWidget(delete_button_);
     input_layout->addWidget(properties_button_);
+    input_layout->addWidget(expression_tag_combo_);
     input_layout->addWidget(watch_button_);
 
-    // ---- middle: equation list + dataframe view + property window -----
+    // ---- middle: manager tree + equation list + dataframe/property -----
+    EquationManager &mgr = EquationManager::GetInstance();
+
+    manager_tree_ = new EquationManagerTreeView(mgr, this);
+    manager_tree_->setMinimumWidth(220);
+
     equation_list_ = new QListWidget(this);
     equation_list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
-
-    EquationManager &mgr = EquationManager::GetInstance();
 
     data_frame_view_ = new ExpressionDataFrameTabWidget(
         // Pass the REL manager directly (DataFrames come only from REL); the
@@ -151,11 +168,14 @@ void ProxyDemoWidget::SetupUI()
     right_splitter->setStretchFactor(1, 1);
     right_splitter->setChildrenCollapsible(false);
 
+    // Far-left column: the live manager tree (datasets + tag-grouped items).
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->addWidget(manager_tree_);
     splitter->addWidget(equation_list_);
     splitter->addWidget(right_splitter);
-    splitter->setStretchFactor(0, 1);
-    splitter->setStretchFactor(1, 3);
+    splitter->setStretchFactor(0, 2);
+    splitter->setStretchFactor(1, 1);
+    splitter->setStretchFactor(2, 3);
     splitter->setChildrenCollapsible(false);
 
     // ---- bottom: status label ------------------------------------------
@@ -191,6 +211,15 @@ void ProxyDemoWidget::SetupConnections()
     connect(
         equation_list_, &QListWidget::itemSelectionChanged, this,
         &ProxyDemoWidget::OnEquationListSelectionChanged
+    );
+    // Manager tree: selection change (keyboard + click) drives the property /
+    // DataFrame panels.  Clicking also focuses (see OnManagerTreeClicked).
+    connect(
+        manager_tree_, &QTreeView::clicked, this, &ProxyDemoWidget::OnManagerTreeClicked
+    );
+    connect(
+        manager_tree_->selectionModel(), &QItemSelectionModel::selectionChanged, this,
+        [this]() { OnManagerTreeSelectionChanged(); }
     );
 
     // The REL manager's signals are routed to the tab widget / property widget:
@@ -352,7 +381,8 @@ void ProxyDemoWidget::OnInsertEquation()
 
     try
     {
-        mgr.AddEquation(name_std, expr.toStdString());
+        mgr.AddEquation(name_std, expr.toStdString(),
+                        equation_tag_combo_->currentText().toStdString());
         mgr.Update();
     }
     catch (const EquationException &e)
@@ -422,13 +452,13 @@ void ProxyDemoWidget::OnRedefineEquation()
         return;
     }
 
-    const std::string name_std = current_name.toStdString();
+    const ObjectId equation_id = equation->id;
 
     try
     {
         // Redefine formula: EditEquation rebuilds dependency edges and
         // cascades invalidation to dependents; Update() re-computes in topo order.
-        mgr.EditEquation(name_std, trimmed.toStdString());
+        mgr.EditEquation(equation_id, trimmed.toStdString());
         mgr.Update();
     }
     catch (const EquationException &e)
@@ -513,7 +543,7 @@ void ProxyDemoWidget::OnRenameEquation()
         // Rename: EquationManager::RenameEquation keeps the same identity
         // (id) under the new name and cascades invalidation to dependents;
         // Update() triggers the chained recomputation.
-        mgr.RenameEquation(current_name.toStdString(), trimmed_new.toStdString());
+        mgr.RenameEquation(equation->id, trimmed_new.toStdString());
         mgr.Update();
     }
     catch (const EquationException &e)
@@ -634,7 +664,8 @@ void ProxyDemoWidget::OnAddWatchExpression()
     ObjectId expr_id;
     try
     {
-        expr_id = mgr.AddExpression(trimmed);
+        expr_id = mgr.AddExpression(trimmed,
+                                    expression_tag_combo_->currentText().toStdString());
     }
     catch (const std::exception &e)
     {
@@ -701,6 +732,7 @@ void ProxyDemoWidget::LoadEnvJson(const QString &path)
 
         env_json_path_ = path;
         RefreshDatasetCombo();
+        manager_tree_->Refresh();   // dataset tree changed
 
         // Equations / watch expressions referencing dataset DataArrays (bare
         // names resolve against the default dataset) follow the new data.
@@ -779,6 +811,9 @@ void ProxyDemoWidget::OnDatasetSelectionChanged(int index)
     // Everything listed in the combo is a live dataset; make it the REL
     // default (bare DataArray references resolve against it).
     rel::Environment::SetDefaultDataset(name.toStdString());
+
+    // The "(default)" marker moved: refresh the dataset tree.
+    manager_tree_->Refresh();
 
     // Recompute so equation / watch values follow the newly selected dataset.
     try
@@ -892,6 +927,195 @@ void ProxyDemoWidget::SelectEquationByName(const QString &name)
     if (!items.isEmpty())
     {
         equation_list_->setCurrentItem(items.first());
+    }
+}
+
+// =========================================================================
+// Manager tree panel routing
+// =========================================================================
+
+void ProxyDemoWidget::OnManagerTreeClicked()
+{
+    // Selection already routes via OnManagerTreeSelectionChanged (currentChanged
+    // fires on click too).  This slot exists only to give the tree focus so
+    // keyboard navigation has a natural anchor.
+    manager_tree_->setFocus();
+}
+
+void ProxyDemoWidget::OnManagerTreeSelectionChanged()
+{
+    using SelectionInfo = EquationManagerTreeView::SelectionInfo;
+    const SelectionInfo info = manager_tree_->CurrentSelection();
+    if (info.kind == EquationManagerTreeView::NodeKind::kGroupDatasets ||
+        info.kind == EquationManagerTreeView::NodeKind::kTag)
+    {
+        return;  // group / tag node: nothing specific to inspect
+    }
+
+    EquationManager &mgr = EquationManager::GetInstance();
+
+    // ---- equation leaf: reuse the equation-list flow ---------------------
+    if (info.kind == EquationManagerTreeView::NodeKind::kEquation)
+    {
+        if (mgr.IsEquationExist(info.name.toStdString()))
+        {
+            const Equation *equation = mgr.GetEquation(info.name.toStdString());
+            if (equation)
+            {
+                property_widget_->SetObject(equation->id);
+                data_frame_view_->AddEquation(equation->id, /*auto_pin=*/false);
+            }
+            SelectEquationByName(info.name);
+        }
+        return;
+    }
+
+    // ---- expression leaf -------------------------------------------------
+    if (info.kind == EquationManagerTreeView::NodeKind::kExpression)
+    {
+        try
+        {
+            boost::uuids::string_generator gen;
+            const ObjectId id = gen(info.object_id.toStdString());
+            if (!id.is_nil() && mgr.GetExpression(id))
+            {
+                property_widget_->SetObject(id);
+                // Selection-driven display (not an explicit watch add): do not
+                // auto-pin so the tab follows the current selection.
+                data_frame_view_->AddExpression(id, /*auto_pin=*/false);
+            }
+        }
+        catch (const std::exception &)
+        {
+            // Malformed id: nothing to route.
+        }
+        return;
+    }
+
+    // ---- dataset / block / data array ------------------------------------
+    const std::string dataset_name = info.dataset.toStdString();
+    xdataset::Dataset *dataset = rel::Environment::FindDataset(dataset_name);
+    if (!dataset)
+    {
+        property_widget_->ShowInfo(info.dataset, {{tr("Dataset"), info.dataset}});
+        return;
+    }
+
+    if (info.kind == EquationManagerTreeView::NodeKind::kDataset)
+    {
+        const std::string default_name =
+            rel::Environment::DefaultDataset() ? rel::Environment::DefaultDataset()->name()
+                                               : std::string();
+        std::vector<std::pair<QString, QString>> rows;
+        rows.push_back({tr("Name"), info.dataset});
+        rows.push_back({tr("Default"), QString::fromStdString(dataset_name == default_name ? "yes" : "no")});
+        rows.push_back({tr("Blocks"),
+                        QString::number(static_cast<qlonglong>(dataset->block_count()))});
+        property_widget_->ShowInfo(info.dataset, rows);
+        return;
+    }
+
+    const std::string block_path = info.block_path.toStdString();
+    if (info.kind == EquationManagerTreeView::NodeKind::kBlock)
+    {
+        try
+        {
+            const xdataset::Block &block = dataset->GetBlock(block_path);
+
+            // One readable line per DataSeries: "name — Type, N rows[, Unit]".
+            auto describe_series = [](const xdataset::DataSeries &series) -> QString {
+                QString text = QString::fromLatin1(xdataset::DataTypeToString(series.data_type()));
+                text += QStringLiteral(", %1 rows").arg(static_cast<qlonglong>(series.size()));
+                if (series.unit().has_dimension())
+                {
+                    text += QStringLiteral(", %1")
+                                .arg(QString::fromStdString(series.unit().to_string()));
+                }
+                return text;
+            };
+            auto describe_indep = [&](const xdataset::IndependentSpec &spec) -> QString {
+                QString text = QString::fromStdString(spec.name);
+                text += QStringLiteral(" \u2014 ") + describe_series(spec.data);
+                if (spec.dimension.is_regular())
+                {
+                    text += QStringLiteral(", regular dim=%1")
+                                .arg(static_cast<qlonglong>(spec.dimension.regular_size()));
+                }
+                else
+                {
+                    text += QStringLiteral(", ragged groups=%1")
+                                .arg(static_cast<qlonglong>(spec.dimension.element_count()));
+                }
+                return text;
+            };
+
+            QStringList indep_lines;
+            for (const std::string &name : block.independents())
+            {
+                indep_lines.push_back(describe_indep(block.independent_spec(name)));
+            }
+            QStringList dep_lines;
+            for (const std::string &name : block.dependents())
+            {
+                const xdataset::DependentSpec &spec = block.dependent_spec(name);
+                dep_lines.push_back(QString::fromStdString(spec.name) +
+                                    QStringLiteral(" \u2014 ") +
+                                    describe_series(spec.data));
+            }
+
+            std::vector<std::pair<QString, QString>> rows;
+            rows.push_back({tr("Dataset"), info.dataset});
+            rows.push_back({tr("Block path"), info.block_path});
+            rows.push_back({tr("Independents (%1)")
+                                .arg(static_cast<int>(indep_lines.size())),
+                            indep_lines.join(QStringLiteral("\n"))});
+            rows.push_back({tr("Dependents (%1)")
+                                .arg(static_cast<int>(dep_lines.size())),
+                            dep_lines.join(QStringLiteral("\n"))});
+            property_widget_->ShowInfo(info.block_path, rows);
+        }
+        catch (const std::exception &)
+        {
+            std::vector<std::pair<QString, QString>> rows;
+            rows.push_back({tr("Dataset"), info.dataset});
+            rows.push_back({tr("Block path"), info.block_path});
+            property_widget_->ShowInfo(info.block_path, rows);
+        }
+        return;
+    }
+
+    if (info.kind == EquationManagerTreeView::NodeKind::kDataArray)
+    {
+        const std::string array_name = info.data_array.toStdString();
+        try
+        {
+            const xdataset::DataArray &array =
+                dataset->GetDataArray(block_path, array_name);
+            // Like a selected Equation: show the full rel::Value details in the
+            // property widget (name carries the dataset + block context).
+            const EquationValue value{rel::Value(array)};
+            property_widget_->ShowRelValue(
+                QStringLiteral("%1.%2")
+                    .arg(info.block_path, info.data_array),
+                value
+            );
+
+            // Show the array's DataFrame in the shared TabWidget preview.
+            data_frame_view_->ShowValue(
+                QStringLiteral("%1.%2")
+                    .arg(info.block_path, info.data_array),
+                value
+            );
+        }
+        catch (const std::exception &)
+        {
+            // Missing / unreadable array: fall back to basic info.
+            std::vector<std::pair<QString, QString>> rows;
+            rows.push_back({tr("Data array"), info.data_array});
+            rows.push_back({tr("Dataset"), info.dataset});
+            rows.push_back({tr("Block path"), info.block_path});
+            property_widget_->ShowInfo(info.data_array, rows);
+        }
     }
 }
 

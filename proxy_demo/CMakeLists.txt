@@ -13,6 +13,8 @@ expression_data_frame_view.h
 expression_data_frame_view.cc
 expression_data_frame_tab_widget.h
 expression_data_frame_tab_widget.cc
+equation_manager_tree_view.h
+equation_manager_tree_view.cc
 main.cc
 task/task.h
 task/task.cc

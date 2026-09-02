@@ -4,7 +4,6 @@
 #include <memory>
 #include <unordered_map>
 
-#include "equation.h"
 #include "equation_common.h"
 
 namespace xequation
@@ -15,6 +14,9 @@ enum class EquationEvent
     kEquationRemoving,
     kEquationRemoved,
     kEquationUpdated,
+    kExpressionAdded,
+    kExpressionRemoving,
+    kExpressionRemoved,
     kExpressionUpdated,
 };
 
@@ -22,6 +24,9 @@ using EquationAddedCallback = std::function<void(const Equation *)>;
 using EquationRemovingCallback = std::function<void(const Equation *)>;
 using EquationRemovedCallback = std::function<void(const std::string&)>;
 using EquationUpdatedCallback = std::function<void(const Equation *, bitmask::bitmask<EquationUpdateFlag>)>;
+using ExpressionAddedCallback = std::function<void(const Expression *)>;
+using ExpressionRemovingCallback = std::function<void(const Expression *)>;
+using ExpressionRemovedCallback = std::function<void(const std::string&)>;
 using ExpressionUpdatedCallback = std::function<void(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>)>;
 
 using Connection = boost::signals2::connection;
@@ -31,6 +36,9 @@ using EquationAddedSignal = boost::signals2::signal<void(const Equation *)>;
 using EquationRemovingSignal = boost::signals2::signal<void(const Equation *)>;
 using EquationRemovedSignal = boost::signals2::signal<void(const std::string &)>;
 using EquationUpdatedSignal = boost::signals2::signal<void(const Equation *, bitmask::bitmask<EquationUpdateFlag>)>;
+using ExpressionAddedSignal = boost::signals2::signal<void(const Expression *)>;
+using ExpressionRemovingSignal = boost::signals2::signal<void(const Expression *)>;
+using ExpressionRemovedSignal = boost::signals2::signal<void(const std::string &)>;
 using ExpressionUpdatedSignal = boost::signals2::signal<void(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>)>;
 
 template <EquationEvent Event>
@@ -64,6 +72,24 @@ struct GetSignalType<EquationEvent::kEquationUpdated>
 };
 
 template <>
+struct GetSignalType<EquationEvent::kExpressionAdded>
+{
+    using type = ExpressionAddedSignal;
+};
+
+template <>
+struct GetSignalType<EquationEvent::kExpressionRemoving>
+{
+    using type = ExpressionRemovingSignal;
+};
+
+template <>
+struct GetSignalType<EquationEvent::kExpressionRemoved>
+{
+    using type = ExpressionRemovedSignal;
+};
+
+template <>
 struct GetSignalType<EquationEvent::kExpressionUpdated>
 {
     using type = ExpressionUpdatedSignal;
@@ -94,6 +120,24 @@ struct GetCallbackType<EquationEvent::kEquationUpdated>
 };
 
 template <>
+struct GetCallbackType<EquationEvent::kExpressionAdded>
+{
+    using type = ExpressionAddedCallback;
+};
+
+template <>
+struct GetCallbackType<EquationEvent::kExpressionRemoving>
+{
+    using type = ExpressionRemovingCallback;
+};
+
+template <>
+struct GetCallbackType<EquationEvent::kExpressionRemoved>
+{
+    using type = ExpressionRemovedCallback;
+};
+
+template <>
 struct GetCallbackType<EquationEvent::kExpressionUpdated>
 {
     using type = ExpressionUpdatedCallback;
@@ -112,6 +156,12 @@ class EquationSignalsManager
             std::unique_ptr<EquationRemovingSignal>(new EquationRemovingSignal());
         signals_[EquationEvent::kEquationRemoved] = std::unique_ptr<EquationRemovedSignal>(new EquationRemovedSignal());
         signals_[EquationEvent::kEquationUpdated] = std::unique_ptr<EquationUpdatedSignal>(new EquationUpdatedSignal());
+        signals_[EquationEvent::kExpressionAdded] =
+            std::unique_ptr<ExpressionAddedSignal>(new ExpressionAddedSignal());
+        signals_[EquationEvent::kExpressionRemoving] =
+            std::unique_ptr<ExpressionRemovingSignal>(new ExpressionRemovingSignal());
+        signals_[EquationEvent::kExpressionRemoved] =
+            std::unique_ptr<ExpressionRemovedSignal>(new ExpressionRemovedSignal());
         signals_[EquationEvent::kExpressionUpdated] =
             std::unique_ptr<ExpressionUpdatedSignal>(new ExpressionUpdatedSignal());
     }
@@ -189,6 +239,9 @@ class EquationSignalsManager
         DisconnectAll<EquationEvent::kEquationRemoving>();
         DisconnectAll<EquationEvent::kEquationRemoved>();
         DisconnectAll<EquationEvent::kEquationUpdated>();
+        DisconnectAll<EquationEvent::kExpressionAdded>();
+        DisconnectAll<EquationEvent::kExpressionRemoving>();
+        DisconnectAll<EquationEvent::kExpressionRemoved>();
         DisconnectAll<EquationEvent::kExpressionUpdated>();
     }
 

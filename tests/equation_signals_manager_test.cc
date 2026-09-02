@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <memory>
-#include "core/equation.h"
+#include "core/equation_common.h"
 #include "core/equation_signals_manager.h"
 
 using namespace xequation;
@@ -220,7 +220,7 @@ TEST_F(EquationSignalsManagerTest, AllEventTypes)
     auto expr = Expression{};
     expr.id = ObjectId();
     int eventCounter = 0;
-    
+
     // 连接所有事件类型
     auto conn1 = manager->Connect<EquationEvent::kEquationAdded>(
         [&](const Equation*) { eventCounter++; });
@@ -230,17 +230,56 @@ TEST_F(EquationSignalsManagerTest, AllEventTypes)
         [&](const std::string&) { eventCounter++; });
     auto conn4 = manager->Connect<EquationEvent::kEquationUpdated>(
         [&](const Equation*, auto) { eventCounter++; });
-    auto conn5 = manager->Connect<EquationEvent::kExpressionUpdated>(
+    auto conn5 = manager->Connect<EquationEvent::kExpressionAdded>(
+        [&](const Expression*) { eventCounter++; });
+    auto conn6 = manager->Connect<EquationEvent::kExpressionRemoving>(
+        [&](const Expression*) { eventCounter++; });
+    auto conn7 = manager->Connect<EquationEvent::kExpressionRemoved>(
+        [&](const std::string&) { eventCounter++; });
+    auto conn8 = manager->Connect<EquationEvent::kExpressionUpdated>(
         [&](const Expression*, auto) { eventCounter++; });
-    
+
     // 发射所有事件
     manager->Emit<EquationEvent::kEquationAdded>(eq.get());
     manager->Emit<EquationEvent::kEquationRemoving>(eq.get());
     manager->Emit<EquationEvent::kEquationRemoved>("x");
     manager->Emit<EquationEvent::kEquationUpdated>(eq.get(), EquationUpdateFlag::kContent);
+    manager->Emit<EquationEvent::kExpressionAdded>(&expr);
+    manager->Emit<EquationEvent::kExpressionRemoving>(&expr);
+    manager->Emit<EquationEvent::kExpressionRemoved>("expr_id");
     manager->Emit<EquationEvent::kExpressionUpdated>(&expr, ExpressionUpdateFlag::kValue);
-    
-    EXPECT_EQ(eventCounter, 5);
+
+    EXPECT_EQ(eventCounter, 8);
+}
+
+// 测试 Expression 生命周期事件的载荷
+TEST_F(EquationSignalsManagerTest, ExpressionLifecycleEvents)
+{
+    auto expr = Expression{};
+    expr.id = ObjectId();
+
+    int added = 0;
+    int removing = 0;
+    std::string removed_id;
+    const Expression* captured_added = nullptr;
+    const Expression* captured_removing = nullptr;
+
+    auto c_added = manager->ConnectScoped<EquationEvent::kExpressionAdded>(
+        [&](const Expression* e) { ++added; captured_added = e; });
+    auto c_removing = manager->ConnectScoped<EquationEvent::kExpressionRemoving>(
+        [&](const Expression* e) { ++removing; captured_removing = e; });
+    auto c_removed = manager->ConnectScoped<EquationEvent::kExpressionRemoved>(
+        [&](const std::string& id) { removed_id = id; });
+
+    manager->Emit<EquationEvent::kExpressionAdded>(&expr);
+    manager->Emit<EquationEvent::kExpressionRemoving>(&expr);
+    manager->Emit<EquationEvent::kExpressionRemoved>("expr_uuid");
+
+    EXPECT_EQ(added, 1);
+    EXPECT_EQ(captured_added, &expr);
+    EXPECT_EQ(removing, 1);
+    EXPECT_EQ(captured_removing, &expr);
+    EXPECT_EQ(removed_id, "expr_uuid");
 }
 
 // 测试位掩码功能

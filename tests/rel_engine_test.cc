@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "core/equation.h"
 #include "core/equation_common.h"
 #include "core/equation_manager.h"
 #include "core/equation_value.h"
@@ -75,10 +74,11 @@ TEST(RelEngine, TestParseDepsFunctionCallVsMatrixIndex)
 TEST(RelEngine, TestParseDepsAttributeChain)
 {
     EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
-    // 多段路径收集所有前缀：a.b.c -> a、a.b、a.b.c
+    // 多段路径：收集首段（可能是 equation 名）+ 完整路径（DataArray /
+    // block 引用），不收集中间前缀（a.b 不能作为依赖名存在）。
     auto result = manager.Parse("a.b.c");
     EXPECT_THAT(result.dependencies,
-                testing::UnorderedElementsAre("a", "a.b", "a.b.c"));
+                testing::UnorderedElementsAre("a", "a.b.c"));
 }
 
 TEST(RelEngine, TestParseDepsSelfReference)
@@ -168,11 +168,11 @@ TEST(RelEngine, TestEnvSetGet)
 {
     EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
 
-    manager.env().Define("x", rel::Value::Integer(7));
+    manager.environment().Define("x", rel::Value::Integer(7));
     EXPECT_TRUE(manager.HasVariable("x"));
     EXPECT_EQ(AsScalar<int>(manager.GetVariable("x")), 7);
 
-    manager.env().Remove("x");
+    manager.environment().Remove("x");
     EXPECT_FALSE(manager.HasVariable("x"));
     EXPECT_FALSE(manager.GetVariable("x").HasValue());
 }

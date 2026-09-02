@@ -16,7 +16,6 @@ namespace xequation
 {
 namespace
 {
-// 把 rel::Eval 抛出的异常映射为 InterpretResult
 InterpretResult MapRelError(const std::exception &e)
 {
     InterpretResult result;
@@ -26,15 +25,15 @@ InterpretResult MapRelError(const std::exception &e)
     return result;
 }
 
-// ---------------------------------------------------------------------------
-// 依赖收集 visitor：遍历 rel::Expr 语法树，收集所有"读取"的引用路径。
-//
-//   - ReferenceExpr 收集引用路径（多段路径收集所有前缀，如 a.b -> a、a.b）；
-//   - CallExpr 的 callee 若是单段标识符且注册在函数表 -> 函数调用，
-//     callee 不是依赖（只收参数）；否则按矩阵索引处理（callee 是依赖）；
-//   - 单段引用若是内置常量 -> 不是依赖；
-//   - 叶子节点（数字/布尔/字符串/空范围）无依赖。
-// ---------------------------------------------------------------------------
+// Dependency collector: walks rel::Expr and gathers all "read" reference paths.
+//   - ReferenceExpr collects paths: a single segment pushes the name; a
+//     multi-segment path pushes its first segment (may be an equation name or
+//     dataset reference) plus the full dotted path (DataArray / block path).
+//   - a CallExpr whose callee is a single-segment registered function is a
+//     call (callee is not a dependency, only args are); otherwise it's a
+//     matrix index and the callee is a dependency;
+//   - single-segment builtin constants are not dependencies;
+//   - leaf nodes (number/bool/string/null range) have no dependencies.
 class RelDependencyVisitor : public rel::ExprVisitor
 {
   public:
@@ -97,7 +96,9 @@ class RelDependencyVisitor : public rel::ExprVisitor
 
     void visit_call(const rel::CallExpr &expr) override
     {
-        // 函数调用 vs 矩阵索引：callee 是单段标识符且注册为函数 -> 函数调用
+        // Call vs matrix index: a single-segment registered identifier is a
+        // call (callee is not a dependency); otherwise it's an index and the
+        // callee is a dependency.
         const rel::ReferenceExpr *ref =
             dynamic_cast<const rel::ReferenceExpr *>(expr.callee.get());
         const bool is_function_call =
@@ -106,7 +107,7 @@ class RelDependencyVisitor : public rel::ExprVisitor
 
         if (!is_function_call && expr.callee)
         {
-            expr.callee->accept(*this);  // 矩阵索引：callee 是依赖
+            expr.callee->accept(*this);
         }
         for (const auto &arg : expr.args)
         {
@@ -166,7 +167,7 @@ class RelDependencyVisitor : public rel::ExprVisitor
         if (expr.segments.empty())
             return;
 
-        // 单段：注册函数 / 内置常量不是依赖
+        // Single segment: registered function / builtin constant is not a dep.
         if (expr.segments.size() == 1)
         {
             const std::string &name = expr.segments[0].name;
@@ -195,7 +196,7 @@ class RelDependencyVisitor : public rel::ExprVisitor
     std::vector<std::string> &out_;
 };
 
-// 去重保序
+// Deduplicate preserving order.
 std::vector<std::string> Dedupe(const std::vector<std::string> &deps)
 {
     std::vector<std::string> result;
@@ -211,7 +212,7 @@ std::vector<std::string> Dedupe(const std::vector<std::string> &deps)
 }
 
 // ---------------------------------------------------------------------------
-// 解析单个 REL 表达式：语法校验 + 依赖提取。
+// Parse a single REL expression: syntax check + dependency extraction.
 // ---------------------------------------------------------------------------
 ParseResult ParseRelExpression(const std::string &code)
 {
@@ -244,8 +245,7 @@ EquationManager::EquationManager()
       signals_manager_(new EquationSignalsManager()),
       env_(new rel::Environment())
 {
-    // 幂等：进程内只需注册一次 REL 内置常量（PI/e/c0...）与函数库
-    // （builtin/math），重复调用无副作用。
+    // Idempotent: register REL builtin constants/functions once (safe to re-run).
     rel::Environment::InitBuiltinConstants();
     rel::Environment::InitBuiltinFunctions();
 }
@@ -254,12 +254,12 @@ EquationManager::EquationManager()
 // Environment
 // =========================================================================
 
-rel::Environment &EquationManager::env()
+rel::Environment &EquationManager::environment()
 {
     return *env_;
 }
 
-const rel::Environment &EquationManager::env() const
+const rel::Environment &EquationManager::environment() const
 {
     return *env_;
 }
@@ -405,7 +405,8 @@ std::vector<std::string> EquationManager::GetEquationNames() const
     return result;
 }
 
-ObjectId EquationManager::AddEquation(const std::string &equation_name, const std::string &expression)
+ObjectId EquationManager::AddEquation(const std::string &equation_name, const std::string &expression,
+                                      const std::string &tag)
 {
     if (IsEquationExist(equation_name))
     {
@@ -420,7 +421,7 @@ ObjectId EquationManager::AddEquation(const std::string &equation_name, const st
 
     // An equation is "name -> expression": parse the expression (which is the
     // content) for syntax + dependencies.  The name binding is performed by
-    // Update/UpdateEquation (Eval then env().Define).
+    // Update/UpdateEquation (Eval then environment().Define).
     ParseResult res = Parse(expression);
     if (res.status != ResultStatus::kSuccess)
     {
@@ -444,6 +445,7 @@ ObjectId EquationManager::AddEquation(const std::string &equation_name, const st
     equation->content = expression;
     equation->status = ResultStatus::kPending;
     equation->dependencies = res.dependencies;
+    equation->tag = tag.empty() ? kEquationTagDefault : tag;
 
     Equation *equation_ptr = equation.get();
     equation_map_.insert({equation_name, std::move(equation)});
@@ -464,23 +466,29 @@ ObjectId EquationManager::AddEquation(const std::string &equation_name, const st
 
 ObjectId EquationManager::EditEquation(const std::string &equation_name, const std::string &expression)
 {
-    if (!IsEquationExist(equation_name))
+    Equation *equation = GetEquationInternal(equation_name);
+    if (!equation)
     {
         throw EquationException::EquationNotFound(equation_name);
     }
+    return EditEquation(equation->id, expression);
+}
 
-    Equation *equation = GetEquationInternal(equation_name);
+ObjectId EquationManager::EditEquation(const ObjectId &id, const std::string &expression)
+{
+    Equation *equation = GetEquationInternal(id);
+    if (!equation)
+    {
+        throw EquationException::EquationNotFound(id);
+    }
+    const std::string equation_name = equation->name;
     if (equation->content == expression)
     {
         return equation->id;
     }
 
-    static const std::regex name_regex("^[A-Za-z_][A-Za-z0-9_]*$");
-    if (!std::regex_match(equation_name, name_regex))
-    {
-        throw ParseException("Invalid equation name: " + equation_name);
-    }
-
+    // The name is already a valid identifier (it was validated when the
+    // equation was added/renamed), so no re-validation is needed here.
     ParseResult res = Parse(expression);
     if (res.status != ResultStatus::kSuccess)
     {
@@ -531,10 +539,22 @@ ObjectId EquationManager::EditEquation(const std::string &equation_name, const s
 
 ObjectId EquationManager::RenameEquation(const std::string &old_name, const std::string &new_name)
 {
-    if (!IsEquationExist(old_name))
+    Equation *equation = GetEquationInternal(old_name);
+    if (!equation)
     {
         throw EquationException::EquationNotFound(old_name);
     }
+    return RenameEquation(equation->id, new_name);
+}
+
+ObjectId EquationManager::RenameEquation(const ObjectId &id, const std::string &new_name)
+{
+    Equation *equation = GetEquationInternal(id);
+    if (!equation)
+    {
+        throw EquationException::EquationNotFound(id);
+    }
+    const std::string old_name = equation->name;  // copy: name is reassigned below
     if (IsEquationExist(new_name))
     {
         throw EquationException::EquationAlreadyExists(new_name);
@@ -545,9 +565,6 @@ ObjectId EquationManager::RenameEquation(const std::string &old_name, const std:
     {
         throw ParseException("Invalid equation name: " + new_name);
     }
-
-    Equation *equation = GetEquationInternal(old_name);
-    const ObjectId id = equation->id;
 
     // The content (expression) is unchanged by a rename: re-parse it only to
     // rebuild the graph edges under the new node name.
@@ -682,6 +699,10 @@ void EquationManager::Reset()
         signals_manager_->Emit<EquationEvent::kEquationRemoving>(equation_entry.second.get());
     }
     equation_map_.clear();
+    for (const auto &expr_entry : expression_map_)
+    {
+        signals_manager_->Emit<EquationEvent::kExpressionRemoving>(&expr_entry.second);
+    }
     expression_map_.clear();
     expression_id_to_name_map_.clear();
     external_input_names_.clear();
@@ -811,10 +832,10 @@ std::vector<std::string> EquationManager::GetEquationsToUpdate(const std::string
 }
 
 // =========================================================================
-// Registered expressions (只算不存)
+// Registered expressions (observe-only)
 // =========================================================================
 
-ObjectId EquationManager::AddExpression(const std::string &expression)
+ObjectId EquationManager::AddExpression(const std::string &expression, const std::string &tag)
 {
     static boost::uuids::random_generator rgen;
 
@@ -824,8 +845,9 @@ ObjectId EquationManager::AddExpression(const std::string &expression)
     expr.id = rgen();
     const std::string name = "expr_" + boost::uuids::to_string(expr.id);
     expr.content = expression;
-    // 语法错误也照常注册：status/message 记录在表达式上，Update 求值时会
-    // 再次失败并保持节点 dirty，与旧语义一致。
+    expr.tag = tag.empty() ? kWatchTagDefault : tag;
+    // Register even on syntax errors: status/message are recorded on the
+    // expression, and Update recomputes (and keeps it dirty) on failure.
     expr.result.status = parse_result.status;
     expr.result.message = parse_result.message;
     expr.dependencies = parse_result.dependencies;
@@ -840,6 +862,8 @@ ObjectId EquationManager::AddExpression(const std::string &expression)
     const ObjectId id = expr.id;
     expression_map_.insert({name, std::move(expr)});
     expression_id_to_name_map_.insert({id, name});
+    const Expression *added = &expression_map_.at(name);
+    signals_manager_->Emit<EquationEvent::kExpressionAdded>(added);
     return id;
 }
 
@@ -852,8 +876,11 @@ void EquationManager::RemoveExpression(const ObjectId &id)
     }
     const std::string &name = it->second;
     RemoveNodeInGraph(name);
+    const Expression *removing = &expression_map_.at(name);
+    signals_manager_->Emit<EquationEvent::kExpressionRemoving>(removing);
     expression_map_.erase(name);
     expression_id_to_name_map_.erase(it);
+    signals_manager_->Emit<EquationEvent::kExpressionRemoved>(boost::uuids::to_string(id));
 }
 
 const Expression *EquationManager::GetExpression(const ObjectId &id) const
@@ -940,7 +967,7 @@ void EquationManager::UpdateExpressionInternal(const ObjectId &id)
 }
 
 // =========================================================================
-// External input symbols (外部输入)
+// External input symbols
 // =========================================================================
 
 bool EquationManager::AddExternalInput(const std::string &symbol_name)
@@ -1182,8 +1209,8 @@ bool EquationManager::WriteDependencyGraphToDotFile(const std::string &file_path
 
 EquationManager &EquationManager::GetInstance()
 {
-    // C++11 magic-static：线程安全懒构造。REL 内置常量/函数注册在构造时
-    // 完成（幂等）。
+    // C++11 magic-static, thread-safe lazy construction. REL builtin
+    // constants/functions are registered during construction (idempotent).
     static EquationManager instance;
     return instance;
 }

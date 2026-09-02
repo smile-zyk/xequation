@@ -428,6 +428,13 @@ void ExpressionDataFrameTabWidget::EvaluateTab(int index)
     }
     const TabData &tab = tabs_[static_cast<std::size_t>(index)];
 
+    // Raw value tabs are manager-independent: they were filled by ShowValue()
+    // and have nothing to evaluate against the manager.
+    if (tab.kind == ObjectKind::kValue)
+    {
+        return;
+    }
+
     if (tab.kind == ObjectKind::kExpression)
     {
         // Registered expression: read the cached value straight from the
@@ -645,6 +652,43 @@ void ExpressionDataFrameTabWidget::AddExpression(const ObjectId &expression_id,
     }
 }
 
+void ExpressionDataFrameTabWidget::ShowValue(const QString &title,
+                                             const EquationValue &value)
+{
+    // A single "raw value" preview tab: find it by kind (not by ObjectId,
+    // which is nil for raw values) and update it in place.  It is NOT
+    // auto-pinned: showing a value is selection-driven display, not an
+    // explicit watch, so the tab follows the current selection.
+    int index = -1;
+    for (std::size_t i = 0; i < tabs_.size(); ++i)
+    {
+        if (tabs_[i].kind == ObjectKind::kValue)
+        {
+            index = static_cast<int>(i);
+            break;
+        }
+    }
+
+    if (index < 0)
+    {
+        index = OpenTab();
+        TabData &tab = tabs_[static_cast<std::size_t>(index)];
+        tab.kind = ObjectKind::kValue;
+        tab.object_id = ObjectId();   // not manager-bound
+        RebuildKeyToIndex();
+    }
+
+    if (index < 0)
+    {
+        return;
+    }
+    TabData &tab = tabs_[static_cast<std::size_t>(index)];
+    tab.expression = title.toStdString();
+    setTabText(index, title);
+    FillTab(tab.view, value);
+    setCurrentIndex(index);
+}
+
 void ExpressionDataFrameTabWidget::SyncSelection(
     const std::vector<std::string> &selected_equation_names)
 {
@@ -696,6 +740,12 @@ void ExpressionDataFrameTabWidget::EditTab(int index)
     }
 
     TabData &tab = tabs_[static_cast<std::size_t>(index)];
+
+    // Raw value tabs are not editable (nothing to register in the manager).
+    if (tab.kind == ObjectKind::kValue)
+    {
+        return;
+    }
 
     // Both Equation and Expression tabs are editable.  Editing an Equation
     // tab turns it into a registered watch Expression (the equation itself is

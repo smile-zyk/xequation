@@ -65,10 +65,27 @@ class ExpressionPropertyWidget : public QWidget
     void OnExpressionUpdated(const xequation::Expression *expression,
                              bitmask::bitmask<xequation::ExpressionUpdateFlag> flags);
 
+    /// Display arbitrary (field | value) rows that are not bound to a manager
+    /// ObjectId (e.g. Dataset / Block inspection).  The heading is rendered as
+    /// the first field row.  Clears any object binding so manager refresh
+    /// signals do not clobber this view.
+    void ShowInfo(const QString &heading,
+                  const std::vector<std::pair<QString, QString>> &rows);
+
+    /// Display a raw REL value's full details (e.g. a Dataset DataArray).
+    /// Renders `name` + the same engine value fields an Equation/Expression
+    /// shows (Indep / Kind / Dimension / Data Shape / Data Type / Unit).
+    void ShowRelValue(const QString &name, const xequation::EquationValue &value);
+
   private:
     /// Append a row (field | value) to the table.  When red, the value column
     /// is shown in red.
     void AddField(const QString &field, const QString &value, bool red = false);
+
+    /// Render the engine value info of a REL value (mirrors builtin_library's
+    /// what(x) output): Indep / Kind / Dimension / Data Shape / Data Type /
+    /// Unit.  Shared by ShowEquation / ShowExpression / ShowRelValue.
+    void AddRelValueInfo(const rel::Value &rel_value);
 
     /// Render the properties of an Equation (engine value info included).
     void ShowEquation(const xequation::Equation *equation);

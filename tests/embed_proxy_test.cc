@@ -34,11 +34,11 @@ TEST(EmbedProxySingleton, TestEnvAccess)
     auto &manager = Proxy();
 
     // manager 直接持有 rel::Environment：宿主可写值并读回。
-    manager.env().Define("v", rel::Value::Integer(7));
+    manager.environment().Define("v", rel::Value::Integer(7));
     EXPECT_TRUE(manager.HasVariable("v"));
     EXPECT_EQ(AsScalar<int>(manager.GetVariable("v")), 7);
 
-    manager.env().Remove("v");
+    manager.environment().Remove("v");
     EXPECT_FALSE(manager.HasVariable("v"));
     EXPECT_FALSE(manager.GetVariable("v").HasValue());
 }
@@ -54,7 +54,7 @@ TEST(EmbedProxySingleton, TestRelFlow)
     manager.Update();
     EXPECT_EQ(AsScalar<int>(manager.GetVariable("d")), 16);
 
-    manager.EditEquation("b", "c");
+    manager.EditEquation(manager.GetEquation("b")->id, "c");
     manager.UpdateEquation("b");
     EXPECT_EQ(AsScalar<int>(manager.GetVariable("d")), 26);
 
@@ -71,8 +71,8 @@ TEST(EmbedProxySingleton, TestParseEval)
     EXPECT_EQ(parse.status, ResultStatus::kSuccess);
     EXPECT_THAT(parse.dependencies, testing::UnorderedElementsAre("a", "b", "c"));
 
-    manager.env().Define("a", rel::Value::Integer(2));
-    manager.env().Define("b", rel::Value::Integer(3));
+    manager.environment().Define("a", rel::Value::Integer(2));
+    manager.environment().Define("b", rel::Value::Integer(3));
     auto eval = manager.Eval("a + b");
     EXPECT_EQ(eval.status, ResultStatus::kSuccess);
     EXPECT_EQ(AsScalar<int>(eval.value), 5);

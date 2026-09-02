@@ -74,6 +74,10 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     /// registration fails.
     void AddWatchExpression(const std::string &expression);
 
+    /// Show a fixed pinned "raw value" tab (not bound to a manager object,
+    /// e.g. a Dataset DataArray).  Re-opens / updates the single value tab.
+    void ShowValue(const QString &title, const xequation::EquationValue &value);
+
     /// Close the tab at index (no-op for the last tab).
     void CloseTab(int index);
 
@@ -102,6 +106,7 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     {
         kEquation,
         kExpression,
+        kValue,    // raw value tab (not bound to a manager object)
     };
 
     /// A tab's identity + source descriptor.
@@ -114,6 +119,7 @@ class ExpressionDataFrameTabWidget : public QTabWidget
         bool pinned = false;                 // pinned tabs survive deselection
         QToolButton *pin_button = nullptr;
         QToolButton *close_button = nullptr;
+        xequation::EquationValue value;      // owner for kValue tabs
     };
 
     // ---- tab lifecycle ----

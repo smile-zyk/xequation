@@ -1,5 +1,4 @@
-﻿#include "core/equation.h"
-#include "core/equation_common.h"
+﻿#include "core/equation_common.h"
 #include "core/equation_manager.h"
 #include "core/equation_value.h"
 #include "equation_value_test_utils.h"
@@ -9,6 +8,8 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+
+#include <boost/uuid/random_generator.hpp>
 
 #include <string>
 #include <utility>
@@ -64,13 +65,13 @@ TEST_F(EquationManagerTest, EquationAddRemoveEditGet)
     EXPECT_EQ(manager_.GetEquationById(id_a), equation_a);
 
     // content edit (name unchanged)
-    manager_.EditEquation("A", "2");
+    manager_.EditEquation(id_a, "2");
     EXPECT_TRUE(manager_.IsEquationExist("A"));
     EXPECT_EQ(manager_.GetEquation("A")->content, "2");
     EXPECT_EQ(manager_.GetEquation("A")->id, id_a);  // same identity
 
     // rename: old name gone, new name appears with the SAME id
-    ObjectId id_c = manager_.RenameEquation("A", "C");
+    ObjectId id_c = manager_.RenameEquation(id_a, "C");
     EXPECT_FALSE(manager_.IsEquationExist("A"));
     EXPECT_TRUE(manager_.IsEquationExist("C"));
     EXPECT_EQ(id_c, id_a);
@@ -79,6 +80,67 @@ TEST_F(EquationManagerTest, EquationAddRemoveEditGet)
     manager_.RemoveEquation("C");
     EXPECT_FALSE(manager_.IsEquationExist("C"));
     EXPECT_TRUE(manager_.GetEquationIds().empty());
+}
+
+TEST_F(EquationManagerTest, EquationTagDefaultsAndCustom)
+{
+    // Default tag is the "Equation" identity.
+    manager_.AddEquation("A", "1");
+    EXPECT_EQ(manager_.GetEquation("A")->tag, kEquationTagDefault);
+
+    // A Marker identity can be supplied at creation time.
+    manager_.AddEquation("B", "2", kMarkerTagDefault);
+    EXPECT_EQ(manager_.GetEquation("B")->tag, kMarkerTagDefault);
+
+    // A custom free-form tag is also accepted.
+    manager_.AddEquation("C", "3", "SimulationResult");
+    EXPECT_EQ(manager_.GetEquation("C")->tag, "SimulationResult");
+
+    // Edit / rename keep the tag (identity does not change).
+    manager_.EditEquation(manager_.GetEquation("C")->id, "4");
+    EXPECT_EQ(manager_.GetEquation("C")->tag, "SimulationResult");
+    manager_.RenameEquation(manager_.GetEquation("C")->id, "D");
+    EXPECT_EQ(manager_.GetEquation("D")->tag, "SimulationResult");
+}
+
+TEST_F(EquationManagerTest, ExpressionTagDefaultsAndCustom)
+{
+    // Default tag is the "Watch" identity.
+    const ObjectId watch = manager_.AddExpression("1+1");
+    EXPECT_EQ(manager_.GetExpression(watch)->tag, kWatchTagDefault);
+
+    // Graph identity at creation time.
+    const ObjectId graph = manager_.AddExpression("1+2", kGraphTagDefault);
+    EXPECT_EQ(manager_.GetExpression(graph)->tag, kGraphTagDefault);
+
+    // Custom free-form tag.
+    const ObjectId custom = manager_.AddExpression("1+3", "Plotted");
+    EXPECT_EQ(manager_.GetExpression(custom)->tag, "Plotted");
+}
+
+TEST_F(EquationManagerTest, ExpressionAddRemoveSignals)
+{
+    int added = 0;
+    int removing = 0;
+    std::string removed_id;
+    EquationManager &mgr = manager_;
+    ScopedConnection c_added = mgr.signals_manager().ConnectScoped<EquationEvent::kExpressionAdded>(
+        [&](const Expression *) { ++added; });
+    ScopedConnection c_removing = mgr.signals_manager().ConnectScoped<EquationEvent::kExpressionRemoving>(
+        [&](const Expression *) { ++removing; });
+    ScopedConnection c_removed = mgr.signals_manager().ConnectScoped<EquationEvent::kExpressionRemoved>(
+        [&](const std::string &id) { removed_id = id; });
+
+    const ObjectId expr_id = manager_.AddExpression("x*2", kGraphTagDefault);
+    EXPECT_EQ(added, 1);
+
+    manager_.RemoveExpression(expr_id);
+    EXPECT_EQ(removing, 1);
+    EXPECT_FALSE(removed_id.empty());
+
+    // Removing a non-existent expression is a no-op: no extra signal.
+    manager_.RemoveExpression(expr_id);
+    EXPECT_EQ(removing, 1);
 }
 
 TEST_F(EquationManagerTest, EquationException)
@@ -94,42 +156,46 @@ TEST_F(EquationManagerTest, EquationException)
     }
     catch (const EquationException &e)
     {
-        EXPECT_EQ(e.error_code(), EquationException::ErrorCode::kEquationAlreayExists);
+        EXPECT_EQ(e.error_code(), EquationException::ErrorCode::kEquationAlreadyExists);
         EXPECT_EQ(e.equation_name(), "A");
     }
 
     // edit missing
+    const ObjectId missing_id = boost::uuids::random_generator()();
     try
     {
-        manager_.EditEquation("X", "1");
+        manager_.EditEquation(missing_id, "1");
         FAIL();
     }
     catch (const EquationException &e)
     {
         EXPECT_EQ(e.error_code(), EquationException::ErrorCode::kEquationNotFound);
-        EXPECT_EQ(e.equation_name(), "X");
+        EXPECT_EQ(e.id(), missing_id);
     }
 
     // rename missing
     try
     {
-        manager_.RenameEquation("Y", "Z");
+        manager_.RenameEquation(missing_id, "Z");
         FAIL();
     }
     catch (const EquationException &e)
     {
         EXPECT_EQ(e.error_code(), EquationException::ErrorCode::kEquationNotFound);
+        EXPECT_EQ(e.id(), missing_id);
     }
 
     // rename onto an existing name
+    const ObjectId id_a = manager_.GetEquation("A")->id;
     try
     {
-        manager_.RenameEquation("A", "B");
+        manager_.RenameEquation(id_a, "B");
         FAIL();
     }
     catch (const EquationException &e)
     {
-        EXPECT_EQ(e.error_code(), EquationException::ErrorCode::kEquationAlreayExists);
+        EXPECT_EQ(e.error_code(), EquationException::ErrorCode::kEquationAlreadyExists);
+        EXPECT_EQ(e.equation_name(), "B");
     }
 
     // remove missing -> no-op, no throw
@@ -191,7 +257,7 @@ TEST_F(EquationManagerTest, EquationManagerUpdate)
     EXPECT_EQ(GetInt(manager_, "D"), 5);
 
     // edit C to depend on E too
-    manager_.EditEquation("C", "E+F");
+    manager_.EditEquation(manager_.GetEquation("C")->id, "E+F");
     manager_.UpdateEquation("C");
     EXPECT_EQ(GetInt(manager_, "A"), 25);
     EXPECT_EQ(GetInt(manager_, "B"), 10);
@@ -213,7 +279,7 @@ TEST_F(EquationManagerTest, Eval)
 
 TEST_F(EquationManagerTest, RenameDependencyDoesNotUpdateDependent)
 {
-    manager_.AddEquation("A", "1");
+    const ObjectId id_a = manager_.AddEquation("A", "1");
     manager_.AddEquation("B", "A");
     manager_.Update();
 
@@ -222,7 +288,7 @@ TEST_F(EquationManagerTest, RenameDependencyDoesNotUpdateDependent)
     EXPECT_EQ(manager_.GetEquation("B")->status, ResultStatus::kSuccess);
 
     // Rename A=1 to C=1.
-    manager_.RenameEquation("A", "C");
+    manager_.RenameEquation(id_a, "C");
 
     // "B"'s dependency "A" is gone, so "B" must be dirty.
     EXPECT_TRUE(manager_.graph().GetNode("B")->dirty_flag());
@@ -237,13 +303,13 @@ TEST_F(EquationManagerTest, RenameDependencyDoesNotUpdateDependent)
 
 TEST_F(EquationManagerTest, UpdateEquationAfterRenameRecomputesDirtyDependents)
 {
-    manager_.AddEquation("A", "1");
+    const ObjectId id_a = manager_.AddEquation("A", "1");
     manager_.AddEquation("B", "A");
     manager_.Update();
 
     EXPECT_EQ(GetInt(manager_, "B"), 1);
 
-    manager_.RenameEquation("A", "C");
+    manager_.RenameEquation(id_a, "C");
     manager_.UpdateEquation("C");
 
     EXPECT_FALSE(manager_.HasVariable("B"));
@@ -344,7 +410,7 @@ TEST_F(EquationManagerTest, ExpressionRecomputesWhenEquationChanges)
     manager_.Update();
     EXPECT_EQ(AsScalar<int>(manager_.GetExpressionValue(expr_id)), 2);
 
-    manager_.EditEquation("A", "5");
+    manager_.EditEquation(manager_.GetEquation("A")->id, "5");
     manager_.Update();
     EXPECT_EQ(AsScalar<int>(manager_.GetExpressionValue(expr_id)), 10);
     EXPECT_EQ(manager_.GetExpression(expr_id)->result.status, ResultStatus::kSuccess);
@@ -359,7 +425,7 @@ TEST_F(EquationManagerTest, ExpressionRecomputesOnUpdateEquation)
     manager_.Update();
     EXPECT_EQ(AsScalar<int>(manager_.GetExpressionValue(expr_id)), 2);
 
-    manager_.EditEquation("A", "7");
+    manager_.EditEquation(manager_.GetEquation("A")->id, "7");
     manager_.UpdateEquation("A");
     EXPECT_EQ(AsScalar<int>(manager_.GetExpressionValue(expr_id)), 14);
     EXPECT_EQ(manager_.GetExpression(expr_id)->result.status, ResultStatus::kSuccess);
@@ -440,7 +506,7 @@ TEST_F(EquationManagerTest, ExternalInputRegisteredBeforeEquation)
 
     // The host owns the value (env Define); InvalidateExternalInputs marks the
     // input dirty and recomputes the dependents immediately.
-    manager_.env().Define("c", rel::Value::Integer(3));
+    manager_.environment().Define("c", rel::Value::Integer(3));
     manager_.InvalidateExternalInputs({"c"});
     EXPECT_EQ(GetInt(manager_, "x"), 6);
 }
@@ -453,7 +519,7 @@ TEST_F(EquationManagerTest, ExternalInputRegisteredAfterEquation)
 
     EXPECT_EQ(manager_.GetEquation("x")->status, ResultStatus::kError);
 
-    manager_.env().Define("c", rel::Value::Integer(4));
+    manager_.environment().Define("c", rel::Value::Integer(4));
     manager_.InvalidateExternalInputs({"c"});
     EXPECT_EQ(GetInt(manager_, "x"), 8);
 }
@@ -462,16 +528,18 @@ TEST_F(EquationManagerTest, ExternalInputUnknownNameIsIgnored)
 {
     manager_.AddExternalInput("c");
     manager_.AddEquation("x", "c+1");
-    manager_.env().Define("c", rel::Value::Integer(10));
-    manager_.InvalidateExternalInputs({"c"});
+    manager_.environment().Define("c", rel::Value::Integer(10));
+    manager_.Update();
     EXPECT_EQ(GetInt(manager_, "x"), 11);
 
-    // A name with no graph node is a safe no-op: nothing is recomputed.
-    manager_.env().Define("c", rel::Value::Integer(20));
+    // A name with no graph node is ignored: it neither invalidates anything
+    // nor adds update work.  With no pending dirty nodes, nothing is
+    // recomputed -- x keeps its previous value even though "c" changed.
+    manager_.environment().Define("c", rel::Value::Integer(20));
     manager_.InvalidateExternalInputs({"bogus"});
     EXPECT_EQ(GetInt(manager_, "x"), 11);  // unchanged
 
-    // Invalidating the real input recomputes the dependent.
+    // Invalidating the real input recomputes the dependent with the new value.
     manager_.InvalidateExternalInputs({"c"});
     EXPECT_EQ(GetInt(manager_, "x"), 21);
 }
@@ -484,7 +552,7 @@ TEST_F(EquationManagerTest, ExternalInputPropagatesToExpressions)
     manager_.Update();
     EXPECT_EQ(manager_.GetEquation("x")->status, ResultStatus::kError);
 
-    manager_.env().Define("c", rel::Value::Integer(4));
+    manager_.environment().Define("c", rel::Value::Integer(4));
     manager_.InvalidateExternalInputs({"c"});
     EXPECT_EQ(GetInt(manager_, "x"), 5);
     EXPECT_EQ(AsScalar<int>(manager_.GetExpressionValue(expr_id)), 10);

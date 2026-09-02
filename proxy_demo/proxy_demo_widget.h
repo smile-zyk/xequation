@@ -49,6 +49,14 @@ class ProxyDemoWidget : public QWidget
     void OnEquationListSelectionChanged();
     void RefreshEquationList();
 
+    // ---- equation-manager tree panel ----------------------------------
+
+    /// User selected a node in the manager tree (dataset / block / data array
+    /// / equation / expression).  Routes the payload to the property widget
+    /// and, for data arrays / equations / expressions, to the DataFrame tab.
+    void OnManagerTreeSelectionChanged();
+    void OnManagerTreeClicked();
+
     // ---- dataset (env.json) support -----------------------------------
 
     /// Open a file dialog for an environment JSON and load its datasets.
@@ -86,15 +94,18 @@ class ProxyDemoWidget : public QWidget
   private:
     QLineEdit *statement_edit_ = nullptr;
     QPushButton *insert_button_ = nullptr;
+    QComboBox *equation_tag_combo_ = nullptr;    // Equation / Marker
     QPushButton *redefine_button_ = nullptr;
     QPushButton *rename_button_ = nullptr;
     QPushButton *delete_button_ = nullptr;
     QPushButton *properties_button_ = nullptr;
     QPushButton *watch_button_ = nullptr;
+    QComboBox *expression_tag_combo_ = nullptr;  // Watch / Graph
     QPushButton *open_env_button_ = nullptr;
     QComboBox *dataset_combo_ = nullptr;
     QLabel *status_label_ = nullptr;
     QListWidget *equation_list_ = nullptr;
+    class EquationManagerTreeView *manager_tree_ = nullptr;
     class ExpressionDataFrameTabWidget *data_frame_view_ = nullptr;
     class ExpressionPropertyWidget *property_widget_ = nullptr;
 

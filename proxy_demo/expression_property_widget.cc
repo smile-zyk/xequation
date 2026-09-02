@@ -74,6 +74,24 @@ ExpressionPropertyWidget::ExpressionPropertyWidget(const EquationManager &manage
 
 ExpressionPropertyWidget::~ExpressionPropertyWidget() = default;
 
+void ExpressionPropertyWidget::ShowInfo(const QString &heading,
+                                        const std::vector<std::pair<QString, QString>> &rows)
+{
+    // Break the ObjectId binding: manager refresh signals (kEquation* /
+    // kExpression*) compare against object_id_ and ignore nil ids.
+    object_id_ = ObjectId();
+    table_->setRowCount(0);
+
+    if (!heading.isEmpty())
+    {
+        AddField(heading, QString());
+    }
+    for (const auto &field : rows)
+    {
+        AddField(field.first, field.second);
+    }
+}
+
 void ExpressionPropertyWidget::SetObject(const ObjectId &object_id)
 {
     object_id_ = object_id;
@@ -107,6 +125,43 @@ void ExpressionPropertyWidget::SetObject(const ObjectId &object_id)
     ShowEquation(equation);
 }
 
+void ExpressionPropertyWidget::AddRelValueInfo(const rel::Value &rel_value)
+{
+    // ---- REL value: mirrors builtin_library's what(x) output ----
+    AddField("Indep", FormatSet(rel_value.indep_names()));
+    AddField(
+        "Kind",
+        QString::fromStdString(rel_value.is_dependent() ? "Dependent" : "Independent")
+    );
+    AddField("Dimension", QString::fromStdString(rel_value.dimension_spec().to_string()));
+    AddField("Data Shape", QString::fromStdString(rel_value.data_shape().to_string()));
+    AddField(
+        "Data Type",
+        QString::fromStdString(xdataset::DataTypeToString(rel_value.data_type()))
+    );
+    if (rel_value.unit().has_dimension())
+    {
+        AddField("Unit", QString::fromStdString(rel_value.unit().to_string()));
+    }
+}
+
+void ExpressionPropertyWidget::ShowRelValue(const QString &name,
+                                            const EquationValue &value)
+{
+    object_id_ = ObjectId();   // not manager-bound; refresh signals ignore nil
+    table_->setRowCount(0);
+
+    AddField("Name", name);
+    if (!value.HasValue())
+    {
+        AddField("Status", "No value.");
+        return;
+    }
+
+    // Same engine value details an Equation / Expression shows.
+    AddRelValueInfo(value.Value());
+}
+
 void ExpressionPropertyWidget::ShowEquation(const Equation *equation)
 {
     if (!equation)
@@ -119,6 +174,7 @@ void ExpressionPropertyWidget::ShowEquation(const Equation *equation)
     // 1. Equation meta info
     // =====================================================================
     AddField("Name", QString::fromStdString(equation->name));
+    AddField("Tag", QString::fromStdString(equation->tag));
     AddField("Expression", QString::fromStdString(equation->content));
     AddField("Status", QString::fromStdString(ResultStatusConverter::ToString(equation->status)));
 
@@ -142,24 +198,7 @@ void ExpressionPropertyWidget::ShowEquation(const Equation *equation)
 
     if (equation->status == ResultStatus::kSuccess && value.HasValue())
     {
-        // ---- REL value: mirrors builtin_library's what(x) output ----
-        const rel::Value &rel_value = value.Value();
-
-        AddField("Indep", FormatSet(rel_value.indep_names()));
-        AddField(
-            "Kind",
-            QString::fromStdString(rel_value.is_dependent() ? "Dependent" : "Independent")
-        );
-        AddField("Dimension", QString::fromStdString(rel_value.dimension_spec().to_string()));
-        AddField("Data Shape", QString::fromStdString(rel_value.data_shape().to_string()));
-        AddField(
-            "Data Type",
-            QString::fromStdString(xdataset::DataTypeToString(rel_value.data_type()))
-        );
-        if (rel_value.unit().has_dimension())
-        {
-            AddField("Unit", QString::fromStdString(rel_value.unit().to_string()));
-        }
+        AddRelValueInfo(value.Value());
         // Value body is not shown here: the DataFrame table handles it, avoiding
         // duplicating lengthy content.
     }
@@ -178,6 +217,7 @@ void ExpressionPropertyWidget::ShowExpression(const Expression *expression)
     // Registered-expression meta info
     // =====================================================================
     AddField("ID", QString::fromStdString(boost::uuids::to_string(expression->id)));
+    AddField("Tag", QString::fromStdString(expression->tag));
     AddField("Expression", QString::fromStdString(expression->content));
     AddField("Status", QString::fromStdString(ResultStatusConverter::ToString(expression->result.status)));
 
@@ -198,24 +238,7 @@ void ExpressionPropertyWidget::ShowExpression(const Expression *expression)
     const EquationValue &value = expression->result.value;
     if (expression->result.status == ResultStatus::kSuccess && value.HasValue())
     {
-        // ---- REL value: mirrors builtin_library's what(x) output ----
-        const rel::Value &rel_value = value.Value();
-
-        AddField("Indep", FormatSet(rel_value.indep_names()));
-        AddField(
-            "Kind",
-            QString::fromStdString(rel_value.is_dependent() ? "Dependent" : "Independent")
-        );
-        AddField("Dimension", QString::fromStdString(rel_value.dimension_spec().to_string()));
-        AddField("Data Shape", QString::fromStdString(rel_value.data_shape().to_string()));
-        AddField(
-            "Data Type",
-            QString::fromStdString(xdataset::DataTypeToString(rel_value.data_type()))
-        );
-        if (rel_value.unit().has_dimension())
-        {
-            AddField("Unit", QString::fromStdString(rel_value.unit().to_string()));
-        }
+        AddRelValueInfo(value.Value());
     }
     // Compute failure: value unavailable (already shown as red Message above); nothing here.
 }

@@ -2,7 +2,6 @@ set(xequation_core_SRC
     equation_value.h
     dependency_graph.h
     dependency_graph.cc
-    equation.h
     equation_manager.h
     equation_manager.cc
     equation_common.h
