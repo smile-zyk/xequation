@@ -127,8 +127,8 @@ ExpressionDataFrameTabWidget::ExpressionDataFrameTabWidget(
 
 ExpressionDataFrameTabWidget::~ExpressionDataFrameTabWidget()
 {
-    // Unregister every remaining registered expression (equation tabs hold a
-    // group id; RemoveExpression is a no-op for them).  The view widgets are
+    // Unregister every remaining registered expression (equation tabs hold an
+    // equation id; RemoveExpression is a no-op for them).  The view widgets are
     // children and get destroyed by ~QTabWidget.
     for (const TabData &tab : tabs_)
     {
@@ -189,12 +189,6 @@ int ExpressionDataFrameTabWidget::OpenTab()
     layout->addWidget(close_button);
 
     tabBar()->setTabButton(index, QTabBar::RightSide, container);
-
-    // A transparent left spacer mirroring the right button area keeps the
-    // title visually centered.
-    auto *left_spacer = new QWidget(tabBar());
-    left_spacer->setFixedSize(container->sizeHint());
-    tabBar()->setTabButton(index, QTabBar::LeftSide, left_spacer);
 
     // The pin button must be visible (blank icon) to receive Enter/Leave.
     pin_button->installEventFilter(this);
@@ -461,21 +455,20 @@ void ExpressionDataFrameTabWidget::EvaluateTab(int index)
         return;
     }
 
-    // Equation tab: read the value directly (group id -> single-equation group).
-    const EquationGroup *group = manager_.GetEquationGroup(tab.object_id);
-    const Equation *equation = group ? group->FirstEquation() : nullptr;
-    if (equation && equation->status() == ResultStatus::kSuccess)
+    // Equation tab: read the value directly by id.
+    const Equation *equation = manager_.GetEquationById(tab.object_id);
+    if (equation && equation->status == ResultStatus::kSuccess)
     {
         SetTabError(index, QString());
-        FillTab(tab.view, equation->GetValue());
+        FillTab(tab.view, manager_.GetEquationValue(equation->name));
         setTabText(index, QString::fromStdString(tab.expression));
         return;
     }
     tab.view->Clear();
     const QString error_message =
         equation ? QString("%1  (%2)")
-                       .arg(QString::fromStdString(equation->message()))
-                       .arg(QString::fromStdString(ResultStatusConverter::ToString(equation->status())))
+                       .arg(QString::fromStdString(equation->message))
+                       .arg(QString::fromStdString(ResultStatusConverter::ToString(equation->status)))
                  : QStringLiteral("Equation does not exist.");
     SetTabError(index, error_message);
     setTabText(index, QString::fromStdString(tab.expression));
@@ -495,7 +488,7 @@ void ExpressionDataFrameTabWidget::OnEquationRemoving(const Equation *equation)
     // calls RemoveExpression on the group id, which is a no-op -- it only
     // releases registered expressions.)  Watch-expression tabs are untouched;
     // the removal recomputation arrives via kExpressionUpdated(kValue).
-    const int index = FindTabIndex(equation->group_id());
+    const int index = FindTabIndex(equation->id);
     if (index >= 0)
     {
         CloseTabInternal(index);
@@ -516,11 +509,11 @@ void ExpressionDataFrameTabWidget::OnEquationUpdated(
         return;
     }
 
-    // Equation tabs whose group_id matches this equation are refreshed.
+    // Equation tabs whose id matches this equation are refreshed.
     // Watch-expression tabs are NOT touched here: the manager recomputes
     // dependent expressions during the same update pass and their own
     // kExpressionUpdated(kValue) event refreshes them.
-    const int index = FindTabIndex(equation->group_id());
+    const int index = FindTabIndex(equation->id);
     if (index >= 0)
     {
         EvaluateTab(index);
@@ -553,15 +546,15 @@ void ExpressionDataFrameTabWidget::OnExpressionUpdated(
 
 // ---- tabs: Add -----------------------------------------------------------
 
-void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &group_id, bool auto_pin)
+void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &equation_id, bool auto_pin)
 {
-    if (group_id.is_nil())
+    if (equation_id.is_nil())
     {
         return;
     }
 
     // Duplicate object: focus existing tab instead of stacking a new one.
-    const int existing_index = FindTabIndex(group_id);
+    const int existing_index = FindTabIndex(equation_id);
     if (existing_index >= 0)
     {
         setCurrentIndex(existing_index);
@@ -571,8 +564,7 @@ void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &group_id, bool au
         return;
     }
 
-    const EquationGroup *group = manager_.GetEquationGroup(group_id);
-    const Equation *equation = group ? group->FirstEquation() : nullptr;
+    const Equation *equation = manager_.GetEquationById(equation_id);
     if (!equation)
     {
         return;
@@ -581,8 +573,8 @@ void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &group_id, bool au
     const int index = OpenTab();
     TabData &tab = tabs_[static_cast<std::size_t>(index)];
     tab.kind = ObjectKind::kEquation;
-    tab.object_id = group_id;
-    tab.expression = equation->name();
+    tab.object_id = equation_id;
+    tab.expression = equation->name;
     setTabText(index, QString::fromStdString(tab.expression));
 
     RebuildKeyToIndex();
@@ -591,7 +583,7 @@ void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &group_id, bool au
 
     if (auto_pin)
     {
-        const int pinned_index = FindTabIndex(group_id);
+        const int pinned_index = FindTabIndex(equation_id);
         SetTabPinned(pinned_index, true);
     }
 }
@@ -686,7 +678,7 @@ void ExpressionDataFrameTabWidget::SyncSelection(
         const Equation *equation = manager_.GetEquation(name);
         if (equation)
         {
-            AddEquation(equation->group_id(), /*auto_pin=*/false);
+            AddEquation(equation->id, /*auto_pin=*/false);
         }
     }
 }
@@ -739,8 +731,8 @@ void ExpressionDataFrameTabWidget::EditTab(int index)
         return;   // parse failed: tab unchanged
     }
 
-    // Release the previous registered expression (no-op for an equation
-    // group_id).  Re-key the tab to the new expression.
+    // Release the previous registered expression (no-op for an equation id).
+    // Re-key the tab to the new expression.
     if (tab.kind == ObjectKind::kExpression)
     {
         manager_.RemoveExpression(tab.object_id);

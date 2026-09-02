@@ -1,108 +1,37 @@
 #pragma once
 
-#include <memory>
-#include <string>
-
 #include <boost/uuid/uuid.hpp>
-#include <tsl/ordered_map.h>
-#include <tsl/ordered_set.h>
+#include <string>
+#include <vector>
 
 #include "equation_common.h"
 
 namespace xequation
 {
-class Equation;
-class EquationManager;
-class ParseResultItem;
 
-using EquationPtr = std::unique_ptr<Equation>;
-using EquationPtrOrderedMap = tsl::ordered_map<std::string, EquationPtr>;
-
-class Equation
+// =========================================================================
+//  Equation —— 名字 -> 表达式的绑定（纯数据）
+//
+//  与 Expression 对齐的简单数据容器：
+//    - id            唯一身份（uuid，不随重命名改变）
+//    - name          绑定到环境中的变量名（也是依赖图节点名）
+//    - content       表达式文本
+//    - status        最近一次求值状态
+//    - message       求值消息 / 错误详情
+//    - dependencies  最近一次解析出的依赖符号（仅供展示；依赖图是权威）
+//
+//  不持有 manager 指针，没有 GetValue/GetDependencies 等方法：当前绑定
+//  的值经 EquationManager::GetVariable(name) 从 env 读取（env 是唯一
+//  权威）；依赖/依赖者经 EquationManager 查询依赖图。
+// =========================================================================
+struct Equation
 {
-  public:
-    explicit Equation(const ParseResultItem& item, const ObjectId &group_id, EquationManager *manager);
-    explicit Equation(const std::string &name, const ObjectId &group_id, EquationManager *manager);
-    virtual ~Equation() = default;
-
-    static EquationPtr Create(const ParseResultItem& item, const ObjectId &group_id, EquationManager *manager);
-
-    void set_content(const std::string &content)
-    {
-        content_ = content;
-    }
-
-    void set_type(ItemType type)
-    {
-        type_ = type;
-    }
-
-    void set_status(ResultStatus status)
-    {
-        status_ = status;
-    }
-
-    void set_message(const std::string &message)
-    {
-        message_ = message;
-    }
-
-    const std::string &name() const
-    {
-        return name_;
-    }
-
-    const std::string &content() const
-    {
-        return content_;
-    }
-
-    ItemType type() const
-    {
-        return type_;
-    }
-
-    ResultStatus status() const
-    {
-        return status_;
-    }
-
-    const std::string &message() const
-    {
-        return message_;
-    }
-
-    const EquationManager *manager() const
-    {
-        return manager_;
-    }
-
-    const ObjectId &group_id() const
-    {
-        return group_id_;
-    }
-
-    EquationValue GetValue() const;
-    /// Dependencies as user-facing equation names.  Registered-expression graph
-    /// nodes ("expr_<uuid>") are filtered out: only other equations are shown.
-    /// Returns a copy (filtering), not a reference into the graph.
-    tsl::ordered_set<std::string> GetDependencies() const;
-    /// Dependents as user-facing equation names.  Registered-expression graph
-    /// nodes ("expr_<uuid>") are filtered out: only other equations are shown.
-    /// Returns a copy (filtering), not a reference into the graph.
-    tsl::ordered_set<std::string> GetDependents() const;
-
-    bool operator==(const Equation &other) const;
-    bool operator!=(const Equation &other) const;
-
-  private:
-    std::string name_;
-    std::string content_;
-    ItemType type_;
-    ResultStatus status_;
-    std::string message_;
-    ObjectId group_id_;
-    EquationManager *manager_ = nullptr;
+    ObjectId id;
+    std::string name;
+    std::string content;
+    ResultStatus status = ResultStatus::kPending;
+    std::string message;
+    std::vector<std::string> dependencies;
 };
 
 } // namespace xequation

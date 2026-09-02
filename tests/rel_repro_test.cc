@@ -1,15 +1,17 @@
-#include <gtest/gtest.h>
+﻿#include <gtest/gtest.h>
 #include <iostream>
 #include <string>
 
 #include "core/equation.h"
 #include "core/equation_common.h"
 #include "core/equation_manager.h"
-#include "rel_engine/rel_equation_engine.h"
-#include "rel_engine/rel_equation_context.h"
+#include "core/equation_value.h"
+#include "equation_value_test_utils.h"
+
+#include "environment.h"  // rel::Environment
+#include "value.h"         // rel::Value
 
 using namespace xequation;
-using namespace xequation::rel_engine;
 
 namespace
 {
@@ -19,45 +21,40 @@ void Dump(const std::string &tag, EquationManager *m)
     for (const std::string &name : m->GetEquationNames())
     {
         const Equation *e = m->GetEquation(name);
-        const EquationValue &v = e->GetValue();
+        const EquationValue v = m->GetEquationValue(e->name);
         std::cout << "  " << name << " status="
-                  << static_cast<int>(e->status())
-                  << " isRel=" << v.IsRelValue()
-                  << " isNull=" << v.IsNull();
-        if (v.IsRelValue())
+                  << static_cast<int>(e->status)
+                  << " hasValue=" << v.HasValue();
+        if (v.HasValue())
         {
-            const rel::Value &rv = v.AsRel();
+            const rel::Value &rv = v.Value();
             std::cout << " type="
                       << (rv.is_measurement() ? "Measurement" : "DataArray");
         }
-        std::cout << " to_string=[" << v.ToString() << "]\n";
+        std::cout << " to_string=[" << ValueToString(v) << "]\n";
     }
-    const RelEquationContext *rc = dynamic_cast<const RelEquationContext *>(&m->context());
-    if (rc)
-    {
-        std::cout << "  env vars:";
-        for (const std::string &n : rc->env().VariableNames())
-            std::cout << " " << n;
-        std::cout << "\n";
-    }
+    std::cout << "  env vars:";
+    for (const std::string &n : m->env().VariableNames())
+        std::cout << " " << n;
+    std::cout << "\n";
 }
 } // namespace
 
 TEST(RelEngineRepro, RedefineChainDiagnose)
 {
-    auto manager = RelEquationEngine::GetInstance().CreateEquationManager();
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
 
-    manager->AddEquation("a", "1");
-    manager->Update();
-    Dump("after a=1", manager.get());
+    manager.AddEquation("a", "1");
+    manager.Update();
+    Dump("after a=1", &manager);
 
-    manager->AddEquation("b", "a");
-    manager->Update();
-    Dump("after b=a", manager.get());
+    manager.AddEquation("b", "a");
+    manager.Update();
+    Dump("after b=a", &manager);
 
-    const Equation *a = manager->GetEquation("a");
+    const Equation *a = manager.GetEquation("a");
     ASSERT_NE(a, nullptr);
-    manager->EditSingleEquation(a->group_id(), "a", "2");
-    manager->Update();
-    Dump("after redefine a=2", manager.get());
+    manager.EditEquation("a", "2");
+    manager.Update();
+    Dump("after redefine a=2", &manager);
 }

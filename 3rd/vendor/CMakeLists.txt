@@ -29,12 +29,40 @@ set(HDF5_TARGET hdf5::hdf5)
 message(STATUS "HDF5: found at ${HDF5_ROOT} (version ${HDF5_VERSION})")
 
 # ---- Python / pybind11（Python bridge + python_manager 需要） ----------------
-# 根 CMakeLists 已 find_package(Python REQUIRED) 与 find_package(pybind11 REQUIRED)。
-# 这里补充 Python3 组件以拿到 Python3::Python / Python3_STDLIB 等（上游 REL 的做法）；
-# pybind11 已由根配置好，无需重复 find。
-find_package(Python3 COMPONENTS Interpreter Development.Embed REQUIRED)
-message(STATUS "Python3 executable   = ${Python3_EXECUTABLE}")
-message(STATUS "Python3 version      = ${Python3_VERSION}")
+# BUILD_PYTHON=ON（根 CMakeLists 的 option，默认开）时编译 python_manager
+# （STATIC）与 rel 的 Python bridge：需要 Python3 的 Interpreter +
+# Development.Embed 组件（嵌入需要 libpython）与 pybind11（embed）。
+# pybind11 优先 CONFIG 包；找不到时回退 `python -m pybind11 --cmakedir`
+# （pip 安装的 pybind11 自带 CMake 配置）。
+if(BUILD_PYTHON)
+  find_package(Python3 COMPONENTS Interpreter Development.Embed REQUIRED)
+else()
+  find_package(Python3 COMPONENTS Interpreter Development.Embed QUIET)
+endif()
+
+find_package(pybind11 CONFIG QUIET)
+if(NOT pybind11_FOUND AND Python3_Interpreter_FOUND)
+  execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -m pybind11 --cmakedir
+    OUTPUT_VARIABLE _pybind11_cmakedir
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET)
+  if(_pybind11_cmakedir)
+    set(pybind11_DIR "${_pybind11_cmakedir}")
+    find_package(pybind11 CONFIG QUIET)
+  endif()
+endif()
+if(BUILD_PYTHON AND NOT pybind11_FOUND)
+  message(FATAL_ERROR
+    "BUILD_PYTHON=ON requires pybind11. Install it (e.g. pip install pybind11 "
+    "or pacman -S mingw-w64-x86_64-pybind11).")
+endif()
+message(STATUS "BUILD_PYTHON         = ${BUILD_PYTHON}")
+if(Python3_FOUND)
+  message(STATUS "Python3 executable   = ${Python3_EXECUTABLE}")
+  message(STATUS "Python3 version      = ${Python3_VERSION}")
+endif()
+message(STATUS "pybind11 found       = ${pybind11_FOUND}")
 
 set(XDATASET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../xdataset")
 set(REL_DIR       "${CMAKE_CURRENT_SOURCE_DIR}/../REL")

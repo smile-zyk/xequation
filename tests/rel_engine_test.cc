@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+﻿#include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <memory>
 #include <string>
@@ -6,15 +6,16 @@
 
 #include "core/equation.h"
 #include "core/equation_common.h"
-#include "rel_engine/rel_equation_context.h"
-#include "rel_engine/rel_equation_engine.h"
-#include "rel_engine/dataset_external_inputs.h"
+#include "core/equation_manager.h"
+#include "core/equation_value.h"
+#include "equation_value_test_utils.h"
 
+#include "environment.h"   // rel::Environment
+#include "value.h"          // rel::Value
 #include "data_series.h"
 #include "dataset.h"
 
 using namespace xequation;
-using namespace xequation::rel_engine;
 
 namespace
 {
@@ -38,245 +39,140 @@ xdataset::Dataset MakeSampleDataset(const std::string &name = "noise")
 
 } // namespace
 
-TEST(RelEquationEngine, DatasetCollectSymbolNames)
+TEST(RelEngine, TestParse)
 {
-    auto ds = MakeSampleDataset();
-
-    // Default-domain symbols: full dotted paths + unique bare names. No
-    // intermediate path prefixes (blocks are not evaluable symbols).
-    auto names = DatasetExternalInputs::CollectDefaultDatasetSymbolNames(ds);
-    EXPECT_THAT(names, testing::UnorderedElementsAre(
-                           "sim.SP.freq", "sim.SP.Vout", "freq", "Vout"));
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
+    // Parse 只接受表达式：语法校验 + 依赖提取，不做名字绑定。
+    auto result = manager.Parse("a + b + c");
+    EXPECT_EQ(result.status, ResultStatus::kSuccess);
+    EXPECT_THAT(result.dependencies, testing::UnorderedElementsAre("a", "b", "c"));
 }
 
-TEST(RelEquationEngine, DatasetRegisterSetDefaultSwitch)
+TEST(RelEngine, TestParseExpression)
 {
-    auto &engine = RelEquationEngine::GetInstance();
-    auto equation_manager = engine.CreateEquationManager();
-    auto &manager = *equation_manager;
-
-    // 每轮先清掉全局 Environment 的 dataset 状态，避免用例间干扰
-    rel::Environment::RemoveDataset("d1");
-    rel::Environment::RemoveDataset("d2");
-
-    auto d1 = MakeSampleDataset("d1");  // block sim/SP, var Vout
-    auto d2 = MakeSampleDataset("d2");  // 同样的结构
-    rel::Environment::AddDataset(std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset(std::move(d1))));
-    rel::Environment::AddDataset(std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset(std::move(d2))));
-
-    DatasetExternalInputs ext(manager);
-
-    // ① 注册命名 dataset：只需 { ds 名 } 锚点
-    ext.RegisterDataset("d1");
-    ext.RegisterDataset("d2");
-    EXPECT_TRUE(manager.IsExternalInput("d1"));
-    EXPECT_TRUE(manager.IsExternalInput("d2"));
-
-    // ② 设置 default（d1）：default 域符号注册
-    rel::Environment::SetDefaultDataset("d1");
-    ext.SetDefaultDataset("d1");
-    EXPECT_TRUE(manager.IsExternalInput("Vout"));
-    EXPECT_TRUE(manager.IsExternalInput("sim.SP.Vout"));
-
-    // ③ 切换 default 到 d2：SwitchDataset = 挪锚点 + 自动失效重算（一步完成）
-    rel::Environment::SetDefaultDataset("d2");
-    ext.SwitchDataset("d2");
-    EXPECT_TRUE(manager.IsExternalInput("Vout"));
-    EXPECT_TRUE(manager.IsExternalInput("d1"));
-    EXPECT_TRUE(manager.IsExternalInput("d2"));
-
-    rel::Environment::RemoveDataset("d1");
-    rel::Environment::RemoveDataset("d2");
-}
-
-TEST(RelEquationEngine, DatasetSyncRemovesMissingSymbols)
-{
-    auto &engine = RelEquationEngine::GetInstance();
-    auto equation_manager = engine.CreateEquationManager();
-    auto &manager = *equation_manager;
-
-    // 每轮先清掉全局 Environment 的 dataset 状态，避免用例间干扰
-    rel::Environment::RemoveDataset("d1");
-    rel::Environment::RemoveDataset("d2");
-
-    // d1: 有 Vout；d2: 没有 Vout
-    auto d1 = MakeSampleDataset("d1");
-    xdataset::Dataset d2;
-    d2.set_name("d2");
-    xdataset::BlockCreateInfo info2;
-    info2.independent_specs.push_back(
-        xdataset::IndependentSpec{"freq", xdataset::DataSeries::CreateScalar<double>(2),
-                                  xdataset::DimensionSpec::Regular(2)});
-    info2.dependent_specs.push_back(
-        xdataset::DependentSpec{"Id", xdataset::DataSeries::CreateScalar<double>(2)});
-    d2.AddBlock("sim/SP", std::move(info2));
-
-    rel::Environment::AddDataset(std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset(std::move(d1))));
-    rel::Environment::SetDefaultDataset("d1");
-
-    DatasetExternalInputs ext(manager);
-
-    manager.AddEquationGroup("y = Vout");
-    manager.Update();
-
-    // 第一次设置 default（d1）：Vout 注册为外部输入（仅动锚点，未重算）
-    ext.SetDefaultDataset("d1");
-    EXPECT_TRUE(manager.IsExternalInput("Vout"));
-
-    // 切 default 到 d2（Vout 消失）：SwitchDataset 挪锚点（移除 Vout）
-    // 并自动失效，使 y 暴露 NameError
-    rel::Environment::AddDataset(std::unique_ptr<xdataset::Dataset>(new xdataset::Dataset(std::move(d2))));
-    rel::Environment::SetDefaultDataset("d2");
-    ext.SwitchDataset("d2");
-    EXPECT_FALSE(manager.IsExternalInput("Vout"));
-
-    // 且 y 应该因为 Vout 没了而变成 NameError（不是残留旧 Success）
-    EXPECT_EQ(manager.GetEquation("y")->status(), ResultStatus::kNameError);
-
-    rel::Environment::RemoveDataset("d1");
-    rel::Environment::RemoveDataset("d2");
-}
-
-TEST(RelEquationEngine, TestParse)
-{
-    auto result = RelEquationEngine::GetInstance().Parse("e = a + b + c", ParseMode::kStatement);
-
-    EXPECT_EQ(result.items.size(), 1);
-    auto item = result.items[0];
-    EXPECT_EQ(item.name, "e");
-    EXPECT_THAT(item.dependencies, testing::UnorderedElementsAre("a", "b", "c"));
-    EXPECT_EQ(item.content, "a + b + c");
-    EXPECT_EQ(item.type, ItemType::kVariable);
-}
-
-TEST(RelEquationEngine, TestParseExpression)
-{
-    auto result = RelEquationEngine::GetInstance().Parse("sin(x) + pi", ParseMode::kExpression);
-
-    EXPECT_EQ(result.items.size(), 1);
-    auto item = result.items[0];
-    EXPECT_EQ(item.name, "__expression__");
-    EXPECT_EQ(item.type, ItemType::kUnknown);
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
+    auto result = manager.Parse("sin(x) + pi");
+    EXPECT_EQ(result.status, ResultStatus::kSuccess);
     // sin 是注册函数、pi 是内置常量，都不是依赖
-    EXPECT_THAT(item.dependencies, testing::UnorderedElementsAre("x"));
+    EXPECT_THAT(result.dependencies, testing::UnorderedElementsAre("x"));
 }
 
 // ---- AST 依赖提取精度（正则做不到的场景）-----------------------------
 
-TEST(RelEquationEngine, TestParseDepsFunctionCallVsMatrixIndex)
+TEST(RelEngine, TestParseDepsFunctionCallVsMatrixIndex)
 {
-    auto& engine = RelEquationEngine::GetInstance();
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
 
     // 单段 callee 且注册为函数 -> 函数调用，callee 不是依赖，参数是
-    auto r1 = engine.Parse("sin(x) * cos(y)", ParseMode::kExpression);
-    EXPECT_THAT(r1.items[0].dependencies, testing::UnorderedElementsAre("x", "y"));
+    auto r1 = manager.Parse("sin(x) * cos(y)");
+    EXPECT_THAT(r1.dependencies, testing::UnorderedElementsAre("x", "y"));
 
     // 非注册函数的 a(...) -> 矩阵索引，a 是依赖
-    auto r2 = engine.Parse("a(1, 2) + 1", ParseMode::kExpression);
-    EXPECT_THAT(r2.items[0].dependencies, testing::UnorderedElementsAre("a"));
+    auto r2 = manager.Parse("a(1, 2) + 1");
+    EXPECT_THAT(r2.dependencies, testing::UnorderedElementsAre("a"));
 }
 
-TEST(RelEquationEngine, TestParseDepsAttributeChain)
+TEST(RelEngine, TestParseDepsAttributeChain)
 {
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
     // 多段路径收集所有前缀：a.b.c -> a、a.b、a.b.c
-    auto result = RelEquationEngine::GetInstance().Parse("a.b.c", ParseMode::kExpression);
-    EXPECT_THAT(result.items[0].dependencies,
+    auto result = manager.Parse("a.b.c");
+    EXPECT_THAT(result.dependencies,
                 testing::UnorderedElementsAre("a", "a.b", "a.b.c"));
 }
 
-TEST(RelEquationEngine, TestParseDepsSelfReference)
+TEST(RelEngine, TestParseDepsSelfReference)
 {
-    // x = x + 1：RHS 读取 x，是依赖（与 Python 引擎一致）
-    auto result = RelEquationEngine::GetInstance().Parse("x = x + 1", ParseMode::kStatement);
-    EXPECT_EQ(result.items[0].type, ItemType::kVariable);
-    EXPECT_THAT(result.items[0].dependencies, testing::UnorderedElementsAre("x"));
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
+    // content 是表达式，读取 x 是依赖。
+    auto result = manager.Parse("x + 1");
+    EXPECT_EQ(result.status, ResultStatus::kSuccess);
+    EXPECT_THAT(result.dependencies, testing::UnorderedElementsAre("x"));
 }
 
-TEST(RelEquationEngine, TestParseDepsNoStringMisdetect)
+TEST(RelEngine, TestParseDepsNoStringMisdetect)
 {
-    // 字符串/单位后缀里的标识符不应被误捕为依赖
-    auto result = RelEquationEngine::GetInstance().Parse(R"("hello world" = x)", ParseMode::kStatement);
-    // 字符串字面量不是合法标识符 -> 语法错误（不是依赖误报）
-    EXPECT_EQ(result.items[0].status, ResultStatus::kSyntaxError);
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
+    // 字符串字面量里的标识符不应被误捕为依赖。
+    auto result = manager.Parse(R"("hello world")");
+    EXPECT_EQ(result.status, ResultStatus::kSuccess);
+    EXPECT_TRUE(result.dependencies.empty());
 }
 
-TEST(RelEquationEngine, TestParseDepsSweepAndIndex)
+TEST(RelEngine, TestParseDepsSweepAndIndex)
 {
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
     // 列表/矩阵/索引结构里的引用
-    auto r1 = RelEquationEngine::GetInstance().Parse("[a, b, c]", ParseMode::kExpression);
-    EXPECT_THAT(r1.items[0].dependencies, testing::UnorderedElementsAre("a", "b", "c"));
+    auto r1 = manager.Parse("[a, b, c]");
+    EXPECT_THAT(r1.dependencies, testing::UnorderedElementsAre("a", "b", "c"));
 
-    auto r2 = RelEquationEngine::GetInstance().Parse("m[1, 2] * n", ParseMode::kExpression);
-    EXPECT_THAT(r2.items[0].dependencies, testing::UnorderedElementsAre("m", "n"));
+    auto r2 = manager.Parse("m[1, 2] * n");
+    EXPECT_THAT(r2.dependencies, testing::UnorderedElementsAre("m", "n"));
 }
 
-TEST(RelEquationEngine, TestParseDepsComparisonNotAssignment)
+TEST(RelEngine, TestParseDepsComparison)
 {
-    // == 不是赋值：是表达式，左侧也是引用
-    auto result = RelEquationEngine::GetInstance().Parse("a == b", ParseMode::kStatement);
-    EXPECT_EQ(result.items[0].type, ItemType::kUnknown);
-    EXPECT_THAT(result.items[0].dependencies, testing::UnorderedElementsAre("a", "b"));
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
+    // == 是表达式运算符：两侧的引用都是依赖
+    auto result = manager.Parse("a == b");
+    EXPECT_EQ(result.status, ResultStatus::kSuccess);
+    EXPECT_THAT(result.dependencies, testing::UnorderedElementsAre("a", "b"));
 }
 
-TEST(RelEquationEngine, TestEquationManager)
+TEST(RelEngine, TestParseInvalid)
 {
-    auto& engine = RelEquationEngine::GetInstance();
-    auto equation_manager = engine.CreateEquationManager();
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
+    // 语法错误：status=kError + message
+    auto result = manager.Parse("[::]");
+    EXPECT_EQ(result.status, ResultStatus::kError);
+    EXPECT_FALSE(result.message.empty());
+}
 
-    ObjectId id_0 = equation_manager->AddEquationGroup(
-        R"(
-a=1
-b=3
-c=5
-d=a+b*c
-)"
-    );
-    equation_manager->Update();
+TEST(RelEngine, TestEquationManager)
+{
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
 
-    auto v = equation_manager->context().Get("d");
-    EXPECT_EQ(v.Cast<int>(), 16);
+    ObjectId id_a = manager.AddEquation("a", "1");
+    manager.Update();
 
-    equation_manager->EditEquationGroup(id_0,
-        R"(
-a=1
-b=c
-c=5
-d=a+b*c
-        )"
-    );
-    equation_manager->UpdateEquation("b");
-    v = equation_manager->context().Get("d");
-    EXPECT_EQ(v.Cast<int>(), 26);
+    EXPECT_FALSE(manager.HasVariable("d"));
+
+    // 逐条添加方程 (b/c/d 依赖 a)
+    manager.AddEquation("b", "3");
+    manager.AddEquation("c", "5");
+    manager.AddEquation("d", "a+b*c");
+    manager.Update();
+
+    const EquationValue v = manager.GetVariable("d");
+    ASSERT_TRUE(v.HasValue());
+    EXPECT_EQ(AsScalar<int>(v), 16);
 
     // REL 内置常量/函数
-    ObjectId id_1 = equation_manager->AddEquationGroup("p=pi");
-    equation_manager->UpdateEquationGroup(id_1);
-    v = equation_manager->context().Get("p");
-    EXPECT_TRUE(v.IsRelValue());
-    EXPECT_TRUE(v.IsReal());
-    EXPECT_NEAR(v.Cast<double>(), 3.14159265358979, 1e-12);
+    manager.AddEquation("p", "pi");
+    manager.UpdateEquation("p");
+    const EquationValue p = manager.GetVariable("p");
+    ASSERT_TRUE(p.HasValue());
+    EXPECT_TRUE(IsRealValue(p));
+    EXPECT_NEAR(AsScalar<double>(p), 3.14159265358979, 1e-12);
 }
 
-TEST(RelEquationEngine, TestEval)
+TEST(RelEngine, TestEval)
 {
-    auto& engine = RelEquationEngine::GetInstance();
-    auto ctx = engine.CreateContext();
-
-    auto r = engine.Eval("2 + 3 * 4", ctx.get());
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
+    auto r = manager.Eval("2 + 3 * 4");
     EXPECT_EQ(r.status, ResultStatus::kSuccess);
-    EXPECT_EQ(r.value.Cast<int>(), 14);
+    EXPECT_EQ(AsScalar<int>(r.value), 14);
 }
 
-TEST(RelEquationEngine, TestContextSetGet)
+TEST(RelEngine, TestEnvSetGet)
 {
-    auto& engine = RelEquationEngine::GetInstance();
-    auto ctx = engine.CreateContext();
+    EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
 
-    ctx->Set("x", EquationValue(rel::Value::Integer(7)));
-    EXPECT_TRUE(ctx->Contains("x"));
-    EXPECT_EQ(ctx->Get("x").Cast<int>(), 7);
+    manager.env().Define("x", rel::Value::Integer(7));
+    EXPECT_TRUE(manager.HasVariable("x"));
+    EXPECT_EQ(AsScalar<int>(manager.GetVariable("x")), 7);
 
-    ctx->Remove("x");
-    EXPECT_FALSE(ctx->Contains("x"));
-    EXPECT_TRUE(ctx->Get("x").IsNull());
+    manager.env().Remove("x");
+    EXPECT_FALSE(manager.HasVariable("x"));
+    EXPECT_FALSE(manager.GetVariable("x").HasValue());
 }

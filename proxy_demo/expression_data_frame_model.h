@@ -24,7 +24,7 @@ namespace gui
 //
 // The displayed object is identified by an ObjectId (see
 // ExpressionPropertyWidget): either a registered Expression (its Expression::id)
-// or an Equation (its group_id, resolved via EquationGroup::FirstEquation).
+// or an Equation (its Equation::id).
 // SetObject() resolves the id through the injected EquationManager& and holds a
 // copy of the resulting EquationValue as the DataFrame's stable owner -- because
 // rel::Value::data_frame() returns a stable reference owned by the underlying
@@ -102,7 +102,7 @@ class ExpressionDataFrameModel : public QAbstractTableModel
 
   private:
     /// Stable DataFrame reference of the currently displayed value.  Only valid
-    /// when there is a REL value (equation_value_.IsRelValue()); otherwise the
+    /// when there is a value (equation_value_.HasValue()); otherwise the
     /// call is undefined -- check HasDataFrame() first.
     const xdataset::DataFrame &frame() const;
 

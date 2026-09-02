@@ -1,10 +1,17 @@
-#include "proxy_demo_widget.h"
+﻿#include "proxy_demo_widget.h"
 
 #include "expression_data_frame_tab_widget.h"
 #include "expression_property_widget.h"
 
-#include "xequation_proxy.h"
+#include "core/equation_manager.h"
 
+#include "environment.h"   // rel::Environment / rel::EnvironmentConfig
+
+#include <QComboBox>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -16,6 +23,7 @@
 #include <QSplitter>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <vector>
 
 namespace xresults
@@ -25,10 +33,47 @@ namespace gui
 
 using namespace xequation;
 
+namespace
+{
+// ---------------------------------------------------------------------
+// Dataset (env.json) helpers
+// ---------------------------------------------------------------------
+
+// Absolute path of the bundled sample config <repo>/3rd/REL/case/test_env.json.
+// The exe usually lives in <repo>/build/bin/<config>/, so walk up from the
+// executable directory and also check the working directory.  Empty when no
+// such file is found.
+QString SampleEnvJsonPath()
+{
+    QDir dir(QCoreApplication::applicationDirPath());
+    for (int depth = 0; depth < 6; ++depth)
+    {
+        const QString candidate = dir.filePath("3rd/REL/case/test_env.json");
+        if (QFileInfo::exists(candidate))
+        {
+            return QFileInfo(candidate).absoluteFilePath();
+        }
+        if (!dir.cdUp())
+        {
+            break;
+        }
+    }
+
+    const QString cwd_candidate =
+        QDir::current().filePath("3rd/REL/case/test_env.json");
+    if (QFileInfo::exists(cwd_candidate))
+    {
+        return QFileInfo(cwd_candidate).absoluteFilePath();
+    }
+    return QString();
+}
+} // namespace
+
 ProxyDemoWidget::ProxyDemoWidget(QWidget *parent) : QWidget(parent)
 {
     SetupUI();
     SetupConnections();
+    RefreshDatasetCombo();
     RefreshEquationList();
 }
 
@@ -38,6 +83,25 @@ void ProxyDemoWidget::SetupUI()
 {
     setWindowTitle("XEquation Proxy Demo");
     setMinimumSize(900, 600);
+
+    // ---- top: dataset row (env.json + current-dataset switch) ---------
+    QLabel *dataset_label = new QLabel("Dataset:", this);
+    dataset_combo_ = new QComboBox(this);
+    dataset_combo_->setEnabled(false);  // enabled once datasets are loaded
+    dataset_combo_->setToolTip(
+        "Datasets loaded from an environment JSON.  Selecting one makes it "
+        "the REL default dataset (bare DataArray names resolve against it)."
+    );
+    open_env_button_ = new QPushButton("Open env.json\u2026", this);
+    open_env_button_->setToolTip(
+        "Open an environment JSON listing datasets + the default dataset "
+        "(sample: 3rd/REL/case/test_env.json)."
+    );
+
+    QHBoxLayout *dataset_layout = new QHBoxLayout();
+    dataset_layout->addWidget(dataset_label);
+    dataset_layout->addWidget(dataset_combo_, 1);
+    dataset_layout->addWidget(open_env_button_);
 
     // ---- top: statement input ------------------------------------------
     statement_edit_ = new QLineEdit(this);
@@ -68,8 +132,7 @@ void ProxyDemoWidget::SetupUI()
     equation_list_ = new QListWidget(this);
     equation_list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
-    XEquationProxy &proxy = XEquationProxy::GetInstance();
-    EquationManager &mgr = proxy.rel_manager();
+    EquationManager &mgr = EquationManager::GetInstance();
 
     data_frame_view_ = new ExpressionDataFrameTabWidget(
         // Pass the REL manager directly (DataFrames come only from REL); the
@@ -100,6 +163,7 @@ void ProxyDemoWidget::SetupUI()
     status_label_->setWordWrap(true);
 
     QVBoxLayout *main_layout = new QVBoxLayout(this);
+    main_layout->addLayout(dataset_layout);
     main_layout->addLayout(input_layout);
     main_layout->addWidget(splitter, 1);
     main_layout->addWidget(status_label_);
@@ -118,6 +182,13 @@ void ProxyDemoWidget::SetupConnections()
     connect(properties_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnShowProperties);
     connect(watch_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnAddWatchExpression);
     connect(
+        open_env_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnOpenEnvJson
+    );
+    connect(
+        dataset_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &ProxyDemoWidget::OnDatasetSelectionChanged
+    );
+    connect(
         equation_list_, &QListWidget::itemSelectionChanged, this,
         &ProxyDemoWidget::OnEquationListSelectionChanged
     );
@@ -125,14 +196,13 @@ void ProxyDemoWidget::SetupConnections()
     // The REL manager's signals are routed to the tab widget / property widget:
     // each decides which tabs to clear / re-evaluate (self-contained judgment;
     // this widget only dispatches).
-    XEquationProxy &proxy = XEquationProxy::GetInstance();
     ExpressionDataFrameTabWidget *tabs = data_frame_view_;
     ExpressionPropertyWidget *property = property_widget_;
 
     // kEquationRemoving: value is about to disappear; equation tabs showing it
     // are cleared, property widget clears its selection.
     removing_rel_connection_ =
-        proxy.rel_manager()
+        EquationManager::GetInstance()
             .signals_manager()
             .ConnectScoped<EquationEvent::kEquationRemoving>(
                 [tabs, property](const Equation *eq)
@@ -144,7 +214,7 @@ void ProxyDemoWidget::SetupConnections()
 
     // kEquationUpdated: on value-ready (kValue) each tab decides to refresh.
     updated_rel_connection_ =
-        proxy.rel_manager()
+        EquationManager::GetInstance()
             .signals_manager()
             .ConnectScoped<EquationEvent::kEquationUpdated>(
                 [tabs, property](const Equation *eq, bitmask::bitmask<EquationUpdateFlag> flags)
@@ -157,7 +227,7 @@ void ProxyDemoWidget::SetupConnections()
     // kExpressionUpdated: a registered watch expression has a fresh value;
     // refresh its tab and the property widget if it displays that expression.
     expression_updated_rel_connection_ =
-        proxy.rel_manager()
+        EquationManager::GetInstance()
             .signals_manager()
             .ConnectScoped<EquationEvent::kExpressionUpdated>(
                 [tabs, property](const Expression *expr, bitmask::bitmask<ExpressionUpdateFlag> flags)
@@ -172,14 +242,14 @@ void ProxyDemoWidget::SetupConnections()
 /// definite row count; other values return 0.
 static qlonglong GetRowCount(const Equation *equation)
 {
-    if (!equation || equation->status() != ResultStatus::kSuccess)
+    if (!equation || equation->status != ResultStatus::kSuccess)
     {
         return 0;
     }
-    const EquationValue &value = equation->GetValue();
-    if (value.IsRelValue())
+    const EquationValue value = EquationManager::GetInstance().GetEquationValue(equation->name);
+    if (value.HasValue())
     {
-        return static_cast<qlonglong>(value.AsRel().rows());
+        return static_cast<qlonglong>(value.Value().rows());
     }
     return 0;
 }
@@ -253,24 +323,6 @@ bool ProxyDemoWidget::IsValidIdentifier(const QString &name)
     return true;
 }
 
-QString ProxyDemoWidget::ReplaceIdentifierToken(
-    const QString &content, const QString &old_name, const QString &new_name
-)
-{
-    if (content.isEmpty() || old_name.isEmpty() || new_name.isEmpty())
-    {
-        return content;
-    }
-
-    // Token-level (word-boundary) replace: only full identifiers, not words
-    // inside string literals, nor old_name as a prefix of another identifier
-    // (e.g. old_name="a" must not replace the "a" in "abc").
-    const QString pattern = QString("\\b%1\\b").arg(QRegularExpression::escape(old_name));
-    const QRegularExpression re(pattern);
-    QString result = content;
-    return result.replace(re, new_name);
-}
-
 void ProxyDemoWidget::OnInsertEquation()
 {
     QString name;
@@ -287,8 +339,7 @@ void ProxyDemoWidget::OnInsertEquation()
 
     const std::string name_std = name.toStdString();
 
-    XEquationProxy &proxy = XEquationProxy::GetInstance();
-    EquationManager &mgr = proxy.rel_manager();
+    EquationManager &mgr = EquationManager::GetInstance();
 
     if (mgr.IsEquationExist(name_std))
     {
@@ -346,8 +397,7 @@ void ProxyDemoWidget::OnRedefineEquation()
         return;
     }
 
-    XEquationProxy &proxy = XEquationProxy::GetInstance();
-    EquationManager &mgr = proxy.rel_manager();
+    EquationManager &mgr = EquationManager::GetInstance();
     const Equation *equation = mgr.GetEquation(current_name.toStdString());
     if (!equation)
     {
@@ -358,7 +408,7 @@ void ProxyDemoWidget::OnRedefineEquation()
     const QString new_content = QInputDialog::getText(
         this, "Redefine Equation",
         QString("New formula for  %1  = ").arg(current_name),
-        QLineEdit::Normal, QString::fromStdString(equation->content()), &ok
+        QLineEdit::Normal, QString::fromStdString(equation->content), &ok
     );
     if (!ok)
     {
@@ -372,14 +422,13 @@ void ProxyDemoWidget::OnRedefineEquation()
         return;
     }
 
-    const ObjectId group_id = equation->group_id();
     const std::string name_std = current_name.toStdString();
 
     try
     {
-        // Redefine formula: EditSingleEquation rebuilds dependency edges and
+        // Redefine formula: EditEquation rebuilds dependency edges and
         // cascades invalidation to dependents; Update() re-computes in topo order.
-        mgr.EditSingleEquation(group_id, name_std, trimmed.toStdString());
+        mgr.EditEquation(name_std, trimmed.toStdString());
         mgr.Update();
     }
     catch (const EquationException &e)
@@ -442,8 +491,7 @@ void ProxyDemoWidget::OnRenameEquation()
         return;  // unchanged
     }
 
-    XEquationProxy &proxy = XEquationProxy::GetInstance();
-    EquationManager &mgr = proxy.rel_manager();
+    EquationManager &mgr = EquationManager::GetInstance();
 
     if (mgr.IsEquationExist(trimmed_new.toStdString()))
     {
@@ -460,20 +508,12 @@ void ProxyDemoWidget::OnRenameEquation()
         return;
     }
 
-    const ObjectId group_id = equation->group_id();
-
     try
     {
-        // Rename = rewrite the whole group statement text (token-level replace
-        // old->new) then pass to EditEquationGroup: it removes the old equation,
-        // adds the new one, rewrites all dependents' references, and cascades
-        // invalidation; Update() triggers the chained recomputation.
-        const std::string new_statement = ReplaceIdentifierToken(
-            QString::fromStdString(mgr.GetEquationGroup(group_id)->statement()),
-            current_name, trimmed_new
-        ).toStdString();
-
-        mgr.EditEquationGroup(group_id, new_statement);
+        // Rename: EquationManager::RenameEquation keeps the same identity
+        // (id) under the new name and cascades invalidation to dependents;
+        // Update() triggers the chained recomputation.
+        mgr.RenameEquation(current_name.toStdString(), trimmed_new.toStdString());
         mgr.Update();
     }
     catch (const EquationException &e)
@@ -521,20 +561,18 @@ void ProxyDemoWidget::OnDeleteEquation()
         return;
     }
 
-    XEquationProxy &proxy = XEquationProxy::GetInstance();
-    EquationManager &mgr = proxy.rel_manager();
+    EquationManager &mgr = EquationManager::GetInstance();
     const std::string name_std = current_name.toStdString();
 
     try
     {
-        // Remove a single Equation by name: locate the owning group (in the
-        // demo each equation maps to an independent group) and remove it.
+        // Remove the equation by name.
         const Equation *equation = mgr.GetEquation(name_std);
         if (!equation)
         {
             throw xequation::EquationException::EquationNotFound(name_std);
         }
-        mgr.RemoveEquationGroup(equation->group_id());
+        mgr.RemoveEquation(name_std);
         mgr.Update();
     }
     catch (const EquationException &e)
@@ -591,8 +629,7 @@ void ProxyDemoWidget::OnAddWatchExpression()
     // hands the id to the tab widget -- the tab widget itself never inspects
     // expression strings.  (DataFrame views are REL-only; the tab widget uses
     // the REL engine.)
-    XEquationProxy &proxy = XEquationProxy::GetInstance();
-    EquationManager &mgr = proxy.rel_manager();
+    EquationManager &mgr = EquationManager::GetInstance();
 
     ObjectId expr_id;
     try
@@ -611,19 +648,163 @@ void ProxyDemoWidget::OnAddWatchExpression()
     data_frame_view_->AddExpression(expr_id);
 }
 
+// =========================================================================
+// Dataset (env.json) support
+// =========================================================================
+
+void ProxyDemoWidget::OnOpenEnvJson()
+{
+    // Suggest the bundled sample (<repo>/3rd/REL/case/test_env.json) when it
+    // can be located next to the executable / in the working directory.
+    const QString sample = SampleEnvJsonPath();
+    const QString start_dir = !sample.isEmpty()
+        ? QFileInfo(sample).absolutePath()
+        : QDir::currentPath();
+
+    const QString path = QFileDialog::getOpenFileName(
+        this, "Open Environment JSON", start_dir,
+        "Environment JSON (*.json);;All Files (*)"
+    );
+    if (path.isEmpty())
+    {
+        return;
+    }
+    LoadEnvJson(path);
+}
+
+void ProxyDemoWidget::LoadEnvJson(const QString &path)
+{
+    try
+    {
+        // Parse/validate first: throws on JSON syntax / IO errors BEFORE any
+        // global state is touched.
+        const rel::EnvironmentConfig cfg =
+            rel::EnvironmentConfig::Load(path.toStdString());
+
+        // Drop the datasets of a previously loaded env so re-opening an
+        // env.json REPLACES the active set (rel::Environment::LoadFromConfig
+        // itself preserves existing registries).
+        if (!env_json_path_.isEmpty())
+        {
+            for (const std::string &name : rel::Environment::DatasetNames())
+            {
+                rel::Environment::RemoveDataset(name);
+            }
+        }
+
+        // REL owns the real load: dataset files (relative dataset paths are
+        // resolved against the config file's directory), default dataset
+        // ("default_dataset" or the first entry) and python_plugins
+        // (BUILD_PYTHON=ON: loaded against the interpreter that main.cc
+        // initialized).
+        rel::Environment::LoadFromConfig(path.toStdString());
+
+        env_json_path_ = path;
+        RefreshDatasetCombo();
+
+        // Equations / watch expressions referencing dataset DataArrays (bare
+        // names resolve against the default dataset) follow the new data.
+        try
+        {
+            EquationManager::GetInstance().Update();
+        }
+        catch (const std::exception &e)
+        {
+            (void)e;  // per-node failures surface on the equation / expression
+        }
+
+        const std::vector<std::string> names = rel::Environment::DatasetNames();
+        QString status = QString("Loaded %1: %2 dataset(s)")
+                             .arg(QFileInfo(path).fileName())
+                             .arg(static_cast<int>(names.size()));
+        if (xdataset::Dataset *default_ds = rel::Environment::DefaultDataset())
+        {
+            status += QString(", default: %1")
+                          .arg(QString::fromStdString(default_ds->name()));
+        }
+        if (!cfg.python_plugins.empty() && !rel::Environment::IsPythonAvailable())
+        {
+            status += "  (python_plugins ignored: no Python support in this build)";
+        }
+        status_label_->setText(status);
+    }
+    catch (const std::exception &e)
+    {
+        QMessageBox::warning(
+            this, "Load Environment Failed",
+            QString("Failed to load environment:\n%1\n\n%2").arg(path, e.what())
+        );
+    }
+}
+
+void ProxyDemoWidget::RefreshDatasetCombo()
+{
+    dataset_combo_->blockSignals(true);
+    dataset_combo_->clear();
+
+    std::vector<std::string> names = rel::Environment::DatasetNames();
+    std::sort(names.begin(), names.end());
+    for (const std::string &name : names)
+    {
+        dataset_combo_->addItem(QString::fromStdString(name));
+    }
+
+    // Select the REL default dataset (also covers the case where the combo is
+    // refreshed without reloading: e.g. another widget changed the default).
+    if (xdataset::Dataset *default_ds = rel::Environment::DefaultDataset())
+    {
+        const int index =
+            dataset_combo_->findText(QString::fromStdString(default_ds->name()));
+        if (index >= 0)
+        {
+            dataset_combo_->setCurrentIndex(index);
+        }
+    }
+    dataset_combo_->setEnabled(dataset_combo_->count() > 0);
+    dataset_combo_->blockSignals(false);
+}
+
+void ProxyDemoWidget::OnDatasetSelectionChanged(int index)
+{
+    if (index < 0)
+    {
+        return;
+    }
+    const QString name = dataset_combo_->itemText(index);
+    if (name.isEmpty())
+    {
+        return;
+    }
+
+    // Everything listed in the combo is a live dataset; make it the REL
+    // default (bare DataArray references resolve against it).
+    rel::Environment::SetDefaultDataset(name.toStdString());
+
+    // Recompute so equation / watch values follow the newly selected dataset.
+    try
+    {
+        EquationManager::GetInstance().Update();
+    }
+    catch (const std::exception &e)
+    {
+        (void)e;  // per-node failures surface on the equation / expression
+    }
+
+    status_label_->setText(QString("Default dataset: %1").arg(name));
+}
+
 void ProxyDemoWidget::RefreshEquationList()
 {
     equation_list_->blockSignals(true);
     equation_list_->clear();
 
-    XEquationProxy &proxy = XEquationProxy::GetInstance();
-    EquationManager &mgr = proxy.rel_manager();
+    EquationManager &mgr = EquationManager::GetInstance();
     const std::vector<std::string> names = mgr.GetEquationNames();
     for (const std::string &name : names)
     {
         const Equation *equation = mgr.GetEquation(name);
         QString item_text = QString::fromStdString(name);
-        if (equation && equation->status() == ResultStatus::kSuccess)
+        if (equation && equation->status == ResultStatus::kSuccess)
         {
             item_text += QString("  [%1 row(s)]")
                              .arg(static_cast<qlonglong>(
@@ -683,15 +864,13 @@ void ProxyDemoWidget::OnEquationListSelectionChanged()
     // DataFrame views are REL-only, so the sync targets the REL engine.
     data_frame_view_->SyncSelection(selected_names);
 
-    // Property widget follows the focus item.  The object identity is:
-    // an equation's group_id (a single-equation group resolves via
-    // EquationGroup::FirstEquation) -- the same id the tab widget uses.
+    // Property widget follows the focus item.  The object identity is the
+    // equation's id (the same id the tab widget uses).
     if (item)
     {
         const QString name = item->text().section(' ', 0, 0);
-        XEquationProxy &proxy = XEquationProxy::GetInstance();
-        const Equation *equation = proxy.rel_manager().GetEquation(name.toStdString());
-        property_widget_->SetObject(equation ? equation->group_id() : xequation::ObjectId());
+        const Equation *equation = EquationManager::GetInstance().GetEquation(name.toStdString());
+        property_widget_->SetObject(equation ? equation->id : xequation::ObjectId());
     }
 }
 

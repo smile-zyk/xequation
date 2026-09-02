@@ -33,8 +33,10 @@ void ExpressionDataFrameView::SetupUI()
     setEditTriggers(QAbstractItemView::NoEditTriggers);
     setSortingEnabled(false);
 
-    horizontalHeader()->setStretchLastSection(true);
-    horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    // Every column sizes to its content; no column is stretched to fill the
+    // remaining viewport width.
+    horizontalHeader()->setStretchLastSection(false);
+    horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     horizontalHeader()->setMinimumSectionSize(40);
     verticalHeader()->setVisible(true);
     verticalHeader()->setDefaultSectionSize(24);

@@ -11,8 +11,6 @@ function(add_gtest_executable target_name test_label source_file)
 
     target_link_libraries(${target_name} PRIVATE
         xequation_core
-        xequation_rel
-        xequation_python
         GTest::gtest
         GTest::gtest_main
         GTest::gmock
@@ -43,44 +41,4 @@ add_gtest_executable(rel_repro_test "RelEngineRepro" rel_repro_test.cc)
 add_gtest_executable(dependency_graph_test "DependencyGraph" dependency_graph_test.cc)
 add_gtest_executable(equation_manager_test "EquationManager" equation_manager_test.cc)
 add_gtest_executable(equation_signals_manager_test "EquationSignalsManager" equation_signals_manager_test.cc)
-add_gtest_executable(pybind_cast_test "PyObjectConverter" pybind_cast_test.cc)
-add_gtest_executable(python_parser_test "PythonParser" python_parser_test.cc)
-add_gtest_executable(python_executor_test "PythonExecutor" python_executor_test.cc)
-add_gtest_executable(python_equation_engine_test "PythonEquationEngine" python_equation_engine_test.cc)
-
-# ---- XEquationProxy 门面测试：链接 core / rel_engine / python / proxy 源码 ----
-# （不再有独立的 xequation_embed 聚合库；XEquationProxy 实现在 proxy_demo/，并入本测试。）
-add_executable(embed_proxy_test embed_proxy_test.cc
-    ${CMAKE_SOURCE_DIR}/proxy_demo/xequation_proxy.cc
-)
-
-set_target_properties(embed_proxy_test PROPERTIES CXX_VISIBILITY_PRESET hidden)
-
-target_include_directories(embed_proxy_test PRIVATE
-    ${CMAKE_SOURCE_DIR}/proxy_demo
-    ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(embed_proxy_test PRIVATE
-    xequation_core
-    xequation_rel
-    xequation_python
-    GTest::gtest
-    GTest::gtest_main
-    GTest::gmock
-    GTest::gmock_main
-)
-
-add_custom_command(TARGET embed_proxy_test POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:rel>"
-        "$<TARGET_FILE_DIR:embed_proxy_test>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:xdataset>"
-        "$<TARGET_FILE_DIR:embed_proxy_test>"
-    COMMENT "Copy REL runtime DLLs next to embed_proxy_test")
-
-gtest_discover_tests(embed_proxy_test
-    PROPERTIES LABELS "EmbedProxy"
-    DISCOVERY_TIMEOUT 60
-)
+add_gtest_executable(embed_proxy_test "EmbedProxy" embed_proxy_test.cc)

@@ -1,104 +1,395 @@
+#include "equation_manager.h"
+
+#include <algorithm>
 #include <regex>
+#include <set>
 #include <sstream>
 
-#include <boost/lexical_cast.hpp>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
-#include "equation_manager.h"
-#include "equation_common.h"
-#include "core/equation_signals_manager.h"
+#include "environment.h"
+#include "expr.h"
+#include "rel.h"
 
 namespace xequation
 {
-EquationManager::EquationManager(
-    std::unique_ptr<EquationContext> context, EvalHandler eval_handler, ExecHandler exec_handler, ParseHandler parse_handler, const EquationEngineInfo &engine_info
-) noexcept
-    : graph_(std::unique_ptr<DependencyGraph>(new DependencyGraph())),
-      signals_manager_(std::unique_ptr<EquationSignalsManager>(new EquationSignalsManager())),
-      context_(std::move(context)),
-      eval_handler_(eval_handler),
-      exec_handler_(exec_handler),
-      parse_handler_(parse_handler),
-      engine_info_(engine_info)
+namespace
 {
+// 把 rel::Eval 抛出的异常映射为 InterpretResult
+InterpretResult MapRelError(const std::exception &e)
+{
+    InterpretResult result;
+    result.status = ResultStatus::kError;
+    result.message = e.what();
+    result.value = EquationValue();
+    return result;
 }
 
-bool EquationManager::IsEquationGroupExist(const ObjectId &group_id) const
+// ---------------------------------------------------------------------------
+// 依赖收集 visitor：遍历 rel::Expr 语法树，收集所有"读取"的引用路径。
+//
+//   - ReferenceExpr 收集引用路径（多段路径收集所有前缀，如 a.b -> a、a.b）；
+//   - CallExpr 的 callee 若是单段标识符且注册在函数表 -> 函数调用，
+//     callee 不是依赖（只收参数）；否则按矩阵索引处理（callee 是依赖）；
+//   - 单段引用若是内置常量 -> 不是依赖；
+//   - 叶子节点（数字/布尔/字符串/空范围）无依赖。
+// ---------------------------------------------------------------------------
+class RelDependencyVisitor : public rel::ExprVisitor
 {
-    return equation_group_map_.contains(group_id);
+  public:
+    explicit RelDependencyVisitor(std::vector<std::string> &out) : out_(out) {}
+
+    void visit_number(const rel::NumberExpr &) override {}
+    void visit_boolean(const rel::BooleanExpr &) override {}
+    void visit_string(const rel::StringExpr &) override {}
+    void visit_null_range(const rel::NullRangeExpr &) override {}
+
+    void visit_reference(const rel::ReferenceExpr &expr) override
+    {
+        CollectReference(expr);
+    }
+
+    void visit_unary(const rel::UnaryExpr &expr) override
+    {
+        if (expr.operand)
+            expr.operand->accept(*this);
+    }
+
+    void visit_binary(const rel::BinaryExpr &expr) override
+    {
+        if (expr.left)
+            expr.left->accept(*this);
+        if (expr.right)
+            expr.right->accept(*this);
+    }
+
+    void visit_logical(const rel::LogicalExpr &expr) override
+    {
+        if (expr.left)
+            expr.left->accept(*this);
+        if (expr.right)
+            expr.right->accept(*this);
+    }
+
+    void visit_conditional(const rel::ConditionalExpr &expr) override
+    {
+        if (expr.condition)
+            expr.condition->accept(*this);
+        if (expr.then_branch)
+            expr.then_branch->accept(*this);
+        if (expr.else_branch)
+            expr.else_branch->accept(*this);
+    }
+
+    void visit_if(const rel::IfExpr &expr) override
+    {
+        for (const auto &branch : expr.branches)
+        {
+            if (branch.condition)
+                branch.condition->accept(*this);
+            if (branch.value)
+                branch.value->accept(*this);
+        }
+        if (expr.else_value)
+            expr.else_value->accept(*this);
+    }
+
+    void visit_call(const rel::CallExpr &expr) override
+    {
+        // 函数调用 vs 矩阵索引：callee 是单段标识符且注册为函数 -> 函数调用
+        const rel::ReferenceExpr *ref =
+            dynamic_cast<const rel::ReferenceExpr *>(expr.callee.get());
+        const bool is_function_call =
+            ref && ref->segments.size() == 1 &&
+            rel::Environment::HasFunction(ref->segments[0].name);
+
+        if (!is_function_call && expr.callee)
+        {
+            expr.callee->accept(*this);  // 矩阵索引：callee 是依赖
+        }
+        for (const auto &arg : expr.args)
+        {
+            if (arg)
+                arg->accept(*this);
+        }
+    }
+
+    void visit_index(const rel::IndexExpr &expr) override
+    {
+        if (expr.object)
+            expr.object->accept(*this);
+        for (const auto &idx : expr.indices)
+        {
+            if (idx)
+                idx->accept(*this);
+        }
+    }
+
+    void visit_grouping(const rel::GroupingExpr &expr) override
+    {
+        if (expr.inner)
+            expr.inner->accept(*this);
+    }
+
+    void visit_sweep(const rel::SweepExpr &expr) override
+    {
+        for (const auto &item : expr.items)
+        {
+            if (item)
+                item->accept(*this);
+        }
+    }
+
+    void visit_matrix(const rel::MatrixExpr &expr) override
+    {
+        for (const auto &item : expr.items)
+        {
+            if (item)
+                item->accept(*this);
+        }
+    }
+
+    void visit_range(const rel::RangeExpr &expr) override
+    {
+        if (expr.start)
+            expr.start->accept(*this);
+        if (expr.step)
+            expr.step->accept(*this);
+        if (expr.stop)
+            expr.stop->accept(*this);
+    }
+
+  private:
+    void CollectReference(const rel::ReferenceExpr &expr)
+    {
+        if (expr.segments.empty())
+            return;
+
+        // 单段：注册函数 / 内置常量不是依赖
+        if (expr.segments.size() == 1)
+        {
+            const std::string &name = expr.segments[0].name;
+            if (rel::Environment::HasFunction(name))
+                return;
+            if (rel::Environment::FindConstant(name) != nullptr)
+                return;
+            out_.push_back(name);
+            return;
+        }
+
+        out_.push_back(expr.segments[0].name);
+
+        std::string full_path;
+        for (std::size_t i = 0; i < expr.segments.size(); ++i)
+        {
+            if (i > 0)
+            {
+                full_path += (expr.segments[i].sep == rel::RefSeparator::DDot) ? ".." : ".";
+            }
+            full_path += expr.segments[i].name;
+        }
+        out_.push_back(full_path);
+    }
+
+    std::vector<std::string> &out_;
+};
+
+// 去重保序
+std::vector<std::string> Dedupe(const std::vector<std::string> &deps)
+{
+    std::vector<std::string> result;
+    std::set<std::string> seen;
+    for (const auto &d : deps)
+    {
+        if (seen.insert(d).second)
+        {
+            result.push_back(d);
+        }
+    }
+    return result;
 }
+
+// ---------------------------------------------------------------------------
+// 解析单个 REL 表达式：语法校验 + 依赖提取。
+// ---------------------------------------------------------------------------
+ParseResult ParseRelExpression(const std::string &code)
+{
+    ParseResult result;
+    result.status = ResultStatus::kSuccess;
+
+    try
+    {
+        rel::ExprPtr expr = rel::Parse(code);
+        std::vector<std::string> deps;
+        if (expr)
+        {
+            RelDependencyVisitor visitor(deps);
+            expr->accept(visitor);
+        }
+        result.dependencies = Dedupe(deps);
+    }
+    catch (const std::exception &e)
+    {
+        result.status = ResultStatus::kError;
+        result.message = e.what();
+    }
+
+    return result;
+}
+} // namespace
+
+EquationManager::EquationManager()
+    : graph_(new DependencyGraph()),
+      signals_manager_(new EquationSignalsManager()),
+      env_(new rel::Environment())
+{
+    // 幂等：进程内只需注册一次 REL 内置常量（PI/e/c0...）与函数库
+    // （builtin/math），重复调用无副作用。
+    rel::Environment::InitBuiltinConstants();
+    rel::Environment::InitBuiltinFunctions();
+}
+
+// =========================================================================
+// Environment
+// =========================================================================
+
+rel::Environment &EquationManager::env()
+{
+    return *env_;
+}
+
+const rel::Environment &EquationManager::env() const
+{
+    return *env_;
+}
+
+bool EquationManager::HasVariable(const std::string &name) const
+{
+    const std::vector<std::string> names = env_->VariableNames();
+    return std::find(names.begin(), names.end(), name) != names.end();
+}
+
+EquationValue EquationManager::GetVariable(const std::string &name) const
+{
+    if (!HasVariable(name))
+    {
+        return EquationValue();
+    }
+    return EquationValue(env_->Get(name));
+}
+
+EquationValue EquationManager::GetEquationValue(const std::string &equation_name) const
+{
+    // An equation's current value is whatever its name is bound to in the env.
+    return GetVariable(equation_name);
+}
+
+std::vector<std::string> EquationManager::GetEquationDependencies(const std::string &equation_name) const
+{
+    // User-facing dependencies: other equation names this one reads.
+    // Registered-expression graph nodes ("expr_<uuid>") are filtered out.
+    std::vector<std::string> result;
+    const DependencyGraph::Node *node = graph_->GetNode(equation_name);
+    if (!node)
+    {
+        return result;
+    }
+    for (const std::string &name : node->dependencies())
+    {
+        if (!IsExpressionNode(name))
+        {
+            result.push_back(name);
+        }
+    }
+    return result;
+}
+
+std::vector<std::string> EquationManager::GetEquationDependents(const std::string &equation_name) const
+{
+    // User-facing dependents: other equation names that read this one.
+    // Registered-expression graph nodes ("expr_<uuid>") are filtered out.
+    std::vector<std::string> result;
+    const DependencyGraph::Node *node = graph_->GetNode(equation_name);
+    if (!node)
+    {
+        return result;
+    }
+    for (const std::string &name : node->dependents())
+    {
+        if (!IsExpressionNode(name))
+        {
+            result.push_back(name);
+        }
+    }
+    return result;
+}
+
+// =========================================================================
+// Equation CRUD (no equation groups; every equation stands on its own)
+// =========================================================================
 
 bool EquationManager::IsEquationExist(const std::string &equation_name) const
 {
-    bool is_name_exist = equation_name_to_group_id_map_.count(equation_name) != 0;
-    if (!is_name_exist)
-    {
-        return false;
-    }
-
-    const ObjectId &id = equation_name_to_group_id_map_.at(equation_name);
-    bool is_group_exist = equation_group_map_.contains(id);
-    if (!is_group_exist)
-    {
-        return false;
-    }
-
-    const EquationGroup *group = equation_group_map_.at(id).get();
-    bool is_equation_exist = group->IsEquationExist(equation_name);
-    return is_equation_exist;
+    return equation_map_.contains(equation_name);
 }
 
-const EquationGroup *EquationManager::GetEquationGroup(const ObjectId &group_id) const
+bool EquationManager::IsEquationExist(const ObjectId &id) const
 {
-    if (equation_group_map_.contains(group_id))
-    {
-        return equation_group_map_.at(group_id).get();
-    }
-    return nullptr;
-}
-
-const EquationGroup *EquationManager::GetEquationGroup(const std::string &equation_name) const
-{
-    const auto it = equation_name_to_group_id_map_.find(equation_name);
-    if (it == equation_name_to_group_id_map_.end())
-    {
-        return nullptr;
-    }
-    return GetEquationGroup(it->second);
+    return GetEquationById(id) != nullptr;
 }
 
 const Equation *EquationManager::GetEquation(const std::string &equation_name) const
 {
-    bool is_name_exist = equation_name_to_group_id_map_.count(equation_name) != 0;
-    if (!is_name_exist)
+    const auto it = equation_map_.find(equation_name);
+    if (it == equation_map_.end())
     {
         return nullptr;
     }
-
-    const ObjectId &id = equation_name_to_group_id_map_.at(equation_name);
-    bool is_group_exist = equation_group_map_.contains(id);
-    if (!is_group_exist)
-    {
-        return nullptr;
-    }
-
-    const EquationGroup *group = equation_group_map_.at(id).get();
-    bool is_equation_exist = group->IsEquationExist(equation_name);
-    if (!is_equation_exist)
-    {
-        return nullptr;
-    }
-
-    return group->GetEquation(equation_name);
+    return it->second.get();
 }
 
-std::vector<ObjectId> EquationManager::GetEquationGroupIds() const
+const Equation *EquationManager::GetEquationById(const ObjectId &id) const
+{
+    for (const auto &entry : equation_map_)
+    {
+        if (entry.second->id == id)
+        {
+            return entry.second.get();
+        }
+    }
+    return nullptr;
+}
+
+Equation *EquationManager::GetEquationInternal(const std::string &equation_name)
+{
+    const auto it = equation_map_.find(equation_name);
+    if (it == equation_map_.end())
+    {
+        return nullptr;
+    }
+    return it->second.get();
+}
+
+Equation *EquationManager::GetEquationInternal(const ObjectId &id)
+{
+    for (const auto &entry : equation_map_)
+    {
+        if (entry.second->id == id)
+        {
+            return entry.second.get();
+        }
+    }
+    return nullptr;
+}
+
+std::vector<ObjectId> EquationManager::GetEquationIds() const
 {
     std::vector<ObjectId> result;
-    for (const auto &entry : equation_group_map_)
+    result.reserve(equation_map_.size());
+    for (const auto &entry : equation_map_)
     {
-        result.push_back(entry.first);
+        result.push_back(entry.second->id);
     }
     return result;
 }
@@ -106,148 +397,35 @@ std::vector<ObjectId> EquationManager::GetEquationGroupIds() const
 std::vector<std::string> EquationManager::GetEquationNames() const
 {
     std::vector<std::string> result;
-    for( const auto &entry : equation_group_map_)
+    result.reserve(equation_map_.size());
+    for (const auto &entry : equation_map_)
     {
-        const EquationGroup *group = entry.second.get();
-        auto equation_names = group->GetEquationNames();
-        result.insert(result.end(), equation_names.begin(), equation_names.end());
+        result.push_back(entry.first);
     }
     return result;
 }
 
-ObjectId EquationManager::AddEquationGroup(const std::string &equation_statement)
-{
-    auto res = Parse(equation_statement, ParseMode::kStatement);
-
-    for (const auto &item : res.items)
-    {
-        if (IsEquationExist(item.name))
-        {
-            throw EquationException::EquationAlreadyExists(item.name);
-        }
-    }
-
-    std::vector<std::string> dependency_updated_equation;
-    ScopedConnection dependency_connection = ConnectGraphDependencyUpdated(dependency_updated_equation);
-
-    std::vector<std::string> dependent_updated_equation;
-    ScopedConnection dependent_connection = ConnectGraphDependentUpdated(dependent_updated_equation);
-
-    DependencyGraph::BatchUpdateGuard guard(graph_.get());
-    for (const auto &item : res.items)
-    {
-        AddNodeToGraph(item.name, item.dependencies);
-    }
-    guard.commit();
-
-    EquationGroupPtr group = EquationGroup::Create(this);
-    group->set_statement(equation_statement);
-    const ObjectId &id = group->id();
-    auto group_ptr = group.get();
-    equation_group_map_.insert({id, std::move(group)});
-    for (const auto &item : res.items)
-    {
-        graph_->InvalidateNode(item.name);
-        EquationPtr equation = Equation::Create(item, id, this);
-        AddEquationToGroup(group_ptr, std::move(equation));
-        signals_manager_->Emit<EquationEvent::kEquationAdded>(group_ptr->GetEquation(item.name));
-    }
-    signals_manager_->Emit<EquationEvent::kEquationGroupAdded>(group_ptr);
-
-    for (const auto &equation_name : dependency_updated_equation)
-    {
-        NotifyEquationDependenciesUpdated(equation_name);
-    }
-
-    for (const auto &equation_name : dependent_updated_equation)
-    {
-        NotifyEquationDependentsUpdated(equation_name);
-    }
-
-    return id;
-}
-
-ObjectId EquationManager::AddEquation(const std::string& equation_name, const std::string& equation_content)
+ObjectId EquationManager::AddEquation(const std::string &equation_name, const std::string &expression)
 {
     if (IsEquationExist(equation_name))
     {
         throw EquationException::EquationAlreadyExists(equation_name);
     }
 
-    // use regex to validate equation name
     static const std::regex name_regex("^[A-Za-z_][A-Za-z0-9_]*$");
     if (!std::regex_match(equation_name, name_regex))
     {
         throw ParseException("Invalid equation name: " + equation_name);
     }
 
-    std::string statement = equation_name + " = " + equation_content;
-
-    auto res = Parse(statement, ParseMode::kStatement);
-
-    if(res.items.size() != 1)
+    // An equation is "name -> expression": parse the expression (which is the
+    // content) for syntax + dependencies.  The name binding is performed by
+    // Update/UpdateEquation (Eval then env().Define).
+    ParseResult res = Parse(expression);
+    if (res.status != ResultStatus::kSuccess)
     {
-        throw ParseException("Failed to parse single equation: " + statement);
-    }
-
-    return AddEquationGroup(statement);
-}
-
-void EquationManager::EditEquationGroup(const ObjectId &group_id, const std::string &equation_statement)
-{
-    if (IsEquationGroupExist(group_id) == false)
-    {
-        throw EquationException::EquationGroupNotFound(group_id);
-    }
-
-    EquationGroup *group = GetEquationGroupInternal(group_id);
-
-    if (group->statement() == equation_statement)
-    {
-        return;
-    }
-
-    const EquationPtrOrderedMap &old_name_equation_map = group->equation_map();
-
-    ParseResult new_result = Parse(equation_statement, ParseMode::kStatement);
-    std::unordered_map<std::string, ParseResultItem> new_name_item_map;
-    for (const auto &item : new_result.items)
-    {
-        new_name_item_map.insert({item.name, item});
-    }
-
-    for (const auto &new_item : new_result.items)
-    {
-        if (group->IsEquationExist(new_item.name) == false && IsEquationExist(new_item.name))
-        {
-            throw EquationException::EquationAlreadyExists(new_item.name);
-        }
-    }
-
-    std::vector<std::string> to_remove_equation_names;
-    std::vector<ParseResultItem> to_add_items;
-    std::vector<ParseResultItem> to_update_items;
-
-    for (const auto &old_eqn_entry : old_name_equation_map)
-    {
-        std::string old_eqn_name = old_eqn_entry.first;
-        auto new_item_it = new_name_item_map.find(old_eqn_name);
-        if (new_item_it == new_name_item_map.end())
-        {
-            to_remove_equation_names.push_back(old_eqn_name);
-        }
-        else if (group->GetEquation(old_eqn_name)->content() != new_item_it->second.content)
-        {
-            to_update_items.push_back(new_item_it->second);
-        }
-    }
-
-    for (const auto &new_item : new_result.items)
-    {
-        if (group->IsEquationExist(new_item.name) == false)
-        {
-            to_add_items.push_back(new_item);
-        }
+        throw ParseException(res.message.empty() ? "Failed to parse expression: " + expression
+                                                 : res.message);
     }
 
     std::vector<std::string> dependency_updated_equation;
@@ -256,130 +434,59 @@ void EquationManager::EditEquationGroup(const ObjectId &group_id, const std::str
     std::vector<std::string> dependent_updated_equation;
     ScopedConnection dependent_connection = ConnectGraphDependentUpdated(dependent_updated_equation);
 
-    DependencyGraph::BatchUpdateGuard guard(graph_.get());
-    for (const auto &equation_name : to_remove_equation_names)
+    AddNodeToGraph(equation_name, res.dependencies);
+    graph_->InvalidateNode(equation_name);
+
+    const ObjectId id = boost::uuids::random_generator()();
+    EquationPtr equation(new Equation());
+    equation->id = id;
+    equation->name = equation_name;
+    equation->content = expression;
+    equation->status = ResultStatus::kPending;
+    equation->dependencies = res.dependencies;
+
+    Equation *equation_ptr = equation.get();
+    equation_map_.insert({equation_name, std::move(equation)});
+    signals_manager_->Emit<EquationEvent::kEquationAdded>(equation_ptr);
+
+    for (const auto &equation_name_it : dependency_updated_equation)
     {
-        RemoveNodeInGraph(equation_name);
+        NotifyEquationDependenciesUpdated(equation_name_it);
     }
 
-    for (const auto &item : to_add_items)
+    for (const auto &equation_name_it : dependent_updated_equation)
     {
-        AddNodeToGraph(item.name, item.dependencies);
+        NotifyEquationDependentsUpdated(equation_name_it);
     }
 
-    for (const auto &item : to_update_items)
-    {
-        RemoveNodeInGraph(item.name);
-        AddNodeToGraph(item.name, item.dependencies);
-    }
-
-    guard.commit();
-
-    for (const auto &remove_eqn_name : to_remove_equation_names)
-    {
-        auto range = graph_->GetEdgesByTo(remove_eqn_name);
-        for (auto it = range.first; it != range.second; it++)
-        {
-            graph_->InvalidateNode(it->from());
-        }
-        signals_manager_->Emit<EquationEvent::kEquationRemoving>(group->GetEquation(remove_eqn_name));
-        RemoveEquationInGroup(group, remove_eqn_name);
-        context_->Remove(remove_eqn_name);
-        signals_manager_->Emit<EquationEvent::kEquationRemoved>(remove_eqn_name);
-    }
-
-    for (const auto &update_item : to_update_items)
-    {
-        graph_->InvalidateNode(update_item.name);
-        Equation *update_eqn = group->GetEquation(update_item.name);
-        update_eqn->set_content(update_item.content);
-        update_eqn->set_type(update_item.type);
-        update_eqn->set_status(ResultStatus::kPending);
-        context_->Remove(update_item.name);
-        signals_manager_->Emit<EquationEvent::kEquationUpdated>(
-            update_eqn, EquationUpdateFlag::kContent | EquationUpdateFlag::kType | EquationUpdateFlag::kStatus
-        );
-    }
-
-    for (const auto &add_item : to_add_items)
-    {
-        graph_->InvalidateNode(add_item.name);
-        EquationPtr equation = Equation::Create(add_item, group->id(), this);
-        AddEquationToGroup(group, std::move(equation));
-        signals_manager_->Emit<EquationEvent::kEquationAdded>(group->GetEquation(add_item.name));
-    }
-
-    group->set_statement(equation_statement);
-
-    if (to_add_items.size() != 0 || to_remove_equation_names.size() != 0)
-    {
-        signals_manager_->Emit<EquationEvent::kEquationGroupUpdated>(
-            group, EquationGroupUpdateFlag::kEquationCount | EquationGroupUpdateFlag::kStatement
-        );
-    }
-    else
-    {
-        signals_manager_->Emit<EquationEvent::kEquationGroupUpdated>(group, EquationGroupUpdateFlag::kStatement);
-    }
-
-    for (const auto &equation_name : dependency_updated_equation)
-    {
-        NotifyEquationDependenciesUpdated(equation_name);
-    }
-
-    for (const auto &equation_name : dependent_updated_equation)
-    {
-        NotifyEquationDependentsUpdated(equation_name);
-    }
+    return id;
 }
 
-void EquationManager::EditSingleEquation(const ObjectId &group_id, const std::string& equation_name, const std::string& equation_content)
+ObjectId EquationManager::EditEquation(const std::string &equation_name, const std::string &expression)
 {
-    if (IsEquationGroupExist(group_id) == false)
+    if (!IsEquationExist(equation_name))
     {
-        throw EquationException::EquationGroupNotFound(group_id);
+        throw EquationException::EquationNotFound(equation_name);
     }
 
-    EquationGroup *group = GetEquationGroupInternal(group_id);
-
-    // NOTE: equation_name may be a NEW name (rename). GetEquation returns nullptr in that
-    // case, so it must not be dereferenced. A rename flows through EditEquationGroup below,
-    // which diffs the old group against the new statement and removes/creates equations.
-    Equation *equation = group->GetEquation(equation_name);
-
-    // No-op if the name is unchanged and the content is unchanged.
-    if (equation != nullptr && equation->content() == equation_content)
+    Equation *equation = GetEquationInternal(equation_name);
+    if (equation->content == expression)
     {
-        return;
+        return equation->id;
     }
 
-    // use regex to validate equation name
     static const std::regex name_regex("^[A-Za-z_][A-Za-z0-9_]*$");
     if (!std::regex_match(equation_name, name_regex))
     {
         throw ParseException("Invalid equation name: " + equation_name);
     }
 
-    std::string statement = equation_name + " = " + equation_content;
-
-    ParseResult new_result = Parse(statement, ParseMode::kStatement);
-    if (new_result.items.size() != 1)
+    ParseResult res = Parse(expression);
+    if (res.status != ResultStatus::kSuccess)
     {
-        throw ParseException("Failed to parse single equation: " + statement);
+        throw ParseException(res.message.empty() ? "Failed to parse expression: " + expression
+                                                 : res.message);
     }
-
-    return EditEquationGroup(group_id, statement);
-}
-
-void EquationManager::RemoveEquationGroup(const ObjectId &group_id)
-{
-    if (IsEquationGroupExist(group_id) == false)
-    {
-        throw EquationException::EquationGroupNotFound(group_id);
-    }
-
-    EquationGroup *group = GetEquationGroupInternal(group_id);
-    auto group_equation_names = group->GetEquationNames();
 
     std::vector<std::string> dependency_updated_equation;
     ScopedConnection dependency_connection = ConnectGraphDependencyUpdated(dependency_updated_equation);
@@ -387,77 +494,206 @@ void EquationManager::RemoveEquationGroup(const ObjectId &group_id)
     std::vector<std::string> dependent_updated_equation;
     ScopedConnection dependent_connection = ConnectGraphDependentUpdated(dependent_updated_equation);
 
-    DependencyGraph::BatchUpdateGuard guard(graph_.get());
-    for (const auto &equation_name : group_equation_names)
+    // Update the graph: drop the old dependency edges, add the new ones.
+    // Dependents that lost their dependency on this equation must be re-dirtied
+    // (the edge is deactivated but the dirty flag is not touched by RemoveNode).
+    RemoveNodeInGraph(equation_name);
+    auto orphan_edge_range = graph_->GetEdgesByTo(equation_name);
+    for (auto it = orphan_edge_range.first; it != orphan_edge_range.second; it++)
     {
-        RemoveNodeInGraph(equation_name);
+        graph_->InvalidateNode(it->from());
     }
-    guard.commit();
+    AddNodeToGraph(equation_name, res.dependencies);
+    graph_->InvalidateNode(equation_name);
 
-    signals_manager_->Emit<EquationEvent::kEquationGroupRemoving>(group);
+    equation = GetEquationInternal(equation_name);
+    equation->content = expression;
+    equation->status = ResultStatus::kPending;
+    equation->message.clear();
+    equation->dependencies = res.dependencies;
+    env_->Remove(equation_name);
+    signals_manager_->Emit<EquationEvent::kEquationUpdated>(
+        equation, EquationUpdateFlag::kContent | EquationUpdateFlag::kStatus | EquationUpdateFlag::kMessage
+    );
 
-    for (const std::string &equation_name : group_equation_names)
+    for (const auto &eqn_name : dependency_updated_equation)
     {
-        graph_->InvalidateNode(equation_name);
-        signals_manager_->Emit<EquationEvent::kEquationRemoving>(group->GetEquation(equation_name));
-        RemoveEquationInGroup(group, equation_name);
-        context_->Remove(equation_name);
-        signals_manager_->Emit<EquationEvent::kEquationRemoved>(equation_name);
+        NotifyEquationDependenciesUpdated(eqn_name);
     }
-    equation_group_map_.erase(group_id);
 
-    for (const auto &equation_name : dependency_updated_equation)
+    for (const auto &eqn_name : dependent_updated_equation)
     {
-        NotifyEquationDependenciesUpdated(equation_name);
+        NotifyEquationDependentsUpdated(eqn_name);
     }
 
-    for (const auto &equation_name : dependent_updated_equation)
+    return equation->id;
+}
+
+ObjectId EquationManager::RenameEquation(const std::string &old_name, const std::string &new_name)
+{
+    if (!IsEquationExist(old_name))
     {
-        NotifyEquationDependentsUpdated(equation_name);
+        throw EquationException::EquationNotFound(old_name);
+    }
+    if (IsEquationExist(new_name))
+    {
+        throw EquationException::EquationAlreadyExists(new_name);
+    }
+
+    static const std::regex name_regex("^[A-Za-z_][A-Za-z0-9_]*$");
+    if (!std::regex_match(new_name, name_regex))
+    {
+        throw ParseException("Invalid equation name: " + new_name);
+    }
+
+    Equation *equation = GetEquationInternal(old_name);
+    const ObjectId id = equation->id;
+
+    // The content (expression) is unchanged by a rename: re-parse it only to
+    // rebuild the graph edges under the new node name.
+    ParseResult res = Parse(equation->content);
+    if (res.status != ResultStatus::kSuccess)
+    {
+        throw ParseException(res.message.empty() ? "Failed to parse expression: " + equation->content
+                                                 : res.message);
+    }
+
+    std::vector<std::string> dependency_updated_equation;
+    ScopedConnection dependency_connection = ConnectGraphDependencyUpdated(dependency_updated_equation);
+
+    std::vector<std::string> dependent_updated_equation;
+    ScopedConnection dependent_connection = ConnectGraphDependentUpdated(dependent_updated_equation);
+
+    RemoveNodeInGraph(old_name);
+    auto orphan_edge_range = graph_->GetEdgesByTo(old_name);
+    for (auto it = orphan_edge_range.first; it != orphan_edge_range.second; it++)
+    {
+        graph_->InvalidateNode(it->from());
+    }
+    AddNodeToGraph(new_name, res.dependencies);
+    graph_->InvalidateNode(new_name);
+
+    // Move the equation to its new name (same id: a rename, not a recreate).
+    Equation *moved = GetEquationInternal(old_name);
+    EquationPtr holder = std::move(equation_map_[old_name]);
+    equation_map_.erase(old_name);
+    moved->name = new_name;
+    moved->status = ResultStatus::kPending;
+    moved->dependencies = res.dependencies;
+    env_->Remove(old_name);
+    equation_map_.insert({new_name, std::move(holder)});
+
+    signals_manager_->Emit<EquationEvent::kEquationUpdated>(
+        moved, EquationUpdateFlag::kName | EquationUpdateFlag::kStatus
+    );
+
+    for (const auto &eqn_name : dependency_updated_equation)
+    {
+        NotifyEquationDependenciesUpdated(eqn_name);
+    }
+
+    for (const auto &eqn_name : dependent_updated_equation)
+    {
+        NotifyEquationDependentsUpdated(eqn_name);
+    }
+
+    return id;
+}
+
+void EquationManager::RemoveEquation(const std::string &equation_name)
+{
+    if (!IsEquationExist(equation_name))
+    {
+        return;
+    }
+    Equation *equation = GetEquationInternal(equation_name);
+
+    std::vector<std::string> dependency_updated_equation;
+    ScopedConnection dependency_connection = ConnectGraphDependencyUpdated(dependency_updated_equation);
+
+    std::vector<std::string> dependent_updated_equation;
+    ScopedConnection dependent_connection = ConnectGraphDependentUpdated(dependent_updated_equation);
+
+    RemoveNodeInGraph(equation_name);
+    // Dependents that lost their dependency on the removed equation must be
+    // re-dirtied so a later Update recomputes them (otherwise they keep stale
+    // values/status, e.g. a NameError that is never surfaced).
+    auto orphan_edge_range = graph_->GetEdgesByTo(equation_name);
+    for (auto it = orphan_edge_range.first; it != orphan_edge_range.second; it++)
+    {
+        graph_->InvalidateNode(it->from());
+    }
+    graph_->InvalidateNode(equation_name);
+    signals_manager_->Emit<EquationEvent::kEquationRemoving>(equation);
+    equation_map_.erase(equation_name);
+    env_->Remove(equation_name);
+    signals_manager_->Emit<EquationEvent::kEquationRemoved>(equation_name);
+
+    for (const auto &eqn_name : dependency_updated_equation)
+    {
+        NotifyEquationDependenciesUpdated(eqn_name);
+    }
+
+    for (const auto &eqn_name : dependent_updated_equation)
+    {
+        NotifyEquationDependentsUpdated(eqn_name);
     }
 }
 
-ParseResult EquationManager::Parse(const std::string &expression, ParseMode mode) const
+void EquationManager::RemoveEquation(const ObjectId &id)
 {
-    auto res = parse_handler_(expression, mode);
-    return res;
+    for (const auto &entry : equation_map_)
+    {
+        if (entry.second->id == id)
+        {
+            RemoveEquation(entry.first);
+            return;
+        }
+    }
+}
+
+ParseResult EquationManager::Parse(const std::string &expression) const
+{
+    return ParseRelExpression(expression);
 }
 
 InterpretResult EquationManager::Eval(const std::string &expression) const
 {
-    return eval_handler_(expression, context_.get());
-}
-
-InterpretResult EquationManager::Exec(const std::string &statement) const
-{
-    return exec_handler_(statement, context_.get());
+    try
+    {
+        rel::Value value = rel::Eval(expression, env_.get());
+        InterpretResult result;
+        result.status = ResultStatus::kSuccess;
+        result.value = EquationValue(value);
+        return result;
+    }
+    catch (const std::exception &e)
+    {
+        return MapRelError(e);
+    }
 }
 
 void EquationManager::Reset()
 {
     graph_->Reset();
 
-    for (const auto &equation_group_entry : equation_group_map_)
+    for (const auto &equation_entry : equation_map_)
     {
-        for( const auto &equation_entry : equation_group_entry.second->equation_map())
-        {
-            signals_manager_->Emit<EquationEvent::kEquationRemoving>(equation_entry.second.get());
-        }
+        signals_manager_->Emit<EquationEvent::kEquationRemoving>(equation_entry.second.get());
     }
-    equation_group_map_.clear();
-    equation_name_to_group_id_map_.clear();
+    equation_map_.clear();
     expression_map_.clear();
     expression_id_to_name_map_.clear();
     external_input_names_.clear();
-    context_->Clear();
+    env_->Clear();
     signals_manager_->DisconnectAllEvent();
 }
 
 void EquationManager::ResetContext()
 {
-    context_->Clear();
-    // The context has been cleared, so every value is gone. Re-dirty all nodes so that a
-    // subsequent Update()/UpdateEquationGroup()/UpdateEquation() recalculates everything.
+    env_->Clear();
+    // The environment has been cleared, so every value is gone. Re-dirty all nodes so that a
+    // subsequent Update()/UpdateEquation() recalculates everything.
     // (Previously this relied on "dirty is never cleared"; now that updates clear dirty on
     // success, we must re-dirty explicitly.)
     graph_->Traversal([&](const std::string &equation_name) {
@@ -467,7 +703,7 @@ void EquationManager::ResetContext()
 
 void EquationManager::UpdateEquationInternal(const std::string &equation_name)
 {
-    if (IsEquationExist(equation_name) == false)
+    if (!IsEquationExist(equation_name))
     {
         throw EquationException::EquationNotFound(equation_name);
     }
@@ -475,27 +711,27 @@ void EquationManager::UpdateEquationInternal(const std::string &equation_name)
     Equation *equation = GetEquationInternal(equation_name);
 
     // set status and message to calculating before calculation
-    equation->set_status(ResultStatus::kCalculating);
-    equation->set_message("Calculating...");
+    equation->status = ResultStatus::kCalculating;
+    equation->message = "Calculating...";
 
     signals_manager_->Emit<EquationEvent::kEquationUpdated>(
         equation, EquationUpdateFlag::kStatus | EquationUpdateFlag::kMessage
     );
 
-    const std::string &equation_statement = equation->type() == ItemType::kVariable
-                                                ? equation->name() + " = " + equation->content()
-                                                : equation->content();
-    InterpretResult result = exec_handler_(equation_statement, context_.get());
-    equation->set_status(result.status);
-    equation->set_message(result.message);
-    if (equation->status() != ResultStatus::kSuccess)
+    // Binding model: an equation is "name -> expression".  Eval the expression
+    // (pure; never writes), then bind the result to the name in the env.
+    InterpretResult result = Eval(equation->content);
+    equation->status = result.status;
+    equation->message = result.message;
+    if (equation->status != ResultStatus::kSuccess)
     {
-        context_->Remove(equation_name);
+        env_->Remove(equation_name);
     }
     else
     {
+        env_->Define(equation_name, result.value.Value());
         // Clear the dirty flag on success; on failure (e.g. NameError) keep it dirty so the
-        // next Update/UpdateEquation/UpdateEquationGroup retries until it succeeds.
+        // next Update/UpdateEquation retries until it succeeds.
         graph_->SetNodeDirty(equation_name, false);
     }
     signals_manager_->Emit<EquationEvent::kEquationUpdated>(
@@ -533,18 +769,6 @@ void EquationManager::RemoveNodeInGraph(const std::string &node_name)
     graph_->RemoveEdges(edges_to_remove);
 }
 
-void EquationManager::AddEquationToGroup(EquationGroup *group, EquationPtr equation)
-{
-    equation_name_to_group_id_map_.insert({equation->name(), equation->group_id()});
-    group->AddEquation(std::move(equation));
-}
-
-void EquationManager::RemoveEquationInGroup(EquationGroup *group, const std::string &equation_name)
-{
-    equation_name_to_group_id_map_.erase(equation_name);
-    group->RemoveEquation(equation_name);
-}
-
 void EquationManager::Update()
 {
     graph_->Traversal([&](const std::string &node_name) { UpdateNode(node_name); });
@@ -552,7 +776,7 @@ void EquationManager::Update()
 
 void EquationManager::UpdateEquation(const std::string &equation_name)
 {
-    if (IsEquationExist(equation_name) == false)
+    if (!IsEquationExist(equation_name))
     {
         throw EquationException::EquationNotFound(equation_name);
     }
@@ -574,30 +798,16 @@ void EquationManager::UpdateEquation(const std::string &equation_name)
     }
 }
 
-void EquationManager::UpdateEquationGroup(const ObjectId &group_id)
+std::vector<std::string> EquationManager::GetEquationsToUpdate(const std::string &equation_name) const
 {
-    if (IsEquationGroupExist(group_id) == false)
+    if (!IsEquationExist(equation_name))
     {
-        throw EquationException::EquationGroupNotFound(group_id);
+        return {};
     }
 
-    const EquationGroup *group = GetEquationGroup(group_id);
-
-    // Update scope = the group's equations + all of their dependents (propagated by
-    // TopologicalSort) plus every dirty (invalidated) node. Renaming/removing a variable
-    // dirties equations that lost their dependency (e.g. in "a=1;b=a", renaming "a" to
-    // "c" dirties "b"). They live outside the group and are unreachable from the group's
-    // downstream, but skipping them would leave stale values/status (e.g. a NameError that
-    // is never surfaced).
-    std::vector<std::string> update_names = graph_->TopologicalSort(group->GetEquationNames());
+    std::vector<std::string> update_names = graph_->TopologicalSort(equation_name);
     CollectDirtyNodes(update_names);
-
-    auto topo_order = graph_->TopologicalSort(update_names);
-
-    for (const auto &node_name : topo_order)
-    {
-        UpdateNode(node_name);
-    }
+    return graph_->TopologicalSort(update_names);
 }
 
 // =========================================================================
@@ -608,19 +818,17 @@ ObjectId EquationManager::AddExpression(const std::string &expression)
 {
     static boost::uuids::random_generator rgen;
 
-    ParseResult parse_result = Parse(expression, ParseMode::kExpression);
-    if (parse_result.items.empty())
-    {
-        throw ParseException("Failed to parse expression: '" + expression + "'");
-    }
+    ParseResult parse_result = Parse(expression);
 
     Expression expr;
     expr.id = rgen();
     const std::string name = "expr_" + boost::uuids::to_string(expr.id);
     expr.content = expression;
-    expr.result.status = parse_result.items[0].status;
-    expr.result.message = parse_result.items[0].message;
-    expr.dependencies = parse_result.items[0].dependencies;
+    // 语法错误也照常注册：status/message 记录在表达式上，Update 求值时会
+    // 再次失败并保持节点 dirty，与旧语义一致。
+    expr.result.status = parse_result.status;
+    expr.result.message = parse_result.message;
+    expr.dependencies = parse_result.dependencies;
 
     // The expression node + its dependency edges (dependencies may not have graph
     // nodes yet -- e.g. an equation defined by a later AddEquation; edges stay
@@ -691,7 +899,7 @@ EquationValue EquationManager::GetExpressionValue(const ObjectId &id) const
     const Expression *expr = GetExpression(id);
     if (expr == nullptr)
     {
-        return EquationValue::Null();
+        return EquationValue();
     }
     return expr->result.value;
 }
@@ -721,7 +929,7 @@ void EquationManager::UpdateExpressionInternal(const ObjectId &id)
         expr, ExpressionUpdateFlag::kStatus | ExpressionUpdateFlag::kMessage
     );
 
-    InterpretResult eval_result = eval_handler_(expr->content, context_.get());
+    InterpretResult eval_result = Eval(expr->content);
     expr->result = eval_result;
     // Keep the node dirty on failure so a later Update() retries it (mirrors
     // UpdateEquationInternal); clear it on success.
@@ -777,43 +985,6 @@ std::vector<std::string> EquationManager::GetExternalInputNames() const
     return names;
 }
 
-void EquationManager::UpdateExternalInput(const std::string &symbol_name,
-                                          const EquationValue &value)
-{
-    // Only a registered external input (or an existing graph node) has an anchor
-    // to invalidate.  Unregistered names that resolve outside the graph (REL
-    // Dataset) are simply ignored here -- the host drives their updates manually.
-    if (graph_->IsNodeExist(symbol_name))
-    {
-        graph_->InvalidateNode(symbol_name);
-    }
-    else
-    {
-        // No graph node: nothing to invalidate/propagate.  A later
-        // UpdateExternalInput with a value still injects + recomputes dependents
-        // only if the name is a registered external input; otherwise it is a no-op.
-        return;
-    }
-
-    const bool has_value = !value.IsNull();
-    if (has_value)
-    {
-        // Transient injection: the value is visible to dependents while they are
-        // recomputed, then removed again so it does not persist in the context.
-        context_->Set(symbol_name, value);
-
-        std::vector<std::string> update_names = graph_->TopologicalSort(symbol_name);
-        auto topo_order = graph_->TopologicalSort(update_names);
-        for (const auto &node_name : topo_order)
-        {
-            UpdateNode(node_name);
-        }
-        context_->Remove(symbol_name);
-    }
-    // Without a value: only invalidated (dirty propagated).  The recompute happens
-    // on a later Update()/UpdateEquationGroup() via CollectDirtyNodes.
-}
-
 void EquationManager::InvalidateExternalInputs(const std::vector<std::string> &symbol_names)
 {
     // ① invalidate every input first: dirty flags propagate to all graph dependents.
@@ -845,7 +1016,7 @@ void EquationManager::InvalidateExternalInputs(const std::vector<std::string> &s
 
 void EquationManager::UpdateNode(const std::string &node_name)
 {
-    if (equation_name_to_group_id_map_.count(node_name) != 0)
+    if (equation_map_.count(node_name) != 0)
     {
         UpdateEquationInternal(node_name);
         return;
@@ -857,19 +1028,6 @@ void EquationManager::UpdateNode(const std::string &node_name)
         return;
     }
     // External inputs and unknown/unresolved names have nothing to compute.
-}
-
-std::vector<std::string> EquationManager::GetEquationsToUpdate(const ObjectId &group_id) const
-{
-    if (IsEquationGroupExist(group_id) == false)
-    {
-        return {};
-    }
-
-    const EquationGroup *group = GetEquationGroup(group_id);
-    std::vector<std::string> update_names = graph_->TopologicalSort(group->GetEquationNames());
-    CollectDirtyNodes(update_names);
-    return graph_->TopologicalSort(update_names);
 }
 
 void EquationManager::CollectDirtyNodes(std::vector<std::string> &update_names) const
@@ -885,15 +1043,15 @@ void EquationManager::CollectDirtyNodes(std::vector<std::string> &update_names) 
 
 void EquationManager::UpdateEquationStatus(const std::string &equation_name, ResultStatus status, const std::string& message)
 {
-    if (IsEquationExist(equation_name) == false)
+    if (!IsEquationExist(equation_name))
     {
         throw EquationException::EquationNotFound(equation_name);
     }
 
     Equation *equation = GetEquationInternal(equation_name);
-    equation->set_status(status);
-    equation->set_message(message);
-    context_->Remove(equation_name);
+    equation->status = status;
+    equation->message = message;
+    env_->Remove(equation_name);
     // On failure (e.g. KeyBoardInterrupt) the value was removed from the context; re-dirty
     // the node so a later Update recomputes it (otherwise, under the "clear on success"
     // semantics, the node may already be clean and the value would be lost forever).
@@ -902,40 +1060,6 @@ void EquationManager::UpdateEquationStatus(const std::string &equation_name, Res
     signals_manager_->Emit<EquationEvent::kEquationUpdated>(
         equation, EquationUpdateFlag::kStatus | EquationUpdateFlag::kMessage | EquationUpdateFlag::kValue
     );
-}
-
-Equation *EquationManager::GetEquationInternal(const std::string &equation_name)
-{
-    bool is_name_exist = equation_name_to_group_id_map_.count(equation_name) != 0;
-    if (!is_name_exist)
-    {
-        return nullptr;
-    }
-
-    const ObjectId &id = equation_name_to_group_id_map_.at(equation_name);
-    bool is_group_exist = equation_group_map_.contains(id);
-    if (!is_group_exist)
-    {
-        return nullptr;
-    }
-
-    EquationGroup *group = equation_group_map_.at(id).get();
-    bool is_equation_exist = group->IsEquationExist(equation_name);
-    if (!is_equation_exist)
-    {
-        return nullptr;
-    }
-
-    return group->GetEquation(equation_name);
-}
-
-EquationGroup *EquationManager::GetEquationGroupInternal(const ObjectId &group_id)
-{
-    if (equation_group_map_.contains(group_id))
-    {
-        return equation_group_map_.at(group_id).get();
-    }
-    return nullptr;
 }
 
 ScopedConnection EquationManager::ConnectGraphDependencyUpdated(std::vector<std::string> &dependency_updated_equation
@@ -1024,15 +1148,11 @@ std::string EquationManager::GenerateEquationDotNodeLabel(const std::string &equ
     // Escape equation name
     std::string escaped_name = escape_for_record(equation_name);
 
-    // Get and escape type
-    std::string type_str = ItemTypeConverter::ToString(equation->type());
-    std::string escaped_type = escape_for_record(type_str);
-
     // Truncate content if too long
-    std::string content = equation->content();
+    std::string content = equation->content;
     const size_t max_content_length = 100;
     bool truncated = false;
-    
+
     if (content.length() > max_content_length)
     {
         content = content.substr(0, max_content_length);
@@ -1047,9 +1167,9 @@ std::string EquationManager::GenerateEquationDotNodeLabel(const std::string &equ
     // Escape content
     std::string escaped_content = escape_for_record(content);
 
-    // Build record format: {name|{type|content}}
+    // Build record format: {name|content}
     std::ostringstream oss;
-    oss << "{" << escaped_name << "|{" << escaped_type << "|" << escaped_content << "}}";
+    oss << "{" << escaped_name << "|" << escaped_content << "}";
     return oss.str();
 }
 
@@ -1058,6 +1178,14 @@ bool EquationManager::WriteDependencyGraphToDotFile(const std::string &file_path
     return graph_->WriteDotFile(file_path, [this](const std::string &node_name) {
         return GenerateEquationDotNodeLabel(node_name);
     });
+}
+
+EquationManager &EquationManager::GetInstance()
+{
+    // C++11 magic-static：线程安全懒构造。REL 内置常量/函数注册在构造时
+    // 完成（幂等）。
+    static EquationManager instance;
+    return instance;
 }
 
 } // namespace xequation

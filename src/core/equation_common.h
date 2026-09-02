@@ -1,7 +1,7 @@
 #pragma once
 
 #include <exception>
-#include <functional>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -12,41 +12,14 @@
 
 namespace xequation
 {
-class EquationContext;
-
-struct EquationEngineInfo
-{
-    std::string name;  // Engine name, e.g., "Python"
-    
-    bool operator==(const EquationEngineInfo &other) const
-    {
-        return name == other.name;
-    }
-    
-    bool operator!=(const EquationEngineInfo &other) const
-    {
-        return !(*this == other);
-    }
-};
-
+// 结果状态：粗粒度。具体错误细节（如“变量 x 未定义”/“除以零”）统一放在
+// InterpretResult::message / Equation::message 中，这里不再细分错误类型。
 enum class ResultStatus
 {
     kPending,
     kCalculating,
     kSuccess,
-    kSyntaxError,
-    kNameError,
-    kTypeError,
-    kZeroDivisionError,
-    kValueError,
-    kMemoryError,
-    kOverflowError,
-    kRecursionError,
-    kIndexError,
-    kKeyError,
-    kAttributeError,
-    kKeyBoardInterrupt,
-    kUnknownError
+    kError
 };
 
 struct InterpretResult
@@ -56,59 +29,16 @@ struct InterpretResult
     EquationValue value;
 };
 
-enum class ItemType
-{
-    kUnknown,
-    kVariable,
-    kFunction,
-    kClass,
-    kImport,
-    kImportFrom,
-    kError,
-};
-
-struct ParseResultItem
-{
-    std::string name;
-    std::string content;
-    ItemType type;
-    std::vector<std::string> dependencies;
-    std::string message;
-    ResultStatus status;
-    bool operator==(const ParseResultItem &other) const
-    {
-        return name == other.name && content == other.content && type == other.type && dependencies == other.dependencies;
-    }
-
-    bool operator!=(const ParseResultItem &other) const
-    {
-        return !(*this == other);
-    }
-};
-
-enum class ParseMode
-{
-    kStatement,
-    kExpression,
-};
-
-struct ParseResult
-{
-    ParseMode mode;
-    std::vector<ParseResultItem> items;
-};
-
 // =========================================================================
 //  Registered expression (只算不存)
 //
 //  A registered expression is an "observe-only" computation:
 //    - It is parsed for dependencies and participates in the dependency graph,
 //      so it is recomputed whenever the equations it depends on change.
-//    - It is NEVER written into the EquationContext.  Its result is stored in
+//    - It is NEVER written into the environment.  Its result is stored in
 //      this object (via EquationManager::GetExpressionValue) and can only be
 //      consumed by the host.
-//    - It has no Equation/EquationGroup, so it does not show up in
-//      GetEquationNames()/GetEquationGroupIds().
+//    - It has no Equation, so it does not show up in GetEquationNames().
 // =========================================================================
 using ObjectId = boost::uuids::uuid;
 
@@ -120,6 +50,19 @@ struct Expression
     // are accessed via result.status / result.message / result.value.
     InterpretResult result;
     std::vector<std::string> dependencies;
+};
+
+// =========================================================================
+//  Parse 结果（单个表达式）
+//
+//  引擎只负责“解析一个表达式”：做语法校验并提取它引用的依赖符号。
+//  名字绑定（Equation 的 name）由 EquationManager 自己完成，不在 Parse 里。
+// =========================================================================
+struct ParseResult
+{
+    ResultStatus status = ResultStatus::kSuccess;  // 语法校验结果
+    std::string message;                            // 语法错误详情
+    std::vector<std::string> dependencies;          // 该表达式引用的符号
 };
 
 class ParseException : public std::exception
@@ -141,63 +84,15 @@ class ParseException : public std::exception
     }
 };
 
-class ItemTypeConverter
-{
-  public:
-    static ItemType FromString(const std::string &type_str)
-    {
-        if (type_str == "Variable")
-            return ItemType::kVariable;
-        else if (type_str == "Function")
-            return ItemType::kFunction;
-        else if (type_str == "Class")
-            return ItemType::kClass;
-        else if (type_str == "Import")
-            return ItemType::kImport;
-        else if (type_str == "ImportFrom")
-            return ItemType::kImportFrom;
-        else if (type_str == "Error")
-            return ItemType::kError;
-        else
-            return ItemType::kUnknown;
-    }
-
-    static std::string ToString(ItemType type)
-    {
-        switch (type)
-        {
-        case ItemType::kVariable:
-            return "Variable";
-        case ItemType::kFunction:
-            return "Function";
-        case ItemType::kClass:
-            return "Class";
-        case ItemType::kImport:
-            return "Import";
-        case ItemType::kImportFrom:
-            return "ImportFrom";
-        case ItemType::kError:
-            return "Error";
-        default:
-            return "Unknown";
-        }
-    }
-}; 
-
-inline std::ostream &operator<<(std::ostream &os, ItemType type)
-{
-    return os << ItemTypeConverter::ToString(type);
-}
-
 enum class EquationUpdateFlag
 {
-    kContent = 1 << 0,
-    kType = 1 << 1,
+    kName = 1 << 0,
+    kContent = 1 << 1,
     kStatus = 1 << 2,
     kMessage = 1 << 3,
-    kValue = 1 << 5,
-    kDependencies = 1 << 6,
-    kDependents = 1 << 7,
+    kValue = 1 << 4,
+    kDependencies = 1 << 5,
+    kDependents = 1 << 6,
 };
 
 BITMASK_DEFINE_MAX_ELEMENT(EquationUpdateFlag, kDependents)
@@ -213,14 +108,6 @@ enum class ExpressionUpdateFlag
 
 BITMASK_DEFINE_MAX_ELEMENT(ExpressionUpdateFlag, kDependencies)
 
-enum class EquationGroupUpdateFlag
-{
-    kStatement = 1 << 0,
-    kEquationCount = 1 << 1,
-};
-
-BITMASK_DEFINE_MAX_ELEMENT(EquationGroupUpdateFlag, kEquationCount)
-
 class ResultStatusConverter
 {
   public:
@@ -228,36 +115,12 @@ class ResultStatusConverter
     {
         if (status_str == "Pending")
             return ResultStatus::kPending;
-        else if( status_str == "Calculating")
+        else if (status_str == "Calculating")
             return ResultStatus::kCalculating;
         else if (status_str == "Success")
             return ResultStatus::kSuccess;
-        else if (status_str == "SyntaxError")
-            return ResultStatus::kSyntaxError;
-        else if (status_str == "NameError")
-            return ResultStatus::kNameError;
-        else if (status_str == "TypeError")
-            return ResultStatus::kTypeError;
-        else if (status_str == "ZeroDivisionError")
-            return ResultStatus::kZeroDivisionError;
-        else if (status_str == "ValueError")
-            return ResultStatus::kValueError;
-        else if (status_str == "MemoryError")
-            return ResultStatus::kMemoryError;
-        else if (status_str == "OverflowError")
-            return ResultStatus::kOverflowError;
-        else if (status_str == "RecursionError")
-            return ResultStatus::kRecursionError;
-        else if (status_str == "IndexError")
-            return ResultStatus::kIndexError;
-        else if (status_str == "KeyError")
-            return ResultStatus::kKeyError;
-        else if (status_str == "AttributeError")
-            return ResultStatus::kAttributeError;
-        else if (status_str == "KeyBoardInterrupt")
-            return ResultStatus::kKeyBoardInterrupt;
         else
-            return ResultStatus::kPending;
+            return ResultStatus::kError;
     }
 
     static std::string ToString(ResultStatus status)
@@ -270,32 +133,8 @@ class ResultStatusConverter
             return "Calculating";
         case ResultStatus::kSuccess:
             return "Success";
-        case ResultStatus::kSyntaxError:
-            return "SyntaxError";
-        case ResultStatus::kNameError:
-            return "NameError";
-        case ResultStatus::kTypeError:
-            return "TypeError";
-        case ResultStatus::kZeroDivisionError:
-            return "ZeroDivisionError";
-        case ResultStatus::kValueError:
-            return "ValueError";
-        case ResultStatus::kMemoryError:
-            return "MemoryError";
-        case ResultStatus::kOverflowError:
-            return "OverflowError";
-        case ResultStatus::kRecursionError:
-            return "RecursionError";
-        case ResultStatus::kIndexError:
-            return "IndexError";
-        case ResultStatus::kKeyError:
-            return "KeyError";
-        case ResultStatus::kAttributeError:
-            return "AttributeError";
-        case ResultStatus::kKeyBoardInterrupt:
-            return "KeyBoardInterrupt";
         default:
-            return "Unknown";
+            return "Error";
         }
     }
 };
@@ -304,36 +143,4 @@ inline std::ostream &operator<<(std::ostream &os, ResultStatus status)
 {
     return os << ResultStatusConverter::ToString(status);
 }
-
-using EvalHandler = std::function<InterpretResult(const std::string &, EquationContext *)>;
-using ExecHandler = std::function<InterpretResult(const std::string &, EquationContext *)>;
-using ParseHandler = std::function<ParseResult(const std::string &, ParseMode)>;
 } // namespace xequation
-
-namespace std
-{
-template <>
-struct hash<xequation::ParseResultItem>
-{
-    size_t operator()(const xequation::ParseResultItem &item) const
-    {
-        size_t h = 0;
-        std::hash<std::string> string_hasher;
-        std::hash<xequation::ItemType> type_hasher;
-        std::hash<xequation::ResultStatus> status_hasher;
-
-        h ^= string_hasher(item.name) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= string_hasher(item.content) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= type_hasher(item.type) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= string_hasher(item.message) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= status_hasher(item.status) + 0x9e3779b9 + (h << 6) + (h >> 2);
-
-        for (const auto &dep : item.dependencies)
-        {
-            h ^= string_hasher(dep) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        }
-
-        return h;
-    }
-};
-} // namespace std

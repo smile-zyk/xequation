@@ -18,8 +18,7 @@ namespace gui
 //
 // An ObjectId denotes one object in the manager:
 //   - a registered Expression (its Expression::id), or
-//   - an Equation (its group_id; a single-equation group resolves via
-//     EquationGroup::FirstEquation).
+//   - an Equation (its Equation::id).
 //
 // Shows the properties in a read-only two-column table (field | value):
 //   1. Equation meta info (mirrors EquationBrowser): Name / Expression / Type /
@@ -28,12 +27,10 @@ namespace gui
 //   2. Engine value info:
 //      - REL engine: mirrors builtin_library's what(x) output -- Indep / Kind /
 //        Dimension / Data Shape / Data Type / Unit, then the Value on demand.
-//      - Python engine: besides the meta info, shows the Python object type
-//        name (class name).
 //
 // The table is non-editable (NoEditTriggers) and display-only.  Refresh via
-// SetObject() when the selected object changes; external code connects both
-// engines' managers' kEquationRemoving / kEquationUpdated / kExpressionUpdated
+// SetObject() when the selected object changes; external code connects the
+// manager's kEquationRemoving / kEquationUpdated / kExpressionUpdated
 // signals to the slots below; this widget decides whether it displays that
 // object.
 // =========================================================================

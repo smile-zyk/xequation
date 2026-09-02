@@ -24,9 +24,8 @@ class ExpressionDataFrameView;
 // ObjectId and an explicit kind.
 //
 // The two kinds are opened through two distinct entries:
-//   - AddEquation():  the host passes an Equation's group_id (a
-//     single-equation group resolves via EquationGroup::FirstEquation); the
-//     tab reads the equation value directly from the manager.
+//   - AddEquation():  the host passes an Equation's id; the tab reads the
+//     equation value directly from the manager.
 //   - AddExpression(): the host passes a registered Expression's id (obtained
 //     from EquationManager::AddExpression(), which the host performs itself);
 //     the manager recomputes the expression on Update()/UpdateNode() and the
@@ -39,7 +38,7 @@ class ExpressionDataFrameView;
 //
 // Data access (equation lookup / value read / expression registration /
 // unregistration) is done through an EquationManager& injected by the host --
-// a core-layer dependency, so this widget never touches XEquationProxy or any
+// a core-layer dependency, so this widget never touches the engine facade or any
 // engine-specific facade.  The host passes its REL manager (DataFrames come
 // only from REL).
 // =========================================================================
@@ -53,13 +52,13 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     ~ExpressionDataFrameTabWidget() override;
 
     /// Open (or focus) a tab that shows an Equation's value.  The id is the
-    /// Equation's group_id (single-equation group); the value is read directly
-    /// from the manager -- no Eval re-evaluation.
+    /// Equation's id; the value is read directly from the manager -- no Eval
+    /// re-evaluation.
     /// @param auto_pin  when true (default), a newly-created tab is pinned
     ///        automatically (it survives deselection); SyncSelection passes
     ///        false so selection-driven tabs keep following the selection
     ///        until the user pins them manually.
-    void AddEquation(const xequation::ObjectId &group_id, bool auto_pin = true);
+    void AddEquation(const xequation::ObjectId &equation_id, bool auto_pin = true);
 
     /// Open (or focus) a tab that shows a registered Expression's cached
     /// value.  The id is the Expression::id returned by
@@ -109,7 +108,7 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     struct TabData
     {
         ObjectKind kind = ObjectKind::kEquation;
-        xequation::ObjectId object_id;       // equation group_id / expression id
+        xequation::ObjectId object_id;       // equation id / expression id
         std::string expression;              // display text + edit source
         ExpressionDataFrameView *view = nullptr;
         bool pinned = false;                 // pinned tabs survive deselection

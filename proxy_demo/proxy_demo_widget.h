@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QString>
 #include <QWidget>
 
 #include "core/equation_signals_manager.h"
@@ -16,19 +17,15 @@ namespace gui
 {
 
 // =========================================================================
-// ProxyDemoWidget -- a dual-engine (Python / REL) demo based on XEquationProxy.
+// ProxyDemoWidget -- a REL-engine demo built on EquationManager::GetInstance().
 //
 // Features:
-//   - Top: engine switch combo (Python / REL) that decides which engine the
-//     following operations target.
-//     + Input: name + expression (e.g. `y = [1, 2, 3]`); "Insert" inserts a
-//       single Equation into the selected engine's EquationManager.
-//     + "Redefine" / "Rename" / "Properties" buttons act on the selected equation.
-//   - Middle-left: the current engine's Equation list (QListWidget), showing
-//     only that engine's equations.
+//   + Input: name + expression (e.g. `y = [1, 2, 3]`); "Insert" inserts a
+//     single Equation into the engine's EquationManager.
+//   + "Redefine" / "Rename" / "Properties" buttons act on the selected equation.
+//   - Middle-left: the engine's Equation list (QListWidget).
 //   - Middle-right: ExpressionDataFrameView, showing the selected Equation's
-//     DataFrame table (lazy loading, fetchMore). REL engine shows a DataFrame;
-//     Python engine shows the object type name.
+//     DataFrame table (lazy loading, fetchMore).
 // =========================================================================
 
 class ProxyDemoWidget : public QWidget
@@ -52,6 +49,27 @@ class ProxyDemoWidget : public QWidget
     void OnEquationListSelectionChanged();
     void RefreshEquationList();
 
+    // ---- dataset (env.json) support -----------------------------------
+
+    /// Open a file dialog for an environment JSON and load its datasets.
+    void OnOpenEnvJson();
+
+    /// User picked another dataset in the combo -> make it the REL default
+    /// dataset and recompute everything (bare DataArray names resolve against
+    /// the default dataset).
+    void OnDatasetSelectionChanged(int index);
+
+    /// Rebuild the combo contents from rel::Environment::DatasetNames() and
+    /// select the REL default dataset.
+    void RefreshDatasetCombo();
+
+    /// Loads the datasets of an env.json into the REL environment.  Reuses
+    /// rel::Environment::LoadFromConfig (dataset files + default dataset +
+    /// python_plugins); datasets of a previously loaded env are dropped first
+    /// so re-opening replaces the active set.  Also refreshes the combo and
+    /// re-evaluates all equations.  Shows a warning box on failure.
+    void LoadEnvJson(const QString &path);
+
     /// Name of the currently selected list item (item text is "name  [N row(s)]").
     QString CurrentSelectedEquationName() const;
 
@@ -65,10 +83,6 @@ class ProxyDemoWidget : public QWidget
     /// not starting with a digit).
     static bool IsValidIdentifier(const QString &name);
 
-    /// Token-level (word-boundary) replace old -> new in the expression content.
-    static QString ReplaceIdentifierToken(const QString &content, const QString &old_name,
-                                          const QString &new_name);
-
   private:
     QLineEdit *statement_edit_ = nullptr;
     QPushButton *insert_button_ = nullptr;
@@ -77,10 +91,15 @@ class ProxyDemoWidget : public QWidget
     QPushButton *delete_button_ = nullptr;
     QPushButton *properties_button_ = nullptr;
     QPushButton *watch_button_ = nullptr;
+    QPushButton *open_env_button_ = nullptr;
+    QComboBox *dataset_combo_ = nullptr;
     QLabel *status_label_ = nullptr;
     QListWidget *equation_list_ = nullptr;
     class ExpressionDataFrameTabWidget *data_frame_view_ = nullptr;
     class ExpressionPropertyWidget *property_widget_ = nullptr;
+
+    /// Absolute path of the last successfully loaded env.json (empty = none).
+    QString env_json_path_;
 
     /// Connections to the REL manager's kEquationRemoving / kEquationUpdated
     /// signals (auto disconnected on widget destruction); the tab widget

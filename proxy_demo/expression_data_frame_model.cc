@@ -20,21 +20,21 @@ ExpressionDataFrameModel::~ExpressionDataFrameModel() = default;
 
 const xdataset::DataFrame &ExpressionDataFrameModel::frame() const
 {
-    // Only valid when there is a REL value (caller checks HasDataFrame() first).
-    return equation_value_.AsRel().data_frame();
+    // Only valid when there is a value (caller checks HasDataFrame() first).
+    return equation_value_.Value().data_frame();
 }
 
 void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
 {
     object_id_ = object_id;
 
-    // A registered expression wins over an equation with the same id (the
-    // Equation identity is its group_id; the two namespaces are disjoint).
+    // A registered expression wins over an equation with the same id (the two
+    // namespaces are disjoint).
     const Expression *expression = manager_.GetExpression(object_id);
     if (expression)
     {
         const EquationValue value = expression->result.value;
-        if (expression->result.status != ResultStatus::kSuccess || !value.IsRelValue())
+        if (expression->result.status != ResultStatus::kSuccess || !value.HasValue())
         {
             Clear();
             return;
@@ -55,14 +55,8 @@ void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
         return;
     }
 
-    // Otherwise resolve as an equation (group id -> single-equation group).
-    const EquationGroup *group = manager_.GetEquationGroup(object_id);
-    if (!group)
-    {
-        Clear();
-        return;
-    }
-    const Equation *equation = group->FirstEquation();
+    // Otherwise resolve as an equation (by id).
+    const Equation *equation = manager_.GetEquationById(object_id);
     if (!equation)
     {
         Clear();
@@ -75,8 +69,8 @@ void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
     // EquationValue, whose rel::Value (via shared_ptr<DataArray>) becomes the
     // frame's owner, avoiding dangling references; the id is kept only for
     // event matching.
-    const EquationValue value = equation->GetValue();
-    if (!value.IsRelValue())
+    const EquationValue value = manager_.GetEquationValue(equation->name);
+    if (!value.HasValue())
     {
         Clear();
         return;
@@ -92,7 +86,7 @@ void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
 
 void ExpressionDataFrameModel::SetValue(const EquationValue &value)
 {
-    if (!value.IsRelValue())
+    if (!value.HasValue())
     {
         Clear();
         return;
@@ -123,8 +117,8 @@ void ExpressionDataFrameModel::OnEquationRemoving(const Equation *removed)
     {
         return;
     }
-    // An Equation's identity is its group_id.
-    if (removed->group_id() != object_id_)
+    // An Equation's identity is its id.
+    if (removed->id != object_id_)
     {
         return;
     }
@@ -139,8 +133,8 @@ void ExpressionDataFrameModel::OnEquationUpdated(const Equation *equation,
         return;
     }
     // Already-removed objects are handled by OnEquationRemoving; a registered
-    // expression never fires kEquationUpdated, so comparing group_id is enough.
-    if (equation->group_id() != object_id_)
+    // expression never fires kEquationUpdated, so comparing id is enough.
+    if (equation->id != object_id_)
     {
         return;
     }
@@ -165,7 +159,7 @@ void ExpressionDataFrameModel::OnExpressionUpdated(const Expression *expression,
 
 bool ExpressionDataFrameModel::HasDataFrame() const
 {
-    return equation_value_.IsRelValue();
+    return equation_value_.HasValue();
 }
 
 std::size_t ExpressionDataFrameModel::total_row_count() const

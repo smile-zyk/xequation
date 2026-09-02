@@ -287,204 +287,68 @@ struct EquationQtSignalTraits<EquationEvent::kEquationUpdated, T, Connection>
     }
 };
 
-// Direct connection specialization for kEquationGroupAdded
+// Direct connection specialization for kExpressionUpdated
 template<typename T>
-struct EquationQtSignalTraits<EquationEvent::kEquationGroupAdded, T, Qt::DirectConnection>
+struct EquationQtSignalTraits<EquationEvent::kExpressionUpdated, T, Qt::DirectConnection>
 {
-    using SlotSignature = void (T::*)(const EquationGroup *);
-    using ConstSlotSignature = void (T::*)(const EquationGroup *) const;
+    using SlotSignature = void (T::*)(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>);
+    using ConstSlotSignature = void (T::*)(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>) const;
     template<typename Slot>
     static constexpr bool IsValidSlot()
     {
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
     {
-        return [receiver, slot](const EquationGroup* group) {
-            (receiver->*slot)(group);
+        return [receiver, slot](const Expression* expression, bitmask::bitmask<ExpressionUpdateFlag> flags) {
+            (receiver->*slot)(expression, flags);
         };
     }
 };
 
-// Queued connection specialization for kEquationGroupAdded
+// Queued connection specialization for kExpressionUpdated
 template<typename T>
-struct EquationQtSignalTraits<EquationEvent::kEquationGroupAdded, T, Qt::QueuedConnection>
+struct EquationQtSignalTraits<EquationEvent::kExpressionUpdated, T, Qt::QueuedConnection>
 {
-    using SlotSignature = void (T::*)(const EquationGroup *);
-    using ConstSlotSignature = void (T::*)(const EquationGroup *) const;
+    using SlotSignature = void (T::*)(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>);
+    using ConstSlotSignature = void (T::*)(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>) const;
     template<typename Slot>
     static constexpr bool IsValidSlot()
     {
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
     {
-        return [receiver, slot](const EquationGroup* group) {
+        return [receiver, slot](const Expression* expression, bitmask::bitmask<ExpressionUpdateFlag> flags) {
             QMetaObject::invokeMethod(
                 receiver,
-                [receiver, slot, group]() { (receiver->*slot)(group); },
+                [receiver, slot, expression, flags]() { (receiver->*slot)(expression, flags); },
                 Qt::QueuedConnection
             );
         };
     }
 };
 
-// Generic connection specialization for kEquationGroupAdded (for other connection types)
+// Generic connection specialization for kExpressionUpdated (for other connection types)
 template<typename T, Qt::ConnectionType Connection>
-struct EquationQtSignalTraits<EquationEvent::kEquationGroupAdded, T, Connection>
+struct EquationQtSignalTraits<EquationEvent::kExpressionUpdated, T, Connection>
 {
-    using SlotSignature = void (T::*)(const EquationGroup *);
-    using ConstSlotSignature = void (T::*)(const EquationGroup *) const;
+    using SlotSignature = void (T::*)(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>);
+    using ConstSlotSignature = void (T::*)(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>) const;
     template<typename Slot>
     static constexpr bool IsValidSlot()
     {
         return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
     }
     template<typename Slot>
-    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
+    static std::function<void(const Expression *, bitmask::bitmask<ExpressionUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
     {
-        return [receiver, slot](const EquationGroup* group) {
+        return [receiver, slot](const Expression* expression, bitmask::bitmask<ExpressionUpdateFlag> flags) {
             QMetaObject::invokeMethod(
                 receiver,
-                [receiver, slot, group]() { (receiver->*slot)(group); },
-                Connection
-            );
-        };
-    }
-};
-
-// Direct connection specialization for kEquationGroupRemoving
-template<typename T>
-struct EquationQtSignalTraits<EquationEvent::kEquationGroupRemoving, T, Qt::DirectConnection>
-{
-    using SlotSignature = void (T::*)(const EquationGroup *);
-    using ConstSlotSignature = void (T::*)(const EquationGroup *) const;
-    template<typename Slot>
-    static constexpr bool IsValidSlot()
-    {
-        return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
-    }
-    template<typename Slot>
-    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
-    {
-        return [receiver, slot](const EquationGroup* group) {
-            (receiver->*slot)(group);
-        };
-    }
-};
-
-// Queued connection specialization for kEquationGroupRemoving
-template<typename T>
-struct EquationQtSignalTraits<EquationEvent::kEquationGroupRemoving, T, Qt::QueuedConnection>
-{
-    using SlotSignature = void (T::*)(const EquationGroup *);
-    using ConstSlotSignature = void (T::*)(const EquationGroup *) const;
-    template<typename Slot>
-    static constexpr bool IsValidSlot()
-    {
-        return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
-    }
-    template<typename Slot>
-    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
-    {
-        return [receiver, slot](const EquationGroup* group) {
-            QMetaObject::invokeMethod(
-                receiver,
-                [receiver, slot, group]() { (receiver->*slot)(group); },
-                Qt::QueuedConnection
-            );
-        };
-    }
-};
-
-// Generic connection specialization for kEquationGroupRemoving (for other connection types)
-template<typename T, Qt::ConnectionType Connection>
-struct EquationQtSignalTraits<EquationEvent::kEquationGroupRemoving, T, Connection>
-{
-    using SlotSignature = void (T::*)(const EquationGroup *);
-    using ConstSlotSignature = void (T::*)(const EquationGroup *) const;
-    template<typename Slot>
-    static constexpr bool IsValidSlot()
-    {
-        return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
-    }
-    template<typename Slot>
-    static std::function<void(const EquationGroup *)> MakeInvoker(T* receiver, Slot slot)
-    {
-        return [receiver, slot](const EquationGroup* group) {
-            QMetaObject::invokeMethod(
-                receiver,
-                [receiver, slot, group]() { (receiver->*slot)(group); },
-                Connection
-            );
-        };
-    }
-};
-
-// Direct connection specialization for kEquationGroupUpdated
-template<typename T>
-struct EquationQtSignalTraits<EquationEvent::kEquationGroupUpdated, T, Qt::DirectConnection>
-{
-    using SlotSignature = void (T::*)(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>);
-    using ConstSlotSignature = void (T::*)(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>) const;
-    template<typename Slot>
-    static constexpr bool IsValidSlot()
-    {
-        return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
-    }
-    template<typename Slot>
-    static std::function<void(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
-    {
-        return [receiver, slot](const EquationGroup* group, bitmask::bitmask<EquationGroupUpdateFlag> flags) {
-            (receiver->*slot)(group, flags);
-        };
-    }
-};
-
-// Queued connection specialization for kEquationGroupUpdated
-template<typename T>
-struct EquationQtSignalTraits<EquationEvent::kEquationGroupUpdated, T, Qt::QueuedConnection>
-{
-    using SlotSignature = void (T::*)(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>);
-    using ConstSlotSignature = void (T::*)(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>) const;
-    template<typename Slot>
-    static constexpr bool IsValidSlot()
-    {
-        return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
-    }
-    template<typename Slot>
-    static std::function<void(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
-    {
-        return [receiver, slot](const EquationGroup* group, bitmask::bitmask<EquationGroupUpdateFlag> flags) {
-            QMetaObject::invokeMethod(
-                receiver,
-                [receiver, slot, group, flags]() { (receiver->*slot)(group, flags); },
-                Qt::QueuedConnection
-            );
-        };
-    }
-};
-
-// Generic connection specialization for kEquationGroupUpdated (for other connection types)
-template<typename T, Qt::ConnectionType Connection>
-struct EquationQtSignalTraits<EquationEvent::kEquationGroupUpdated, T, Connection>
-{
-    using SlotSignature = void (T::*)(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>);
-    using ConstSlotSignature = void (T::*)(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>) const;
-    template<typename Slot>
-    static constexpr bool IsValidSlot()
-    {
-        return std::is_same<Slot, SlotSignature>::value || std::is_same<Slot, ConstSlotSignature>::value;
-    }
-    template<typename Slot>
-    static std::function<void(const EquationGroup *, bitmask::bitmask<EquationGroupUpdateFlag>)> MakeInvoker(T* receiver, Slot slot)
-    {
-        return [receiver, slot](const EquationGroup* group, bitmask::bitmask<EquationGroupUpdateFlag> flags) {
-            QMetaObject::invokeMethod(
-                receiver,
-                [receiver, slot, group, flags]() { (receiver->*slot)(group, flags); },
+                [receiver, slot, expression, flags]() { (receiver->*slot)(expression, flags); },
                 Connection
             );
         };

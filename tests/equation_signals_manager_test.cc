@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
+#include <memory>
 #include "core/equation.h"
-#include "core/equation_group.h"
 #include "core/equation_signals_manager.h"
 
 using namespace xequation;
@@ -15,12 +15,9 @@ protected:
 
     std::unique_ptr<Equation> CreateMockEquation(const std::string& name)
     {
-        return std::unique_ptr<Equation>(new Equation(name, ObjectId(), nullptr));
-    }
-
-    std::unique_ptr<EquationGroup> CreateMockEquationGroup()
-    {
-        return std::unique_ptr<EquationGroup>(new EquationGroup(nullptr));
+        auto equation = std::make_unique<Equation>();
+        equation->name = name;
+        return equation;
     }
 
     void TearDown() override
@@ -86,64 +83,6 @@ TEST_F(EquationSignalsManagerTest, EquationUpdate)
 
     EXPECT_TRUE(callbackCalled);
     EXPECT_EQ(capturedEq, eq.get());
-    EXPECT_EQ(capturedFields, fields);
-}
-
-TEST_F(EquationSignalsManagerTest, EquationGroupAdded)
-{
-    auto group = CreateMockEquationGroup();
-    bool callbackCalled = false;
-    const EquationGroup* capturedGroup = nullptr;
-
-    auto connection = manager->Connect<EquationEvent::kEquationGroupAdded>(
-        [&](const EquationGroup* equationGroup) {
-            callbackCalled = true;
-            capturedGroup = equationGroup;
-        });
-
-    manager->Emit<EquationEvent::kEquationGroupAdded>(group.get());
-
-    EXPECT_TRUE(callbackCalled);
-    EXPECT_EQ(capturedGroup, group.get());
-}
-
-TEST_F(EquationSignalsManagerTest, EquationGroupRemoving)
-{
-    auto group = CreateMockEquationGroup();
-    bool callbackCalled = false;
-    const EquationGroup* capturedGroup = nullptr;
-
-    auto connection = manager->Connect<EquationEvent::kEquationGroupRemoving>(
-        [&](const EquationGroup* equationGroup) {
-            callbackCalled = true;
-            capturedGroup = equationGroup;
-        });
-
-    manager->Emit<EquationEvent::kEquationGroupRemoving>(group.get());
-
-    EXPECT_TRUE(callbackCalled);
-    EXPECT_EQ(capturedGroup, group.get());
-}
-
-TEST_F(EquationSignalsManagerTest, EquationGroupUpdate)
-{
-    auto group = CreateMockEquationGroup();
-    bool callbackCalled = false;
-    const EquationGroup* capturedGroup = nullptr;
-    bitmask::bitmask<EquationGroupUpdateFlag> capturedFields;
-
-    auto connection = manager->Connect<EquationEvent::kEquationGroupUpdated>(
-        [&](const EquationGroup* equationGroup, bitmask::bitmask<EquationGroupUpdateFlag> fields) {
-            callbackCalled = true;
-            capturedGroup = equationGroup;
-            capturedFields = fields;
-        });
-
-    auto fields = EquationGroupUpdateFlag::kStatement | EquationGroupUpdateFlag::kEquationCount;
-    manager->Emit<EquationEvent::kEquationGroupUpdated>(group.get(), fields);
-
-    EXPECT_TRUE(callbackCalled);
-    EXPECT_EQ(capturedGroup, group.get());
     EXPECT_EQ(capturedFields, fields);
 }
 
@@ -225,22 +164,19 @@ TEST_F(EquationSignalsManagerTest, DisconnectAll)
 TEST_F(EquationSignalsManagerTest, DisconnectAllEvents)
 {
     auto eq = CreateMockEquation("test");
-    auto group = CreateMockEquationGroup();
     int equationCallbackCount = 0;
-    int groupCallbackCount = 0;
 
     auto eqConn = manager->Connect<EquationEvent::kEquationAdded>(
         [&](const Equation*) { equationCallbackCount++; });
-    auto groupConn = manager->Connect<EquationEvent::kEquationGroupAdded>(
-        [&](const EquationGroup*) { groupCallbackCount++; });
+    auto remConn = manager->Connect<EquationEvent::kEquationRemoving>(
+        [&](const Equation*) { equationCallbackCount++; });
 
     manager->DisconnectAllEvent();
 
     manager->Emit<EquationEvent::kEquationAdded>(eq.get());
-    manager->Emit<EquationEvent::kEquationGroupAdded>(group.get());
+    manager->Emit<EquationEvent::kEquationRemoving>(eq.get());
 
     EXPECT_EQ(equationCallbackCount, 0);
-    EXPECT_EQ(groupCallbackCount, 0);
 }
 
 // 测试空信号检查
@@ -281,7 +217,8 @@ TEST_F(EquationSignalsManagerTest, NumSlots)
 TEST_F(EquationSignalsManagerTest, AllEventTypes)
 {
     auto eq = CreateMockEquation("test");
-    auto group = CreateMockEquationGroup();
+    auto expr = Expression{};
+    expr.id = ObjectId();
     int eventCounter = 0;
     
     // 连接所有事件类型
@@ -289,24 +226,21 @@ TEST_F(EquationSignalsManagerTest, AllEventTypes)
         [&](const Equation*) { eventCounter++; });
     auto conn2 = manager->Connect<EquationEvent::kEquationRemoving>(
         [&](const Equation*) { eventCounter++; });
-    auto conn3 = manager->Connect<EquationEvent::kEquationUpdated>(
+    auto conn3 = manager->Connect<EquationEvent::kEquationRemoved>(
+        [&](const std::string&) { eventCounter++; });
+    auto conn4 = manager->Connect<EquationEvent::kEquationUpdated>(
         [&](const Equation*, auto) { eventCounter++; });
-    auto conn4 = manager->Connect<EquationEvent::kEquationGroupAdded>(
-        [&](const EquationGroup*) { eventCounter++; });
-    auto conn5 = manager->Connect<EquationEvent::kEquationGroupRemoving>(
-        [&](const EquationGroup*) { eventCounter++; });
-    auto conn6 = manager->Connect<EquationEvent::kEquationGroupUpdated>(
-        [&](const EquationGroup*, auto) { eventCounter++; });
+    auto conn5 = manager->Connect<EquationEvent::kExpressionUpdated>(
+        [&](const Expression*, auto) { eventCounter++; });
     
     // 发射所有事件
     manager->Emit<EquationEvent::kEquationAdded>(eq.get());
     manager->Emit<EquationEvent::kEquationRemoving>(eq.get());
+    manager->Emit<EquationEvent::kEquationRemoved>("x");
     manager->Emit<EquationEvent::kEquationUpdated>(eq.get(), EquationUpdateFlag::kContent);
-    manager->Emit<EquationEvent::kEquationGroupAdded>(group.get());
-    manager->Emit<EquationEvent::kEquationGroupRemoving>(group.get());
-    manager->Emit<EquationEvent::kEquationGroupUpdated>(group.get(), EquationGroupUpdateFlag::kStatement);
+    manager->Emit<EquationEvent::kExpressionUpdated>(&expr, ExpressionUpdateFlag::kValue);
     
-    EXPECT_EQ(eventCounter, 6);
+    EXPECT_EQ(eventCounter, 5);
 }
 
 // 测试位掩码功能
@@ -332,7 +266,7 @@ TEST_F(EquationSignalsManagerTest, BitmaskOperations)
     EXPECT_TRUE(receivedFields & EquationUpdateFlag::kContent);
     EXPECT_TRUE(receivedFields & EquationUpdateFlag::kStatus);
     EXPECT_TRUE(receivedFields & EquationUpdateFlag::kValue);
-    EXPECT_FALSE(receivedFields & EquationUpdateFlag::kType);
+    EXPECT_FALSE(receivedFields & EquationUpdateFlag::kMessage);
 }
 
 int main(int argc, char **argv)
