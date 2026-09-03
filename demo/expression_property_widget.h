@@ -7,6 +7,8 @@
 
 #include "core/equation_manager.h"
 
+namespace xdataset { class Dataset; class Block; }
+
 class QLabel;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -50,6 +52,14 @@ class ExpressionPropertyWidget : public QWidget
     /// Set the object to display (refresh).  A default-constructed (nil) id
     /// clears the tree and shows a placeholder.
     void SetObject(const xequation::ObjectId &object_id);
+
+    /// Display the properties of the named Dataset (resolved from the REL
+    /// environment).  Used for a Dataset tree node.
+    void ShowDatasetNode(const QString &dataset_name);
+
+    /// Display the properties of the named Block (resolved from the REL
+    /// environment).  Used for a Block tree node.
+    void ShowBlockNode(const QString &dataset_name, const QString &block_path);
 
     /// External code connects both engines' managers' kEquationRemoving signal
     /// here (fired before deletion).  If the removed equation is the one being
@@ -95,6 +105,14 @@ class ExpressionPropertyWidget : public QWidget
 
     /// Render the properties of a registered Expression.
     void ShowExpression(const xequation::Expression *expression);
+
+    /// Render the properties of a Dataset (name / default / source path / block
+    /// count / block names).
+    void ShowDataset(const xdataset::Dataset *dataset, bool is_default);
+
+    /// Render the properties of a Block (source path / independents /
+    /// dependents).
+    void ShowBlock(const xdataset::Block *block);
 
   private:
     /// Manager used to resolve an ObjectId into an Equation / Expression.

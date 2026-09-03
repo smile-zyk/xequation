@@ -30,6 +30,7 @@
 #include <boost/uuid/string_generator.hpp>
 
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 namespace xresults
@@ -695,9 +696,12 @@ void DemoWidget::LoadEnvJson(const QString &path)
 
         // Drop the datasets of a previously loaded env so re-opening an
         // env.json REPLACES the active set (rel::Environment::LoadFromConfig
-        // itself preserves existing registries).
+        // itself preserves existing registries).  A Block tab's frame is owned
+        // and cached by the Block, which RemoveDataset destroys -- close any
+        // open block tabs first so they do not dangle.
         if (!env_json_path_.isEmpty())
         {
+            data_frame_view_->ClearBlockTabs();
             for (const std::string &name : rel::Environment::DatasetNames())
             {
                 rel::Environment::RemoveDataset(name);
@@ -925,9 +929,9 @@ void DemoWidget::OnEquationListSelectionChanged()
     }
 
     // Rule 3: unpinned tabs = the list's selected equations (ObjectIds).
-    // Unpinned tree previews (data arrays / expressions) are dropped -- they
-    // only appear while the tree is the last-clicked panel.  Pinned tabs
-    // survive (SyncTabs keeps them regardless of the visible set).
+    // Unpinned tree previews (data arrays / expressions / blocks) are dropped
+    // -- they only appear while the tree is the last-clicked panel.  Pinned
+    // tabs survive (SyncTabs keeps them regardless of the visible set).
     std::vector<ObjectId> visible_ids;
     visible_ids.reserve(items.size());
     for (const QListWidgetItem *it : items)
@@ -939,6 +943,7 @@ void DemoWidget::OnEquationListSelectionChanged()
             visible_ids.push_back(equation->id);
         }
     }
+    data_frame_view_->SyncBlockTabs({});
     data_frame_view_->SyncTabs(visible_ids);
 }
 
@@ -999,7 +1004,8 @@ void DemoWidget::OnManagerTreeSelectionChanged()
     {
         // User deselected everything in the tree: the tree contributes no
         // items.  Unpinned tabs (equations AND tree previews) close; pinned
-        // tabs survive.
+        // tabs survive.  Block tabs are keyed separately, so clear them too.
+        data_frame_view_->SyncBlockTabs({});
         data_frame_view_->SyncTabs({});
         return;
     }
@@ -1069,7 +1075,9 @@ void DemoWidget::OnManagerTreeSelectionChanged()
     //   - expression leaf -> expression id;
     //   - data array -> hidden access-expression id (lazily created once,
     //     cached on the node; reused on later clicks).
+    //   - block -> NO ObjectId; collected separately into visible_blocks.
     std::vector<ObjectId> visible_ids;
+    std::vector<std::pair<QString, QString>> visible_blocks;
     for (const SelectionInfo &info : infos)
     {
         if (info.kind == NodeKind::kEquation)
@@ -1085,14 +1093,21 @@ void DemoWidget::OnManagerTreeSelectionChanged()
         }
         else if (info.kind == NodeKind::kDataArray)
         {
-            const ObjectId access_id = manager_tree_->EnsureDataArrayExpression(
+            const ObjectId access_id = manager_tree_->GetDataArrayExpression(
                 info.dataset, info.block_path, info.data_array);
             if (!access_id.is_nil())
             {
                 visible_ids.push_back(access_id);
             }
         }
+        else if (info.kind == NodeKind::kBlock)
+        {
+            visible_blocks.emplace_back(info.dataset, info.block_path);
+        }
     }
+    // Block tabs are keyed by (dataset, block_path), NOT ObjectId, so they
+    // must be reconciled first (SyncTabs never touches block tabs).
+    data_frame_view_->SyncBlockTabs(visible_blocks);
     data_frame_view_->SyncTabs(visible_ids);
 
     // ---- 3. property panel: the last-clicked tree node (rule 4) -----------
@@ -1114,11 +1129,17 @@ void DemoWidget::OnManagerTreeSelectionChanged()
     }
 
     // dataset / block / data array
-    if (focus.kind == NodeKind::kDataset || focus.kind == NodeKind::kBlock)
+    if (focus.kind == NodeKind::kDataset)
     {
-        // No ObjectId behind a Dataset / Block node: the property panel stays
-        // empty until a manager object is selected.
-        property_widget_->SetObject(xequation::ObjectId());
+        // Show the Dataset properties (name / default / source path / blocks).
+        property_widget_->ShowDatasetNode(focus.dataset);
+        return;
+    }
+
+    if (focus.kind == NodeKind::kBlock)
+    {
+        // Show the Block properties (source path / independents / dependents).
+        property_widget_->ShowBlockNode(focus.dataset, focus.block_path);
         return;
     }
 
@@ -1126,7 +1147,7 @@ void DemoWidget::OnManagerTreeSelectionChanged()
     {
         // The property shows the access expression (its content is the
         // dataset path); the tab was opened in step 2 through SyncTabs.
-        const ObjectId access_id = manager_tree_->EnsureDataArrayExpression(
+        const ObjectId access_id = manager_tree_->GetDataArrayExpression(
             focus.dataset, focus.block_path, focus.data_array);
         if (!access_id.is_nil())
         {

@@ -4,6 +4,7 @@
 #include "core/equation_manager.h"
 #include "core/equation_value.h"
 
+#include <QColor>
 #include <QFont>
 #include <QHeaderView>
 #include <QLabel>
@@ -13,6 +14,11 @@
 
 #include "xdataset_predefine.h"
 
+#include "dataset.h"     // xdataset::Dataset
+#include "block.h"       // xdataset::Block
+#include "environment.h" // rel::Environment (dataset registry)
+
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -95,6 +101,72 @@ void ExpressionPropertyWidget::SetObject(const ObjectId &object_id)
     name_label_->show();
     tree_->show();
     ShowEquation(equation);
+}
+
+void ExpressionPropertyWidget::ShowDatasetNode(const QString &dataset_name)
+{
+    object_id_ = ObjectId();  // no ObjectId behind a Dataset node
+
+    tree_->clear();
+
+    const xdataset::Dataset *dataset =
+        rel::Environment::FindDataset(dataset_name.toStdString());
+    if (!dataset)
+    {
+        name_label_->clear();
+        name_label_->hide();
+        tree_->hide();
+        return;
+    }
+
+    const bool is_default =
+        rel::Environment::DefaultDataset() &&
+        rel::Environment::DefaultDataset()->name() == dataset->name();
+
+    name_label_->setText(QString::fromStdString(dataset->name()));
+    name_label_->show();
+    tree_->show();
+    ShowDataset(dataset, is_default);
+}
+
+void ExpressionPropertyWidget::ShowBlockNode(const QString &dataset_name,
+                                             const QString &block_path)
+{
+    object_id_ = ObjectId();  // no ObjectId behind a Block node
+
+    tree_->clear();
+
+    const xdataset::Dataset *dataset =
+        rel::Environment::FindDataset(dataset_name.toStdString());
+    if (!dataset)
+    {
+        name_label_->clear();
+        name_label_->hide();
+        tree_->hide();
+        return;
+    }
+
+    const xdataset::Block *block = nullptr;
+    try
+    {
+        block = &dataset->GetBlock(block_path.toStdString());
+    }
+    catch (const std::exception &)
+    {
+        block = nullptr;
+    }
+    if (!block)
+    {
+        name_label_->clear();
+        name_label_->hide();
+        tree_->hide();
+        return;
+    }
+
+    name_label_->setText(QString::fromStdString(block->name()));
+    name_label_->show();
+    tree_->show();
+    ShowBlock(block);
 }
 
 void ExpressionPropertyWidget::AddRelValueInfo(const rel::Value &rel_value)
@@ -196,6 +268,42 @@ void ExpressionPropertyWidget::ShowExpression(const Expression *expression)
         AddRelValueInfo(value.Value());
     }
     // Compute failure: value unavailable (already shown as red Message above); nothing here.
+}
+
+void ExpressionPropertyWidget::ShowDataset(const xdataset::Dataset *dataset, bool is_default)
+{
+    if (!dataset)
+    {
+        AddField("Status", "No dataset selected.");
+        return;
+    }
+
+    AddField("Default Dataset", is_default ? "Yes" : "No");
+
+    // ---- 2. Dataset path ----------------------------------------------------
+    const std::string &source_path = dataset->source_path();
+    if (!source_path.empty())
+    {
+        AddField("Dataset Path", QString::fromStdString(source_path));
+    }
+
+    // ---- 3. Variable Blocks (path list, expandable) -------------------------
+    // The REL form replaces '/' with '.' ("Tran1.TRAN"); the tree lists the
+    // '/' path.  Both are shown so the value matches the REL reference.
+    const std::vector<std::string> block_paths = dataset->GetAllBlockPaths();
+    AddListField("Variable Blocks", block_paths);
+}
+
+void ExpressionPropertyWidget::ShowBlock(const xdataset::Block *block)
+{
+    if (!block)
+    {
+        AddField("Status", "No block selected.");
+        return;
+    }
+    // ---- 2. Independents / dependents ---------------------------------------
+    AddListField("Independents", block->independents());
+    AddListField("Dependents", block->dependents());
 }
 
 void ExpressionPropertyWidget::OnEquationRemoving(const Equation *equation)

@@ -1,5 +1,6 @@
 #include "expression_data_frame_model.h"
 
+#include "block.h"        // xdataset::Block::GetOrCreateDataFrame
 #include "data_frame.h"
 
 #include <algorithm>
@@ -21,13 +22,16 @@ ExpressionDataFrameModel::~ExpressionDataFrameModel() = default;
 const xdataset::DataFrame &ExpressionDataFrameModel::frame() const
 {
     // Only valid when there is a value (caller checks HasDataFrame() first).
+    if (block_frame_)
+    {
+        return *block_frame_;
+    }
     return equation_value_.Value().data_frame();
 }
 
 void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
 {
-    object_id_ = object_id;
-
+    block_frame_ = nullptr;  // a Block view is replaced by an ObjectId view
     // A registered expression wins over an equation with the same id (the two
     // namespaces are disjoint).
     const Expression *expression = manager_.GetExpression(object_id);
@@ -44,8 +48,7 @@ void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
         // underlying DataArray (see REL value.h contract: caller must keep this
         // Value alive while using the frame).  So we hold a copy of the
         // EquationValue, whose rel::Value (via shared_ptr<DataArray>) becomes the
-        // frame's owner, avoiding dangling references; the id is kept only for
-        // event matching.
+        // frame's owner, avoiding dangling references.
         beginResetModel();
         equation_value_ = value;   // hold a copy so the frame stays alive
         loaded_rows_ = std::min<std::size_t>(
@@ -67,8 +70,7 @@ void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
     // underlying DataArray (see REL value.h contract: caller must keep this
     // Value alive while using the frame).  So we hold a copy of the
     // EquationValue, whose rel::Value (via shared_ptr<DataArray>) becomes the
-    // frame's owner, avoiding dangling references; the id is kept only for
-    // event matching.
+    // frame's owner, avoiding dangling references.
     const EquationValue value = manager_.GetEquationValue(equation->name);
     if (!value.HasValue())
     {
@@ -86,6 +88,7 @@ void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
 
 void ExpressionDataFrameModel::SetValue(const EquationValue &value)
 {
+    block_frame_ = nullptr;  // a Block view is replaced by a bare value
     if (!value.HasValue())
     {
         Clear();
@@ -94,10 +97,23 @@ void ExpressionDataFrameModel::SetValue(const EquationValue &value)
 
     beginResetModel();
     equation_value_ = value;   // hold a copy so the frame stays alive
-    object_id_ = ObjectId();   // a bare value is not object-bound
     loaded_rows_ = std::min<std::size_t>(
         static_cast<std::size_t>(kLoadBatchSize), frame().row_count()
     );
+    endResetModel();
+}
+
+void ExpressionDataFrameModel::SetBlock(const xdataset::Block *block)
+{
+    beginResetModel();
+    equation_value_ = EquationValue();   // release any value-side owner
+    // Block::GetOrCreateDataFrame() returns a reference to a frame the Block
+    // owns and caches; taking its address is stable for the Block's lifetime.
+    block_frame_ = block ? &block->GetOrCreateDataFrame() : nullptr;
+    loaded_rows_ = block_frame_
+        ? std::min<std::size_t>(
+              static_cast<std::size_t>(kLoadBatchSize), block_frame_->row_count())
+        : 0;
     endResetModel();
 }
 
@@ -105,61 +121,14 @@ void ExpressionDataFrameModel::Clear()
 {
     beginResetModel();
     equation_value_ = EquationValue();
-    object_id_ = ObjectId();
+    block_frame_ = nullptr;
     loaded_rows_ = 0;
     endResetModel();
 }
 
-void ExpressionDataFrameModel::OnEquationRemoving(const Equation *removed)
-{
-    // kEquationRemoving is fired before erase; the Equation* is still valid here.
-    if (!removed || object_id_.is_nil())
-    {
-        return;
-    }
-    // An Equation's identity is its id.
-    if (removed->id != object_id_)
-    {
-        return;
-    }
-    Clear();
-}
-
-void ExpressionDataFrameModel::OnEquationUpdated(const Equation *equation,
-                                               bitmask::bitmask<EquationUpdateFlag> /*flags*/)
-{
-    if (!equation || object_id_.is_nil())
-    {
-        return;
-    }
-    // Already-removed objects are handled by OnEquationRemoving; a registered
-    // expression never fires kEquationUpdated, so comparing id is enough.
-    if (equation->id != object_id_)
-    {
-        return;
-    }
-    // The value may have changed (recomputed after redefinition); reload the DataFrame.
-    SetObject(object_id_);
-}
-
-void ExpressionDataFrameModel::OnExpressionUpdated(const Expression *expression,
-                                                 bitmask::bitmask<ExpressionUpdateFlag> /*flags*/)
-{
-    if (!expression || object_id_.is_nil())
-    {
-        return;
-    }
-    if (expression->id != object_id_)
-    {
-        return;
-    }
-    // The value may have changed; reload the DataFrame.
-    SetObject(object_id_);
-}
-
 bool ExpressionDataFrameModel::HasDataFrame() const
 {
-    return equation_value_.HasValue();
+    return equation_value_.HasValue() || block_frame_ != nullptr;
 }
 
 std::size_t ExpressionDataFrameModel::total_row_count() const

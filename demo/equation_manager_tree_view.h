@@ -96,9 +96,9 @@ class EquationManagerTreeView : public QTreeView
     /// expression content is the REL access path (`ds.block…array`); its tag is
     /// hidden so the tree never lists it under a tag group.  Later clicks on
     /// the same array reuse the cached id.  Nil when registration fails.
-    xequation::ObjectId EnsureDataArrayExpression(const QString &dataset,
-                                                  const QString &block_path,
-                                                  const QString &data_array);
+    xequation::ObjectId GetDataArrayExpression(const QString &dataset,
+                                               const QString &block_path,
+                                               const QString &data_array);
 
   private:
     QStandardItem *AddGroupChild(QStandardItem *parent, NodeKind kind,
@@ -111,14 +111,14 @@ class EquationManagerTreeView : public QTreeView
     /// Drop cached DataArray-access expressions whose (dataset, block, array)
     /// no longer exists in the registry (env reload / removal).  Called from
     /// Refresh(); the expression is removed from the manager.
-    void PruneDataArrayExpressions();
+    void CleanupDataArrayExpressions();
 
   private:
     xequation::EquationManager &manager_;
     QStandardItemModel *model_ = nullptr;
 
     /// (dataset, block path, data array) -> lazily-created hidden access
-    /// expression id.  Survives tree rebuilds; PruneDataArrayExpressions()
+    /// expression id.  Survives tree rebuilds; CleanupDataArrayExpressions()
     /// removes entries whose array is gone (env reload / dataset removal).
     std::map<std::tuple<QString, QString, QString>, xequation::ObjectId>
         data_array_exprs_;

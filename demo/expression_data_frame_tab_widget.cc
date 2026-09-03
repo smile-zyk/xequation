@@ -1,6 +1,9 @@
 #include "expression_data_frame_tab_widget.h"
 
 #include "expression_data_frame_view.h"
+#include "environment.h"   // rel::Environment (dataset registry)
+#include "dataset.h"       // xdataset::Dataset::GetBlock
+#include "block.h"         // xdataset::Block::GetOrCreateDataFrame
 #include "tree_view_tag.h"  // UI-layer tag definitions
 
 #include <QEvent>
@@ -12,6 +15,7 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <utility>
 
 namespace xresults
 {
@@ -228,6 +232,10 @@ void ExpressionDataFrameTabWidget::CloseTabInternal(int index)
     // Closing a tab is a VIEW-only operation: the registered expression (if
     // any) stays in the manager -- its lifecycle is owned by the tree item.
     object_to_index_.erase(tab.object_id);
+    if (tab.kind == ObjectKind::kBlock)
+    {
+        block_to_index_.erase(std::make_pair(tab.block_dataset, tab.block_path));
+    }
 
     tabs_.erase(tabs_.begin() + index);
     removeTab(index);   // deletes the view widget (and the pin button)
@@ -255,6 +263,77 @@ void ExpressionDataFrameTabWidget::ClearAll()
     if (tabs_.size() == 1)
     {
         CloseTabInternal(0);
+    }
+}
+
+int ExpressionDataFrameTabWidget::FindBlockTabIndex(const QString &dataset,
+                                                     const QString &block_path) const
+{
+    const auto it = block_to_index_.find(std::make_pair(dataset, block_path));
+    if (it == block_to_index_.end())
+    {
+        return -1;
+    }
+    return it->second;
+}
+
+void ExpressionDataFrameTabWidget::AddBlockTab(const QString &dataset,
+                                                const QString &block_path,
+                                                bool auto_pin)
+{
+    if (dataset.isEmpty() || block_path.isEmpty())
+    {
+        return;
+    }
+
+    // Duplicate: focus the existing tab and re-read it (selections refresh).
+    const int existing_index = FindBlockTabIndex(dataset, block_path);
+    if (existing_index >= 0)
+    {
+        setCurrentIndex(existing_index);
+        EvaluateTab(existing_index);
+        return;
+    }
+
+    // Resolve the Block through the REL environment.
+    const xdataset::Dataset *ds =
+        rel::Environment::FindDataset(dataset.toStdString());
+    if (!ds)
+    {
+        return;
+    }
+    const xdataset::Block *block = nullptr;
+    try
+    {
+        block = &ds->GetBlock(block_path.toStdString());
+    }
+    catch (const std::exception &)
+    {
+        block = nullptr;
+    }
+    if (!block)
+    {
+        return;
+    }
+
+    const int index = OpenTab();
+    TabData &tab = tabs_[static_cast<std::size_t>(index)];
+    tab.kind = ObjectKind::kBlock;
+    tab.object_id = xequation::NilObjectId();
+    tab.block_dataset = dataset;
+    tab.block_path = block_path;
+    tab.expression = block->name();
+    setTabText(index, QString::fromStdString(tab.expression));
+    block_to_index_[std::make_pair(dataset, block_path)] = index;
+
+    RebuildKeyToIndex();
+    EvaluateTab(index);
+    setCurrentIndex(index);
+
+    if (auto_pin)
+    {
+        const int pinned_index = FindBlockTabIndex(dataset, block_path);
+        SetTabPinned(pinned_index, true);
     }
 }
 
@@ -296,9 +375,16 @@ void ExpressionDataFrameTabWidget::MoveTab(int from, int to)
 void ExpressionDataFrameTabWidget::RebuildKeyToIndex()
 {
     object_to_index_.clear();
+    block_to_index_.clear();
     for (std::size_t i = 0; i < tabs_.size(); ++i)
     {
         object_to_index_[tabs_[i].object_id] = static_cast<int>(i);
+        if (tabs_[i].kind == ObjectKind::kBlock)
+        {
+            block_to_index_[std::make_pair(tabs_[i].block_dataset,
+                                           tabs_[i].block_path)] =
+                static_cast<int>(i);
+        }
     }
 }
 
@@ -417,6 +503,39 @@ void ExpressionDataFrameTabWidget::EvaluateTab(int index)
         return;
     }
     const TabData &tab = tabs_[static_cast<std::size_t>(index)];
+
+    if (tab.kind == ObjectKind::kBlock)
+    {
+        // Block tab: display the Block's tabulated frame directly.  A Block
+        // has no ObjectId, so the frame is re-resolved from the REL
+        // environment each refresh (it is lazily chunk-loaded, so refresh is
+        // cheap).
+        const xdataset::Dataset *ds =
+            rel::Environment::FindDataset(tab.block_dataset.toStdString());
+        const xdataset::Block *block = nullptr;
+        if (ds)
+        {
+            try
+            {
+                block = &ds->GetBlock(tab.block_path.toStdString());
+            }
+            catch (const std::exception &)
+            {
+                block = nullptr;
+            }
+        }
+        if (block)
+        {
+            SetTabError(index, QString());
+            tab.view->SetBlock(block);
+            setTabText(index, QString::fromStdString(block->name()));
+            return;
+        }
+        tab.view->Clear();
+        SetTabError(index, QStringLiteral("Block no longer exists."));
+        setTabText(index, QString::fromStdString(tab.expression));
+        return;
+    }
 
     if (tab.kind == ObjectKind::kExpression)
     {
@@ -649,10 +768,16 @@ void ExpressionDataFrameTabWidget::SyncTabs(
 {
     // Close unpinned tabs whose object is no longer visible.  Pinned tabs
     // survive; expression / equation tabs are treated the same (they are all
-    // ObjectId-keyed).  Note: closing a tab never unregisters its expression.
+    // ObjectId-keyed).  Block tabs are NEVER touched here -- they are keyed by
+    // (dataset, block_path) and reconciled only by SyncBlockTabs.  Note:
+    // closing a tab never unregisters its expression.
     for (int i = static_cast<int>(tabs_.size()) - 1; i >= 0; --i)
     {
         TabData &tab = tabs_[static_cast<std::size_t>(i)];
+        if (tab.kind == ObjectKind::kBlock)
+        {
+            continue;
+        }
         if (tab.pinned)
         {
             continue;
@@ -686,6 +811,57 @@ void ExpressionDataFrameTabWidget::SyncTabs(
     }
 }
 
+void ExpressionDataFrameTabWidget::SyncBlockTabs(
+    const std::vector<std::pair<QString, QString>> &visible_blocks)
+{
+    // Close unpinned block tabs whose block is no longer selected.  Pinned
+    // block tabs survive.  ObjectId tabs are never touched here.
+    for (int i = static_cast<int>(tabs_.size()) - 1; i >= 0; --i)
+    {
+        TabData &tab = tabs_[static_cast<std::size_t>(i)];
+        if (tab.kind != ObjectKind::kBlock)
+        {
+            continue;
+        }
+        if (tab.pinned)
+        {
+            continue;
+        }
+        const auto key = std::make_pair(tab.block_dataset, tab.block_path);
+        const bool still_visible =
+            std::find(visible_blocks.begin(), visible_blocks.end(), key) !=
+            visible_blocks.end();
+        if (still_visible)
+        {
+            continue;
+        }
+        CloseTabInternal(i);
+    }
+
+    // Open (or refresh) a tab for each selected block that is not open yet.
+    for (const auto &key : visible_blocks)
+    {
+        if (FindBlockTabIndex(key.first, key.second) >= 0)
+        {
+            continue;
+        }
+        AddBlockTab(key.first, key.second, /*auto_pin=*/false);
+    }
+}
+
+void ExpressionDataFrameTabWidget::ClearBlockTabs()
+{
+    // Close every block tab, even pinned ones.  Iterate from the back and let
+    // CloseTabInternal update block_to_index_ (tabs_ shrinks each round).
+    for (int i = static_cast<int>(tabs_.size()) - 1; i >= 0; --i)
+    {
+        if (tabs_[static_cast<std::size_t>(i)].kind == ObjectKind::kBlock)
+        {
+            CloseTabInternal(i);
+        }
+    }
+}
+
 void ExpressionDataFrameTabWidget::OnExpressionRemoving(const Expression *expression)
 {
     if (!expression)
@@ -714,6 +890,12 @@ void ExpressionDataFrameTabWidget::EditTab(int index)
     }
 
     TabData &tab = tabs_[static_cast<std::size_t>(index)];
+
+    // Block tabs are read-only views of the environment.
+    if (tab.kind == ObjectKind::kBlock)
+    {
+        return;
+    }
 
     // DataArray access expressions are fixed access paths bound to their tree
     // node -- they are not user-editable.

@@ -77,6 +77,12 @@ void ExpressionDataFrameView::SetValue(const EquationValue &value)
     FetchMoreIfNeeded();
 }
 
+void ExpressionDataFrameView::SetBlock(const xdataset::Block *block)
+{
+    table_model_->SetBlock(block);
+    FetchMoreIfNeeded();
+}
+
 void ExpressionDataFrameView::Clear()
 {
     table_model_->Clear();

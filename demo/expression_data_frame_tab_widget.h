@@ -1,8 +1,11 @@
 #pragma once
 
+#include <QString>
 #include <QTabWidget>
+#include <map>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "core/equation_common.h"
@@ -10,6 +13,11 @@
 
 class QMenu;
 class QToolButton;
+
+namespace xdataset
+{
+class Block;
+}
 
 namespace xresults
 {
@@ -93,6 +101,20 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     /// refreshes them.
     void SyncTabs(const std::vector<xequation::ObjectId> &visible_ids);
 
+    /// Reconcile the block tabs with the visible Block set (the current
+    /// selection of the manager tree).  A Block has no ObjectId -- it is
+    /// identified by (dataset, block_path) -- so its tabs live in a separate
+    /// map and follow the same rules as SyncTabs: pinned block tabs survive,
+    /// unpinned Block tabs close when the Block is no longer selected, and a
+    /// newly-selected Block opens a tab.  Call this BEFORE SyncTabs so an
+    /// ObjectId-tab mirror does not drop the block tabs.
+    void SyncBlockTabs(const std::vector<std::pair<QString, QString>> &visible_blocks);
+
+    /// Close every block tab, even pinned ones.  Called on an environment
+    /// reload (datasets/blocks are dropped): a Block tab's frame is owned and
+    /// cached by the Block, so once the Block is destroyed the frame dangles.
+    void ClearBlockTabs();
+
     // ---- change routing (external code connects the engine) -----------
 
     void OnEquationRemoving(const xequation::Equation *equation);
@@ -110,6 +132,7 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     {
         kEquation,
         kExpression,
+        kBlock,   // tab shows a Block's DataFrame (no ObjectId)
     };
 
     /// A tab's identity + source descriptor.
@@ -117,12 +140,26 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     {
         ObjectKind kind = ObjectKind::kEquation;
         xequation::ObjectId object_id = xequation::NilObjectId();  // equation/expression id
+        /// For a Block tab (ObjectKind::kBlock), the (dataset, block_path)
+        /// identity used to key block_to_index_; empty otherwise.
+        QString block_dataset;
+        QString block_path;
         std::string expression;              // display text + edit source
         ExpressionDataFrameView *view = nullptr;
         bool pinned = false;                 // pinned tabs survive deselection
         QToolButton *pin_button = nullptr;
         QToolButton *close_button = nullptr;
     };
+
+    /// Open (or focus) a tab that shows a Block's tabulated frame.  A Block
+    /// has no ObjectId, so the identity is (dataset, block_path); the tab
+    /// resolves the Block through the REL environment and displays its frame
+    /// directly.  Duplicate focus re-reads the tab.  Not auto-pinned unless
+    /// requested.
+    void AddBlockTab(const QString &dataset, const QString &block_path,
+                     bool auto_pin = false);
+    /// Find the tab index owning (dataset, block_path); -1 if none.
+    int FindBlockTabIndex(const QString &dataset, const QString &block_path) const;
 
     // ---- tab lifecycle ----
     int FindTabIndex(const xequation::ObjectId &object_id) const;
@@ -163,6 +200,10 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     xequation::EquationManager &manager_;
     std::vector<TabData> tabs_;
     std::unordered_map<xequation::ObjectId, int> object_to_index_;
+    /// Block tabs are keyed by (dataset, block_path) -- a Block has no
+    /// ObjectId, so its tabs are NOT in object_to_index_.  Maps to a tab index
+    /// in tabs_.
+    std::map<std::pair<QString, QString>, int> block_to_index_;
 };
 
 } // namespace gui

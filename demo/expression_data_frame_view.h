@@ -6,6 +6,11 @@
 
 class QLabel;
 
+namespace xdataset
+{
+class Block;
+}
+
 namespace xresults
 {
 namespace gui
@@ -22,6 +27,10 @@ class ExpressionDataFrameModel;
 // requesting the next batch of rows when scrolled to the bottom.  Errors are
 // rendered as an overlay label centered on the table viewport (SetError),
 // replacing the table content visually.
+//
+// SetBlock() is the direct entry for Block tree nodes (which have no
+// ObjectId): it displays the Block's tabulated frame, lazily chunk-loaded by
+// the underlying Block::GetOrCreateDataFrame() cache.
 // =========================================================================
 
 class ExpressionDataFrameView : public QTableView
@@ -43,6 +52,11 @@ class ExpressionDataFrameView : public QTableView
     /// watch's eval result).  Forwards to the model's SetValue(); only REL
     /// values render a table.
     void SetValue(const xequation::EquationValue &value);
+
+    /// Display the DataFrame view of a Block's tabulated data (its
+    /// independent/dependent variables).  The Block has no ObjectId; the frame
+    /// is owned and cached by the Block (lazily chunk-loaded for large data).
+    void SetBlock(const xdataset::Block *block);
 
     /// Clear the table.
     void Clear();

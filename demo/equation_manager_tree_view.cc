@@ -215,7 +215,7 @@ void EquationManagerTreeView::Refresh()
     // ---- 3. DataArray access-expression roles ------------------------------
     // Re-stamp cached access-expression ids onto the freshly built nodes;
     // drop (unregister) entries whose array no longer exists in the env.
-    PruneDataArrayExpressions();
+    CleanupDataArrayExpressions();
 
     expand(datasets_group->index());
     if (!datasets_expanded)
@@ -476,7 +476,7 @@ bool HasArrayInEnvironment(const QString &dataset, const QString &block_path,
 }
 } // namespace
 
-ObjectId EquationManagerTreeView::EnsureDataArrayExpression(
+ObjectId EquationManagerTreeView::GetDataArrayExpression(
     const QString &dataset, const QString &block_path, const QString &data_array)
 {
     const auto key = std::make_tuple(dataset, block_path, data_array);
@@ -561,7 +561,7 @@ QStandardItem *EquationManagerTreeView::FindDataArrayItem(
     return nullptr;
 }
 
-void EquationManagerTreeView::PruneDataArrayExpressions()
+void EquationManagerTreeView::CleanupDataArrayExpressions()
 {
     std::vector<std::tuple<QString, QString, QString>> gone;
     for (const auto &entry : data_array_exprs_)
