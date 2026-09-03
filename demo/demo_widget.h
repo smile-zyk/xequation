@@ -17,24 +17,24 @@ namespace gui
 {
 
 // =========================================================================
-// ProxyDemoWidget -- a REL-engine demo built on EquationManager::GetInstance().
+// DemoWidget -- a REL-engine demo built on EquationManager::GetInstance().
 //
 // Features:
 //   + Input: name + expression (e.g. `y = [1, 2, 3]`); "Insert" inserts a
 //     single Equation into the engine's EquationManager.
-//   + "Redefine" / "Rename" / "Properties" buttons act on the selected equation.
+//   + "Redefine" / "Rename" buttons act on the selected equation.
 //   - Middle-left: the engine's Equation list (QListWidget).
 //   - Middle-right: ExpressionDataFrameView, showing the selected Equation's
 //     DataFrame table (lazy loading, fetchMore).
 // =========================================================================
 
-class ProxyDemoWidget : public QWidget
+class DemoWidget : public QWidget
 {
     Q_OBJECT
 
   public:
-    explicit ProxyDemoWidget(QWidget *parent = nullptr);
-    ~ProxyDemoWidget() override;
+    explicit DemoWidget(QWidget *parent = nullptr);
+    ~DemoWidget() override;
 
   private:
     void SetupUI();
@@ -44,7 +44,6 @@ class ProxyDemoWidget : public QWidget
     void OnRedefineEquation();
     void OnRenameEquation();
     void OnDeleteEquation();
-    void OnShowProperties();
     void OnAddWatchExpression();
     void OnEquationListSelectionChanged();
     void RefreshEquationList();
@@ -94,13 +93,10 @@ class ProxyDemoWidget : public QWidget
   private:
     QLineEdit *statement_edit_ = nullptr;
     QPushButton *insert_button_ = nullptr;
-    QComboBox *equation_tag_combo_ = nullptr;    // Equation / Marker
     QPushButton *redefine_button_ = nullptr;
     QPushButton *rename_button_ = nullptr;
     QPushButton *delete_button_ = nullptr;
-    QPushButton *properties_button_ = nullptr;
     QPushButton *watch_button_ = nullptr;
-    QComboBox *expression_tag_combo_ = nullptr;  // Watch / Graph
     QPushButton *open_env_button_ = nullptr;
     QComboBox *dataset_combo_ = nullptr;
     QLabel *status_label_ = nullptr;
@@ -120,6 +116,10 @@ class ProxyDemoWidget : public QWidget
     /// Connection to the REL manager's kExpressionUpdated signal, for
     /// auto-refresh of watch-expression tabs / property on value-ready.
     xequation::ScopedConnection expression_updated_rel_connection_;
+    /// Connection to the REL manager's kExpressionRemoving signal: the
+    /// expression left the manager (tree-leaf Delete / env reload); close its
+    /// tab and clear the property widget.
+    xequation::ScopedConnection expression_removing_rel_connection_;
 };
 
 } // namespace gui

@@ -2,6 +2,7 @@
 
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/nil_generator.hpp>
 #include <exception>
 #include <memory>
 #include <ostream>
@@ -16,13 +17,10 @@
 
 namespace xequation
 {
-// Identity-tag default values.  An Equation is tagged "Equation" (default) or
-// "Marker"; an Expression is tagged "Watch" (default) or "Graph".  Tags are
-// free-form strings so hosts can introduce new identities without core changes.
-constexpr char kEquationTagDefault[] = "Equation";
-constexpr char kMarkerTagDefault[] = "Marker";
-constexpr char kWatchTagDefault[] = "Watch";
-constexpr char kGraphTagDefault[] = "Graph";
+// Identity tags are a UI / host concern: the core stores whatever `tag`
+// string a caller passes (empty by default) without interpreting it.  Hosts
+// that need default tags / tag groups define them on their own layer (see
+// demo/tree_view_tag.h).
 
 // Coarse-grained result status. Fine-grained errors (e.g. undefined variable,
 // division by zero) are carried in InterpretResult::message / Equation::message.
@@ -43,16 +41,28 @@ struct InterpretResult
 
 using ObjectId = boost::uuids::uuid;
 
+/// The nil ObjectId (all bytes zero).  Prefer this over a default-constructed
+/// uuid when a nil sentinel is meant: boost::uuids::uuid's default constructor
+/// is NOT guaranteed to produce a nil uuid on every compiler / Boost release
+/// (older Boost on MSVC left the bytes uninitialized for default-init like
+/// `ObjectId x;`).  This goes through boost::uuids::nil_uuid() explicitly.
+inline ObjectId NilObjectId()
+{
+    return boost::uuids::nil_uuid();
+}
+
 // An equation binds a name in the environment to an expression.
 struct Equation
 {
-    ObjectId id;
+    ObjectId id = NilObjectId();
     std::string name;
     std::string content;
     ResultStatus status = ResultStatus::kPending;
     std::string message;
-    std::vector<std::string> dependencies;
-    std::string tag = kEquationTagDefault;
+    /// Static symbols referenced by `content` (extracted at parse time).  This
+    /// is a parse snapshot -- the live dependency edges live in the graph.
+    std::vector<std::string> parse_symbols;
+    std::string tag;   // opaque; empty unless the caller supplies one
 };
 
 using EquationPtr = std::unique_ptr<Equation>;
@@ -167,19 +177,21 @@ class EquationException : public std::exception
 // written into the environment.
 struct Expression
 {
-    ObjectId id;
+    ObjectId id = NilObjectId();
     std::string content;
     InterpretResult result;
-    std::vector<std::string> dependencies;
-    std::string tag = kWatchTagDefault;
+    /// Static symbols referenced by `content` (extracted at parse time).  This
+    /// is a parse snapshot -- the live dependency edges live in the graph.
+    std::vector<std::string> parse_symbols;
+    std::string tag;   // opaque; empty unless the caller supplies one
 };
 
-// Result of parsing a single expression: syntax check + extracted dependencies.
+// Result of parsing a single expression: syntax check + extracted symbols.
 struct ParseResult
 {
     ResultStatus status = ResultStatus::kSuccess;
     std::string message;
-    std::vector<std::string> dependencies;
+    std::vector<std::string> symbols;
 };
 
 class ParseException : public std::exception

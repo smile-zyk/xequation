@@ -69,7 +69,7 @@ TEST(EmbedProxySingleton, TestParseEval)
     // Parse 只接受表达式：语法校验 + 依赖提取。
     auto parse = manager.Parse("a + b + c");
     EXPECT_EQ(parse.status, ResultStatus::kSuccess);
-    EXPECT_THAT(parse.dependencies, testing::UnorderedElementsAre("a", "b", "c"));
+    EXPECT_THAT(parse.symbols, testing::UnorderedElementsAre("a", "b", "c"));
 
     manager.environment().Define("a", rel::Value::Integer(2));
     manager.environment().Define("b", rel::Value::Integer(3));

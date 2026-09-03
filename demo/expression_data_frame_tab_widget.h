@@ -21,7 +21,8 @@ class ExpressionDataFrameView;
 // =========================================================================
 // ExpressionDataFrameTabWidget -- a QTabWidget of DataFrame views, one tab per
 // watched object (an Equation or a registered Expression), identified by an
-// ObjectId and an explicit kind.
+// ObjectId and an explicit kind (kEquation / kExpression -- the kind is only
+// a display/eval hint; the object identity is the ObjectId).
 //
 // The two kinds are opened through two distinct entries:
 //   - AddEquation():  the host passes an Equation's id; the tab reads the
@@ -31,10 +32,11 @@ class ExpressionDataFrameView;
 //     the manager recomputes the expression on Update()/UpdateNode() and the
 //     kExpressionUpdated signal drives tab refresh.
 //
-// Watch expressions live in the core dependency graph; tab identity is the
-// ObjectId itself, and the expression text is kept only for display / editing.
-// No string-level guessing of the kind happens inside this widget: host code
-// decides whether it is adding an Equation or an Expression.
+// Tab content is purely a VIEW of a manager object: closing a tab never
+// unregisters the object.  Expression lifetime is owned by the manager-tree
+// item that created it (see EquationManagerTreeView); when an expression is
+// removed from the manager (tree right-click Delete / env reload), the host
+// routes kExpressionRemoving here and the tab closes via OnExpressionRemoving.
 //
 // Data access (equation lookup / value read / expression registration /
 // unregistration) is done through an EquationManager& injected by the host --
@@ -55,9 +57,9 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     /// Equation's id; the value is read directly from the manager -- no Eval
     /// re-evaluation.
     /// @param auto_pin  when true (default), a newly-created tab is pinned
-    ///        automatically (it survives deselection); SyncSelection passes
-    ///        false so selection-driven tabs keep following the selection
-    ///        until the user pins them manually.
+    ///        automatically (it survives deselection); SyncTabs passes false
+    ///        so selection-driven tabs keep following the selection until the
+    ///        user pins them manually.
     void AddEquation(const xequation::ObjectId &equation_id, bool auto_pin = true);
 
     /// Open (or focus) a tab that shows a registered Expression's cached
@@ -74,29 +76,31 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     /// registration fails.
     void AddWatchExpression(const std::string &expression);
 
-    /// Show a fixed pinned "raw value" tab (not bound to a manager object,
-    /// e.g. a Dataset DataArray).  Re-opens / updates the single value tab.
-    void ShowValue(const QString &title, const xequation::EquationValue &value);
-
-    /// Close the tab at index (no-op for the last tab).
+    /// Close the tab at index (view only -- the underlying object, if it is a
+    /// registered expression, stays registered in the manager).
     void CloseTab(int index);
 
-    /// Clear all tabs and unregister every watch expression (e.g. engine
-    /// switch wholesale reset).
+    /// Close every tab (view only; no expression is unregistered here).
     void ClearAll();
 
-    /// Reconcile tabs with the current list selection: tabs whose object is
-    /// one of the selected equations stay / are (re)opened; unpinned
-    /// equation tabs that are no longer selected are closed; pinned tabs and
-    /// watch-expression tabs are always kept.  Matching tabs are re-read
-    /// (refreshed) on every sync, so re-selecting refreshes them.
-    void SyncSelection(const std::vector<std::string> &selected_equation_names);
+    /// Reconcile tabs with the visible ObjectId set (the current selection of
+    /// the last-clicked panel, list or tree):
+    ///   - pinned tabs are always kept;
+    ///   - unpinned tabs whose object is not in @p visible_ids are closed;
+    ///   - objects in @p visible_ids without an open tab are opened (equation
+    ///     or expression is resolved through the manager), not auto-pinned.
+    /// Matching tabs are re-read (refreshed) on every sync, so re-selecting
+    /// refreshes them.
+    void SyncTabs(const std::vector<xequation::ObjectId> &visible_ids);
 
     // ---- change routing (external code connects the engine) -----------
 
     void OnEquationRemoving(const xequation::Equation *equation);
     void OnEquationUpdated(const xequation::Equation *equation,
                            bitmask::bitmask<xequation::EquationUpdateFlag> flags);
+    /// The expression is gone from the manager (tree Delete / env reload):
+    /// close its tab, even when pinned.
+    void OnExpressionRemoving(const xequation::Expression *expression);
     void OnExpressionUpdated(const xequation::Expression *expression,
                              bitmask::bitmask<xequation::ExpressionUpdateFlag> flags);
 
@@ -106,20 +110,18 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     {
         kEquation,
         kExpression,
-        kValue,    // raw value tab (not bound to a manager object)
     };
 
     /// A tab's identity + source descriptor.
     struct TabData
     {
         ObjectKind kind = ObjectKind::kEquation;
-        xequation::ObjectId object_id;       // equation id / expression id
+        xequation::ObjectId object_id = xequation::NilObjectId();  // equation/expression id
         std::string expression;              // display text + edit source
         ExpressionDataFrameView *view = nullptr;
         bool pinned = false;                 // pinned tabs survive deselection
         QToolButton *pin_button = nullptr;
         QToolButton *close_button = nullptr;
-        xequation::EquationValue value;      // owner for kValue tabs
     };
 
     // ---- tab lifecycle ----
@@ -147,7 +149,8 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     void OnTabLabelDoubleClicked(int index);
     void OnTabContextMenu(const QPoint &pos);
     /// Edit a tab's text; an Equation tab becomes a watch Expression (its
-    /// equation is kept as-is).
+    /// equation is kept as-is).  Hidden-tag expressions (DataArray access)
+    /// are not editable.
     void EditTab(int index);
 
     /// Show / hide an unpinned pin button on hover (pinned buttons stay

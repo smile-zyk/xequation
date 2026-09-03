@@ -1,6 +1,7 @@
 #include "expression_data_frame_tab_widget.h"
 
 #include "expression_data_frame_view.h"
+#include "tree_view_tag.h"  // UI-layer tag definitions
 
 #include <QEvent>
 #include <QHBoxLayout>
@@ -127,16 +128,9 @@ ExpressionDataFrameTabWidget::ExpressionDataFrameTabWidget(
 
 ExpressionDataFrameTabWidget::~ExpressionDataFrameTabWidget()
 {
-    // Unregister every remaining registered expression (equation tabs hold an
-    // equation id; RemoveExpression is a no-op for them).  The view widgets are
-    // children and get destroyed by ~QTabWidget.
-    for (const TabData &tab : tabs_)
-    {
-        if (tab.kind == ObjectKind::kExpression)
-        {
-            manager_.RemoveExpression(tab.object_id);
-        }
-    }
+    // Expressions are owned by the manager-tree items that created them, NOT
+    // by the tabs: nothing is unregistered here (the view widgets are children
+    // and get destroyed by ~QTabWidget).
 }
 
 // ---- tab lifecycle ------------------------------------------------------
@@ -231,12 +225,8 @@ void ExpressionDataFrameTabWidget::CloseTabInternal(int index)
     }
 
     const TabData tab = tabs_[static_cast<std::size_t>(index)];
-    if (tab.kind == ObjectKind::kExpression)
-    {
-        // A registered expression is released from the manager (this also
-        // removes its graph node and dependency edges).
-        manager_.RemoveExpression(tab.object_id);
-    }
+    // Closing a tab is a VIEW-only operation: the registered expression (if
+    // any) stays in the manager -- its lifecycle is owned by the tree item.
     object_to_index_.erase(tab.object_id);
 
     tabs_.erase(tabs_.begin() + index);
@@ -428,13 +418,6 @@ void ExpressionDataFrameTabWidget::EvaluateTab(int index)
     }
     const TabData &tab = tabs_[static_cast<std::size_t>(index)];
 
-    // Raw value tabs are manager-independent: they were filled by ShowValue()
-    // and have nothing to evaluate against the manager.
-    if (tab.kind == ObjectKind::kValue)
-    {
-        return;
-    }
-
     if (tab.kind == ObjectKind::kExpression)
     {
         // Registered expression: read the cached value straight from the
@@ -565,7 +548,7 @@ void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &equation_id, bool
     if (existing_index >= 0)
     {
         setCurrentIndex(existing_index);
-        // Re-read the value so the tab is not stale (matching SyncSelection's
+        // Re-read the value so the tab is not stale (re-selecting refreshes).
         // "re-selecting refreshes" semantics).
         EvaluateTab(existing_index);
         return;
@@ -608,7 +591,16 @@ void ExpressionDataFrameTabWidget::AddExpression(const ObjectId &expression_id,
     if (existing_index >= 0)
     {
         setCurrentIndex(existing_index);
-        // Re-read the value so the tab is not stale.
+        // Re-evaluate then re-read so a re-opened tab (e.g. after an env
+        // reload re-created the underlying dataset arrays) shows fresh data.
+        try
+        {
+            manager_.UpdateExpression(expression_id);
+        }
+        catch (const std::exception &)
+        {
+            // Expression was removed underneath us; EvaluateTab renders it.
+        }
         EvaluateTab(existing_index);
         return;
     }
@@ -652,49 +644,12 @@ void ExpressionDataFrameTabWidget::AddExpression(const ObjectId &expression_id,
     }
 }
 
-void ExpressionDataFrameTabWidget::ShowValue(const QString &title,
-                                             const EquationValue &value)
+void ExpressionDataFrameTabWidget::SyncTabs(
+    const std::vector<ObjectId> &visible_ids)
 {
-    // A single "raw value" preview tab: find it by kind (not by ObjectId,
-    // which is nil for raw values) and update it in place.  It is NOT
-    // auto-pinned: showing a value is selection-driven display, not an
-    // explicit watch, so the tab follows the current selection.
-    int index = -1;
-    for (std::size_t i = 0; i < tabs_.size(); ++i)
-    {
-        if (tabs_[i].kind == ObjectKind::kValue)
-        {
-            index = static_cast<int>(i);
-            break;
-        }
-    }
-
-    if (index < 0)
-    {
-        index = OpenTab();
-        TabData &tab = tabs_[static_cast<std::size_t>(index)];
-        tab.kind = ObjectKind::kValue;
-        tab.object_id = ObjectId();   // not manager-bound
-        RebuildKeyToIndex();
-    }
-
-    if (index < 0)
-    {
-        return;
-    }
-    TabData &tab = tabs_[static_cast<std::size_t>(index)];
-    tab.expression = title.toStdString();
-    setTabText(index, title);
-    FillTab(tab.view, value);
-    setCurrentIndex(index);
-}
-
-void ExpressionDataFrameTabWidget::SyncSelection(
-    const std::vector<std::string> &selected_equation_names)
-{
-    // Sync: keep ONLY pinned tabs and tabs whose equation is currently
-    // selected.  Everything else (unpinned equation tabs AND unpinned
-    // expression/watch tabs) is closed -- that is what makes pinning useful.
+    // Close unpinned tabs whose object is no longer visible.  Pinned tabs
+    // survive; expression / equation tabs are treated the same (they are all
+    // ObjectId-keyed).  Note: closing a tab never unregisters its expression.
     for (int i = static_cast<int>(tabs_.size()) - 1; i >= 0; --i)
     {
         TabData &tab = tabs_[static_cast<std::size_t>(i)];
@@ -702,28 +657,47 @@ void ExpressionDataFrameTabWidget::SyncSelection(
         {
             continue;
         }
-        // Is this tab's expression one of the selected equation names?
-        const bool still_selected =
-            std::find(selected_equation_names.begin(), selected_equation_names.end(),
-                      tab.expression) != selected_equation_names.end();
-        if (still_selected)
+        const bool still_visible =
+            std::find(visible_ids.begin(), visible_ids.end(), tab.object_id) !=
+            visible_ids.end();
+        if (still_visible)
         {
             continue;
         }
         CloseTabInternal(i);
     }
 
-    // 2. Open / refresh equation tabs for the selected items (AddEquation
-    //    focuses / refreshes the tab each call, matching "re-selecting
-    //    refreshes").  Selection-driven tabs are not auto-pinned: they keep
-    //    following the selection until the user pins them manually.
-    for (const std::string &name : selected_equation_names)
+    // Open (or refresh) a tab for each visible object that is not open yet.
+    // Kind is resolved through the manager (equation id vs expression id).
+    for (const ObjectId &id : visible_ids)
     {
-        const Equation *equation = manager_.GetEquation(name);
-        if (equation)
+        if (id.is_nil() || FindTabIndex(id) >= 0)
         {
-            AddEquation(equation->id, /*auto_pin=*/false);
+            continue;
         }
+        if (manager_.GetExpression(id))
+        {
+            AddExpression(id, /*auto_pin=*/false);
+        }
+        else if (manager_.GetEquationById(id))
+        {
+            AddEquation(id, /*auto_pin=*/false);
+        }
+    }
+}
+
+void ExpressionDataFrameTabWidget::OnExpressionRemoving(const Expression *expression)
+{
+    if (!expression)
+    {
+        return;
+    }
+    const int index = FindTabIndex(expression->id);
+    if (index >= 0)
+    {
+        // Even pinned tabs close when the underlying expression is removed
+        // from the manager (tree Delete / env reload).
+        CloseTabInternal(index);
     }
 }
 
@@ -741,10 +715,15 @@ void ExpressionDataFrameTabWidget::EditTab(int index)
 
     TabData &tab = tabs_[static_cast<std::size_t>(index)];
 
-    // Raw value tabs are not editable (nothing to register in the manager).
-    if (tab.kind == ObjectKind::kValue)
+    // DataArray access expressions are fixed access paths bound to their tree
+    // node -- they are not user-editable.
+    if (tab.kind == ObjectKind::kExpression)
     {
-        return;
+        const Expression *cur = manager_.GetExpression(tab.object_id);
+        if (cur && IsDataArrayAccessTag(cur->tag))
+        {
+            return;
+        }
     }
 
     // Both Equation and Expression tabs are editable.  Editing an Equation
@@ -781,13 +760,12 @@ void ExpressionDataFrameTabWidget::EditTab(int index)
         return;   // parse failed: tab unchanged
     }
 
-    // Release the previous registered expression (no-op for an equation id).
-    // Re-key the tab to the new expression.
-    if (tab.kind == ObjectKind::kExpression)
-    {
-        manager_.RemoveExpression(tab.object_id);
-    }
-    object_to_index_.erase(tab.object_id);
+    // Re-key the tab to the new expression BEFORE releasing the old one, so
+    // the kExpressionRemoving (old id) routed by the host finds no tab to
+    // close (the tab now owns the new id).
+    const ObjectId old_id = tab.object_id;
+    const bool was_expression = (tab.kind == ObjectKind::kExpression);
+    object_to_index_.erase(old_id);
 
     tab.kind = ObjectKind::kExpression;
     tab.object_id = new_id;
@@ -795,6 +773,11 @@ void ExpressionDataFrameTabWidget::EditTab(int index)
 
     object_to_index_[new_id] = index;
     setTabText(index, QString::fromStdString(trimmed));
+
+    if (was_expression)
+    {
+        manager_.RemoveExpression(old_id);
+    }
 
     // Trigger the first computation of the edited expression synchronously.
     try

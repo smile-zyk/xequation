@@ -1,8 +1,9 @@
-﻿#include "proxy_demo_widget.h"
+﻿#include "demo_widget.h"
 
 #include "equation_manager_tree_view.h"
 #include "expression_data_frame_tab_widget.h"
 #include "expression_property_widget.h"
+#include "tree_view_tag.h"  // UI-layer tag definitions
 
 #include "core/equation_manager.h"
 
@@ -22,6 +23,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QVBoxLayout>
 
@@ -73,7 +75,7 @@ QString SampleEnvJsonPath()
 }
 } // namespace
 
-ProxyDemoWidget::ProxyDemoWidget(QWidget *parent) : QWidget(parent)
+DemoWidget::DemoWidget(QWidget *parent) : QWidget(parent)
 {
     SetupUI();
     SetupConnections();
@@ -81,11 +83,11 @@ ProxyDemoWidget::ProxyDemoWidget(QWidget *parent) : QWidget(parent)
     RefreshEquationList();
 }
 
-ProxyDemoWidget::~ProxyDemoWidget() = default;
+DemoWidget::~DemoWidget() = default;
 
-void ProxyDemoWidget::SetupUI()
+void DemoWidget::SetupUI()
 {
-    setWindowTitle("XEquation Proxy Demo");
+    setWindowTitle("XEquation Demo");
     setMinimumSize(900, 600);
 
     // ---- top: dataset row (env.json + current-dataset switch) ---------
@@ -113,33 +115,20 @@ void ProxyDemoWidget::SetupUI()
         "Insert equation, e.g.  y = [1, 2, 3]  (name = expression)"
     );
     insert_button_ = new QPushButton("Insert", this);
-    equation_tag_combo_ = new QComboBox(this);
-    equation_tag_combo_->addItems({QString::fromLatin1(kEquationTagDefault),
-                                   QString::fromLatin1(kMarkerTagDefault)});
-    equation_tag_combo_->setToolTip("Tag applied when Insert creates the equation.");
     redefine_button_ = new QPushButton("Redefine", this);
     rename_button_ = new QPushButton("Rename", this);
     delete_button_ = new QPushButton("Delete", this);
-    properties_button_ = new QPushButton("Properties", this);
     watch_button_ = new QPushButton("Watch", this);
-    expression_tag_combo_ = new QComboBox(this);
-    expression_tag_combo_->addItems({QString::fromLatin1(kWatchTagDefault),
-                                     QString::fromLatin1(kGraphTagDefault)});
-    expression_tag_combo_->setToolTip("Tag applied when Watch registers the expression.");
     redefine_button_->setEnabled(false);  // requires a selected list item
     rename_button_->setEnabled(false);    // requires a selected list item
     delete_button_->setEnabled(false);    // requires a selected list item
-    properties_button_->setEnabled(false); // requires a selected list item
 
     QHBoxLayout *input_layout = new QHBoxLayout();
     input_layout->addWidget(statement_edit_, 1);
-    input_layout->addWidget(equation_tag_combo_);
     input_layout->addWidget(insert_button_);
     input_layout->addWidget(redefine_button_);
     input_layout->addWidget(rename_button_);
     input_layout->addWidget(delete_button_);
-    input_layout->addWidget(properties_button_);
-    input_layout->addWidget(expression_tag_combo_);
     input_layout->addWidget(watch_button_);
 
     // ---- middle: manager tree + equation list + dataframe/property -----
@@ -190,32 +179,38 @@ void ProxyDemoWidget::SetupUI()
     setLayout(main_layout);
 }
 
-void ProxyDemoWidget::SetupConnections()
+void DemoWidget::SetupConnections()
 {
-    connect(insert_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnInsertEquation);
+    connect(insert_button_, &QPushButton::clicked, this, &DemoWidget::OnInsertEquation);
     connect(
-        statement_edit_, &QLineEdit::returnPressed, this, &ProxyDemoWidget::OnInsertEquation
+        statement_edit_, &QLineEdit::returnPressed, this, &DemoWidget::OnInsertEquation
     );
-    connect(redefine_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnRedefineEquation);
-    connect(rename_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnRenameEquation);
-    connect(delete_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnDeleteEquation);
-    connect(properties_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnShowProperties);
-    connect(watch_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnAddWatchExpression);
+    connect(redefine_button_, &QPushButton::clicked, this, &DemoWidget::OnRedefineEquation);
+    connect(rename_button_, &QPushButton::clicked, this, &DemoWidget::OnRenameEquation);
+    connect(delete_button_, &QPushButton::clicked, this, &DemoWidget::OnDeleteEquation);
+    connect(watch_button_, &QPushButton::clicked, this, &DemoWidget::OnAddWatchExpression);
     connect(
-        open_env_button_, &QPushButton::clicked, this, &ProxyDemoWidget::OnOpenEnvJson
+        open_env_button_, &QPushButton::clicked, this, &DemoWidget::OnOpenEnvJson
     );
     connect(
         dataset_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-        &ProxyDemoWidget::OnDatasetSelectionChanged
+        &DemoWidget::OnDatasetSelectionChanged
     );
     connect(
         equation_list_, &QListWidget::itemSelectionChanged, this,
-        &ProxyDemoWidget::OnEquationListSelectionChanged
+        &DemoWidget::OnEquationListSelectionChanged
+    );
+    // Clicking a row re-runs the list-driven sync even when the selection did
+    // not change (e.g. re-clicking the already-selected row after the tree was
+    // the last-clicked panel re-shows the list's equation tabs).
+    connect(
+        equation_list_, &QListWidget::itemClicked, this,
+        [this](QListWidgetItem *) { OnEquationListSelectionChanged(); }
     );
     // Manager tree: selection change (keyboard + click) drives the property /
     // DataFrame panels.  Clicking also focuses (see OnManagerTreeClicked).
     connect(
-        manager_tree_, &QTreeView::clicked, this, &ProxyDemoWidget::OnManagerTreeClicked
+        manager_tree_, &QTreeView::clicked, this, &DemoWidget::OnManagerTreeClicked
     );
     connect(
         manager_tree_->selectionModel(), &QItemSelectionModel::selectionChanged, this,
@@ -265,25 +260,24 @@ void ProxyDemoWidget::SetupConnections()
                     property->OnExpressionUpdated(expr, flags);
                 }
             );
+
+    // kExpressionRemoving: the expression was removed from the manager (tree
+    // leaf right-click Delete, or the tree pruning access expressions after an
+    // env reload).  Close its tab (even when pinned) and clear the property
+    // widget if it displays that expression.
+    expression_removing_rel_connection_ =
+        EquationManager::GetInstance()
+            .signals_manager()
+            .ConnectScoped<EquationEvent::kExpressionRemoving>(
+                [tabs, property](const Expression *expr)
+                {
+                    tabs->OnExpressionRemoving(expr);
+                    property->OnExpressionRemoving(expr);
+                }
+            );
 }
 
-/// Get the equation's "row count" for the list suffix.  Only REL values have a
-/// definite row count; other values return 0.
-static qlonglong GetRowCount(const Equation *equation)
-{
-    if (!equation || equation->status != ResultStatus::kSuccess)
-    {
-        return 0;
-    }
-    const EquationValue value = EquationManager::GetInstance().GetEquationValue(equation->name);
-    if (value.HasValue())
-    {
-        return static_cast<qlonglong>(value.Value().rows());
-    }
-    return 0;
-}
-
-bool ProxyDemoWidget::SplitStatement(
+bool DemoWidget::SplitStatement(
     const QString &statement, QString *name, QString *expr
 )
 {
@@ -329,7 +323,7 @@ bool ProxyDemoWidget::SplitStatement(
     return true;
 }
 
-bool ProxyDemoWidget::IsValidIdentifier(const QString &name)
+bool DemoWidget::IsValidIdentifier(const QString &name)
 {
     if (name.isEmpty())
     {
@@ -352,7 +346,7 @@ bool ProxyDemoWidget::IsValidIdentifier(const QString &name)
     return true;
 }
 
-void ProxyDemoWidget::OnInsertEquation()
+void DemoWidget::OnInsertEquation()
 {
     QString name;
     QString expr;
@@ -381,8 +375,7 @@ void ProxyDemoWidget::OnInsertEquation()
 
     try
     {
-        mgr.AddEquation(name_std, expr.toStdString(),
-                        equation_tag_combo_->currentText().toStdString());
+        mgr.AddEquation(name_std, expr.toStdString(), kEquationTagDefault);
         mgr.Update();
     }
     catch (const EquationException &e)
@@ -419,7 +412,7 @@ void ProxyDemoWidget::OnInsertEquation()
     }
 }
 
-void ProxyDemoWidget::OnRedefineEquation()
+void DemoWidget::OnRedefineEquation()
 {
     const QString current_name = CurrentSelectedEquationName();
     if (current_name.isEmpty())
@@ -486,7 +479,7 @@ void ProxyDemoWidget::OnRedefineEquation()
     SelectEquationByName(current_name);
 }
 
-void ProxyDemoWidget::OnRenameEquation()
+void DemoWidget::OnRenameEquation()
 {
     const QString current_name = CurrentSelectedEquationName();
     if (current_name.isEmpty())
@@ -571,7 +564,7 @@ void ProxyDemoWidget::OnRenameEquation()
     SelectEquationByName(trimmed_new);
 }
 
-void ProxyDemoWidget::OnDeleteEquation()
+void DemoWidget::OnDeleteEquation()
 {
     const QString current_name = CurrentSelectedEquationName();
     if (current_name.isEmpty())
@@ -623,18 +616,7 @@ void ProxyDemoWidget::OnDeleteEquation()
     RefreshEquationList();
 }
 
-void ProxyDemoWidget::OnShowProperties()
-{
-    // The property widget is resident below the table and refreshes with the
-    // selected item; this button only brings focus to it.
-    if (property_widget_)
-    {
-        property_widget_->setFocus();
-        property_widget_->raise();
-    }
-}
-
-void ProxyDemoWidget::OnAddWatchExpression()
+void DemoWidget::OnAddWatchExpression()
 {
     bool ok = false;
     const QString expression = QInputDialog::getText(
@@ -664,8 +646,7 @@ void ProxyDemoWidget::OnAddWatchExpression()
     ObjectId expr_id;
     try
     {
-        expr_id = mgr.AddExpression(trimmed,
-                                    expression_tag_combo_->currentText().toStdString());
+        expr_id = mgr.AddExpression(trimmed, kWatchTagDefault);
     }
     catch (const std::exception &e)
     {
@@ -683,7 +664,7 @@ void ProxyDemoWidget::OnAddWatchExpression()
 // Dataset (env.json) support
 // =========================================================================
 
-void ProxyDemoWidget::OnOpenEnvJson()
+void DemoWidget::OnOpenEnvJson()
 {
     // Suggest the bundled sample (<repo>/3rd/REL/case/test_env.json) when it
     // can be located next to the executable / in the working directory.
@@ -703,7 +684,7 @@ void ProxyDemoWidget::OnOpenEnvJson()
     LoadEnvJson(path);
 }
 
-void ProxyDemoWidget::LoadEnvJson(const QString &path)
+void DemoWidget::LoadEnvJson(const QString &path)
 {
     try
     {
@@ -769,7 +750,7 @@ void ProxyDemoWidget::LoadEnvJson(const QString &path)
     }
 }
 
-void ProxyDemoWidget::RefreshDatasetCombo()
+void DemoWidget::RefreshDatasetCombo()
 {
     dataset_combo_->blockSignals(true);
     dataset_combo_->clear();
@@ -796,7 +777,7 @@ void ProxyDemoWidget::RefreshDatasetCombo()
     dataset_combo_->blockSignals(false);
 }
 
-void ProxyDemoWidget::OnDatasetSelectionChanged(int index)
+void DemoWidget::OnDatasetSelectionChanged(int index)
 {
     if (index < 0)
     {
@@ -828,8 +809,19 @@ void ProxyDemoWidget::OnDatasetSelectionChanged(int index)
     status_label_->setText(QString("Default dataset: %1").arg(name));
 }
 
-void ProxyDemoWidget::RefreshEquationList()
+void DemoWidget::RefreshEquationList()
 {
+    // Remember the current selection so a refresh (insert / rename / delete)
+    // keeps the same equations selected and their tabs stable.
+    QStringList selected_names;
+    for (const QListWidgetItem *item : equation_list_->selectedItems())
+    {
+        selected_names.append(item->text());
+    }
+    const QString current_name = equation_list_->currentItem()
+        ? equation_list_->currentItem()->text()
+        : QString();
+
     equation_list_->blockSignals(true);
     equation_list_->clear();
 
@@ -837,17 +829,30 @@ void ProxyDemoWidget::RefreshEquationList()
     const std::vector<std::string> names = mgr.GetEquationNames();
     for (const std::string &name : names)
     {
-        const Equation *equation = mgr.GetEquation(name);
-        QString item_text = QString::fromStdString(name);
-        if (equation && equation->status == ResultStatus::kSuccess)
-        {
-            item_text += QString("  [%1 row(s)]")
-                             .arg(static_cast<qlonglong>(
-                                 GetRowCount(equation)
-                             ));
-        }
-        equation_list_->addItem(item_text);
+        equation_list_->addItem(QString::fromStdString(name));
     }
+
+    // Re-apply the previous selection (items that still exist).
+    for (const QString &name : selected_names)
+    {
+        const QList<QListWidgetItem *> items =
+            equation_list_->findItems(name, Qt::MatchExactly);
+        if (!items.isEmpty())
+        {
+            items.first()->setSelected(true);
+        }
+    }
+    QListWidgetItem *current_item = nullptr;
+    if (!current_name.isEmpty())
+    {
+        const QList<QListWidgetItem *> items =
+            equation_list_->findItems(current_name, Qt::MatchExactly);
+        if (!items.isEmpty())
+        {
+            current_item = items.first();
+        }
+    }
+    equation_list_->setCurrentItem(current_item);
     equation_list_->blockSignals(false);
 
     if (names.empty())
@@ -857,10 +862,21 @@ void ProxyDemoWidget::RefreshEquationList()
         // kEquationRemoving; expression tabs are independent.
         status_label_->setText("No equations yet. Insert one above.");
     }
+
+    // Keep the equation tabs / property / tree in sync with the (possibly
+    // changed) list selection.
+    OnEquationListSelectionChanged();
 }
 
-void ProxyDemoWidget::OnEquationListSelectionChanged()
+void DemoWidget::OnEquationListSelectionChanged()
 {
+    // The equation LIST is the last-clicked panel (mirrors from the tree
+    // block this widget's signals).  Per the rules:
+    //   - property always shows the last-clicked equation row (rule 4);
+    //   - the list selection mirrors into the tree (rule 2);
+    //   - unpinned tabs = the list's selected equations (rule 3: tabs follow
+    //     the last-clicked panel, and the list only holds equations).
+
     const QList<QListWidgetItem *> items = equation_list_->selectedItems();
 
     // Buttons / property widget act on the *current* (focus) item only.
@@ -871,56 +887,73 @@ void ProxyDemoWidget::OnEquationListSelectionChanged()
     }
     if (!item)
     {
-        // No selection at all: keep watch tabs as they are (only unpinned
-        // equation tabs get closed by SyncSelection with an empty set).
-        property_widget_->SetObject(xequation::ObjectId());
+        // No selection at all: nothing new was clicked, so the property panel
+        // keeps its last-clicked content (deletion clears it explicitly).
         redefine_button_->setEnabled(false);
         rename_button_->setEnabled(false);
         delete_button_->setEnabled(false);
-        properties_button_->setEnabled(false);
     }
     else
     {
         redefine_button_->setEnabled(true);
         rename_button_->setEnabled(true);
         delete_button_->setEnabled(true);
-        properties_button_->setEnabled(true);
     }
 
-    // Collect all selected equation names (item text: "name  [N row(s)]").
-    std::vector<std::string> selected_names;
+    // Selected equation names (item text is the equation name).
+    std::vector<QString> selected_qnames;
+    selected_qnames.reserve(items.size());
     for (const QListWidgetItem *it : items)
     {
-        selected_names.push_back(it->text().section(' ', 0, 0).toStdString());
+        selected_qnames.push_back(it->text());
     }
 
-    // Sync the tab widget: open / close / refresh equation tabs to match the
-    // current selection (pinned and expression tabs are never closed).
-    // DataFrame views are REL-only, so the sync targets the REL engine.
-    data_frame_view_->SyncSelection(selected_names);
-
-    // Property widget follows the focus item.  The object identity is the
-    // equation's id (the same id the tab widget uses).
+    // Rule 4: the property panel always shows the last-clicked object.
     if (item)
     {
-        const QString name = item->text().section(' ', 0, 0);
+        const QString name = item->text();
         const Equation *equation = EquationManager::GetInstance().GetEquation(name.toStdString());
         property_widget_->SetObject(equation ? equation->id : xequation::ObjectId());
     }
+
+    // Rule 2: mirror the equation selection into the tree (equation leaves
+    // only).  The tree's selection is blocked during the mirror so the tree
+    // handler does not re-run.
+    {
+        QSignalBlocker blocker(manager_tree_->selectionModel());
+        manager_tree_->SetEquationSelection(selected_qnames);
+    }
+
+    // Rule 3: unpinned tabs = the list's selected equations (ObjectIds).
+    // Unpinned tree previews (data arrays / expressions) are dropped -- they
+    // only appear while the tree is the last-clicked panel.  Pinned tabs
+    // survive (SyncTabs keeps them regardless of the visible set).
+    std::vector<ObjectId> visible_ids;
+    visible_ids.reserve(items.size());
+    for (const QListWidgetItem *it : items)
+    {
+        const Equation *equation =
+            EquationManager::GetInstance().GetEquation(it->text().toStdString());
+        if (equation)
+        {
+            visible_ids.push_back(equation->id);
+        }
+    }
+    data_frame_view_->SyncTabs(visible_ids);
 }
 
-QString ProxyDemoWidget::CurrentSelectedEquationName() const
+QString DemoWidget::CurrentSelectedEquationName() const
 {
     const QListWidgetItem *item = equation_list_->currentItem();
     if (!item)
     {
         return QString();
     }
-    // Item text format: "name  [N row(s)]" -- take the part before the space as the name.
-    return item->text().section(' ', 0, 0);
+    // Item text is the equation name itself.
+    return item->text();
 }
 
-void ProxyDemoWidget::SelectEquationByName(const QString &name)
+void DemoWidget::SelectEquationByName(const QString &name)
 {
     const QList<QListWidgetItem *> items =
         equation_list_->findItems(name, Qt::MatchExactly);
@@ -934,188 +967,174 @@ void ProxyDemoWidget::SelectEquationByName(const QString &name)
 // Manager tree panel routing
 // =========================================================================
 
-void ProxyDemoWidget::OnManagerTreeClicked()
+void DemoWidget::OnManagerTreeClicked()
 {
-    // Selection already routes via OnManagerTreeSelectionChanged (currentChanged
-    // fires on click too).  This slot exists only to give the tree focus so
-    // keyboard navigation has a natural anchor.
+    // Selection changes are already routed through OnManagerTreeSelectionChanged
+    // (the selectionModel's selectionChanged fires on click too).  Because the
+    // list-driven mirror replaces the whole tree selection with equation
+    // leaves, clicking any tree-only node always *changes* the selection, so
+    // this slot only gives the tree focus for keyboard navigation.
     manager_tree_->setFocus();
 }
 
-void ProxyDemoWidget::OnManagerTreeSelectionChanged()
+void DemoWidget::OnManagerTreeSelectionChanged()
 {
     using SelectionInfo = EquationManagerTreeView::SelectionInfo;
-    const SelectionInfo info = manager_tree_->CurrentSelection();
-    if (info.kind == EquationManagerTreeView::NodeKind::kGroupDatasets ||
-        info.kind == EquationManagerTreeView::NodeKind::kTag)
+    using NodeKind = EquationManagerTreeView::NodeKind;
+
+    // The manager TREE is the last-clicked panel (mirrors from the list block
+    // this widget's signals).  Per the rules:
+    //   - tree-selected equations mirror into the equation list (rule 1);
+    //   - unpinned tabs = the tree's selected items (rule 3) -- equations,
+    //     expressions and data arrays produce tabs; dataset / block / tag
+    //     nodes produce none, so unpinned equation tabs close when only such
+    //     nodes are selected (strict follow of the last-clicked panel);
+    //   - property shows the last-clicked tree node (rule 4).
+
+    // Selected nodes in tree order.  A programmatic Refresh() suppresses its
+    // own selectionChanged, so an empty set here is a genuine user
+    // deselection.
+    const std::vector<SelectionInfo> infos = manager_tree_->SelectedInfos();
+    if (infos.empty())
     {
-        return;  // group / tag node: nothing specific to inspect
+        // User deselected everything in the tree: the tree contributes no
+        // items.  Unpinned tabs (equations AND tree previews) close; pinned
+        // tabs survive.
+        data_frame_view_->SyncTabs({});
+        return;
     }
 
     EquationManager &mgr = EquationManager::GetInstance();
 
-    // ---- equation leaf: reuse the equation-list flow ---------------------
-    if (info.kind == EquationManagerTreeView::NodeKind::kEquation)
+    // The focus node decides the property panel: the tree's current item when
+    // it is selected (keyboard navigation can move the current index without
+    // selecting), otherwise the first selected node.
+    SelectionInfo focus;
+    const QModelIndex current_index = manager_tree_->currentIndex();
+    if (current_index.isValid() &&
+        manager_tree_->selectionModel()->isSelected(current_index))
     {
-        if (mgr.IsEquationExist(info.name.toStdString()))
+        focus = manager_tree_->CurrentSelection();
+    }
+    if (focus.kind == NodeKind::kGroupDatasets || focus.kind == NodeKind::kTag)
+    {
+        focus = infos.front();
+    }
+    const bool focus_is_equation = (focus.kind == NodeKind::kEquation);
+
+    // ---- 1. equation leaves: mirror into the equation list (rule 1) ------
+    // Only when the tree selection contains an equation is the list touched;
+    // dataset / data-array / expression-only selections leave it as-is.
+    std::vector<QString> eq_names;
+    for (const SelectionInfo &info : infos)
+    {
+        if (info.kind == NodeKind::kEquation)
         {
-            const Equation *equation = mgr.GetEquation(info.name.toStdString());
-            if (equation)
+            eq_names.push_back(info.name);
+        }
+    }
+    if (!eq_names.empty())
+    {
+        equation_list_->blockSignals(true);
+        equation_list_->clearSelection();
+        QListWidgetItem *current_item = nullptr;
+        for (const QString &name : eq_names)
+        {
+            const QList<QListWidgetItem *> items =
+                equation_list_->findItems(name, Qt::MatchExactly);
+            if (items.isEmpty())
             {
-                property_widget_->SetObject(equation->id);
-                data_frame_view_->AddEquation(equation->id, /*auto_pin=*/false);
+                continue;
             }
-            SelectEquationByName(info.name);
-        }
-        return;
-    }
-
-    // ---- expression leaf -------------------------------------------------
-    if (info.kind == EquationManagerTreeView::NodeKind::kExpression)
-    {
-        try
-        {
-            boost::uuids::string_generator gen;
-            const ObjectId id = gen(info.object_id.toStdString());
-            if (!id.is_nil() && mgr.GetExpression(id))
+            QListWidgetItem *list_item = items.first();
+            list_item->setSelected(true);
+            if (!current_item || (focus_is_equation && name == focus.name))
             {
-                property_widget_->SetObject(id);
-                // Selection-driven display (not an explicit watch add): do not
-                // auto-pin so the tab follows the current selection.
-                data_frame_view_->AddExpression(id, /*auto_pin=*/false);
+                current_item = list_item;
             }
         }
-        catch (const std::exception &)
+        equation_list_->setCurrentItem(current_item);
+        equation_list_->blockSignals(false);
+    }
+
+    // Buttons act on the equation list's current item (mirrored above).
+    const bool has_list_current = (equation_list_->currentItem() != nullptr);
+    redefine_button_->setEnabled(has_list_current);
+    rename_button_->setEnabled(has_list_current);
+    delete_button_->setEnabled(has_list_current);
+
+    // ---- 2. unpinned tabs = the tree's selected items (rule 3) ------------
+    // Resolve every selected item to its ObjectId:
+    //   - equation leaf -> equation id;
+    //   - expression leaf -> expression id;
+    //   - data array -> hidden access-expression id (lazily created once,
+    //     cached on the node; reused on later clicks).
+    std::vector<ObjectId> visible_ids;
+    for (const SelectionInfo &info : infos)
+    {
+        if (info.kind == NodeKind::kEquation)
         {
-            // Malformed id: nothing to route.
-        }
-        return;
-    }
-
-    // ---- dataset / block / data array ------------------------------------
-    const std::string dataset_name = info.dataset.toStdString();
-    xdataset::Dataset *dataset = rel::Environment::FindDataset(dataset_name);
-    if (!dataset)
-    {
-        property_widget_->ShowInfo(info.dataset, {{tr("Dataset"), info.dataset}});
-        return;
-    }
-
-    if (info.kind == EquationManagerTreeView::NodeKind::kDataset)
-    {
-        const std::string default_name =
-            rel::Environment::DefaultDataset() ? rel::Environment::DefaultDataset()->name()
-                                               : std::string();
-        std::vector<std::pair<QString, QString>> rows;
-        rows.push_back({tr("Name"), info.dataset});
-        rows.push_back({tr("Default"), QString::fromStdString(dataset_name == default_name ? "yes" : "no")});
-        rows.push_back({tr("Blocks"),
-                        QString::number(static_cast<qlonglong>(dataset->block_count()))});
-        property_widget_->ShowInfo(info.dataset, rows);
-        return;
-    }
-
-    const std::string block_path = info.block_path.toStdString();
-    if (info.kind == EquationManagerTreeView::NodeKind::kBlock)
-    {
-        try
-        {
-            const xdataset::Block &block = dataset->GetBlock(block_path);
-
-            // One readable line per DataSeries: "name — Type, N rows[, Unit]".
-            auto describe_series = [](const xdataset::DataSeries &series) -> QString {
-                QString text = QString::fromLatin1(xdataset::DataTypeToString(series.data_type()));
-                text += QStringLiteral(", %1 rows").arg(static_cast<qlonglong>(series.size()));
-                if (series.unit().has_dimension())
-                {
-                    text += QStringLiteral(", %1")
-                                .arg(QString::fromStdString(series.unit().to_string()));
-                }
-                return text;
-            };
-            auto describe_indep = [&](const xdataset::IndependentSpec &spec) -> QString {
-                QString text = QString::fromStdString(spec.name);
-                text += QStringLiteral(" \u2014 ") + describe_series(spec.data);
-                if (spec.dimension.is_regular())
-                {
-                    text += QStringLiteral(", regular dim=%1")
-                                .arg(static_cast<qlonglong>(spec.dimension.regular_size()));
-                }
-                else
-                {
-                    text += QStringLiteral(", ragged groups=%1")
-                                .arg(static_cast<qlonglong>(spec.dimension.element_count()));
-                }
-                return text;
-            };
-
-            QStringList indep_lines;
-            for (const std::string &name : block.independents())
+            if (const Equation *equation = mgr.GetEquation(info.name.toStdString()))
             {
-                indep_lines.push_back(describe_indep(block.independent_spec(name)));
+                visible_ids.push_back(equation->id);
             }
-            QStringList dep_lines;
-            for (const std::string &name : block.dependents())
-            {
-                const xdataset::DependentSpec &spec = block.dependent_spec(name);
-                dep_lines.push_back(QString::fromStdString(spec.name) +
-                                    QStringLiteral(" \u2014 ") +
-                                    describe_series(spec.data));
-            }
-
-            std::vector<std::pair<QString, QString>> rows;
-            rows.push_back({tr("Dataset"), info.dataset});
-            rows.push_back({tr("Block path"), info.block_path});
-            rows.push_back({tr("Independents (%1)")
-                                .arg(static_cast<int>(indep_lines.size())),
-                            indep_lines.join(QStringLiteral("\n"))});
-            rows.push_back({tr("Dependents (%1)")
-                                .arg(static_cast<int>(dep_lines.size())),
-                            dep_lines.join(QStringLiteral("\n"))});
-            property_widget_->ShowInfo(info.block_path, rows);
         }
-        catch (const std::exception &)
+        else if (info.kind == NodeKind::kExpression && !info.object_id.is_nil())
         {
-            std::vector<std::pair<QString, QString>> rows;
-            rows.push_back({tr("Dataset"), info.dataset});
-            rows.push_back({tr("Block path"), info.block_path});
-            property_widget_->ShowInfo(info.block_path, rows);
+            visible_ids.push_back(info.object_id);
+        }
+        else if (info.kind == NodeKind::kDataArray)
+        {
+            const ObjectId access_id = manager_tree_->EnsureDataArrayExpression(
+                info.dataset, info.block_path, info.data_array);
+            if (!access_id.is_nil())
+            {
+                visible_ids.push_back(access_id);
+            }
+        }
+    }
+    data_frame_view_->SyncTabs(visible_ids);
+
+    // ---- 3. property panel: the last-clicked tree node (rule 4) -----------
+    if (focus.kind == NodeKind::kEquation)
+    {
+        const Equation *equation = mgr.GetEquation(focus.name.toStdString());
+        property_widget_->SetObject(equation ? equation->id
+                                             : xequation::ObjectId());
+        return;
+    }
+
+    if (focus.kind == NodeKind::kExpression)
+    {
+        if (!focus.object_id.is_nil() && mgr.GetExpression(focus.object_id))
+        {
+            property_widget_->SetObject(focus.object_id);
         }
         return;
     }
 
-    if (info.kind == EquationManagerTreeView::NodeKind::kDataArray)
+    // dataset / block / data array
+    if (focus.kind == NodeKind::kDataset || focus.kind == NodeKind::kBlock)
     {
-        const std::string array_name = info.data_array.toStdString();
-        try
-        {
-            const xdataset::DataArray &array =
-                dataset->GetDataArray(block_path, array_name);
-            // Like a selected Equation: show the full rel::Value details in the
-            // property widget (name carries the dataset + block context).
-            const EquationValue value{rel::Value(array)};
-            property_widget_->ShowRelValue(
-                QStringLiteral("%1.%2")
-                    .arg(info.block_path, info.data_array),
-                value
-            );
+        // No ObjectId behind a Dataset / Block node: the property panel stays
+        // empty until a manager object is selected.
+        property_widget_->SetObject(xequation::ObjectId());
+        return;
+    }
 
-            // Show the array's DataFrame in the shared TabWidget preview.
-            data_frame_view_->ShowValue(
-                QStringLiteral("%1.%2")
-                    .arg(info.block_path, info.data_array),
-                value
-            );
-        }
-        catch (const std::exception &)
+    if (focus.kind == NodeKind::kDataArray)
+    {
+        // The property shows the access expression (its content is the
+        // dataset path); the tab was opened in step 2 through SyncTabs.
+        const ObjectId access_id = manager_tree_->EnsureDataArrayExpression(
+            focus.dataset, focus.block_path, focus.data_array);
+        if (!access_id.is_nil())
         {
-            // Missing / unreadable array: fall back to basic info.
-            std::vector<std::pair<QString, QString>> rows;
-            rows.push_back({tr("Data array"), info.data_array});
-            rows.push_back({tr("Dataset"), info.dataset});
-            rows.push_back({tr("Block path"), info.block_path});
-            property_widget_->ShowInfo(info.data_array, rows);
+            property_widget_->SetObject(access_id);
+            return;
         }
+        // Registration failed: nothing with an ObjectId to show.
+        property_widget_->SetObject(xequation::ObjectId());
     }
 }
 

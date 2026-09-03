@@ -24,7 +24,7 @@ enable_testing()
 # 需要的 target：xdataset / rel。
 # Python bridge 可选：BUILD_PYTHON=ON（默认开）时 rel 编译嵌入式 CPython
 # 绑定（pybind11::embed + python_loader），env.json 的 python_plugins 才可加载；
-# 宿主（proxy_demo）通过 python_manager 初始化/销毁解释器。
+# 宿主（demo）通过 python_manager 初始化/销毁解释器。
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL/include/value.h")
     message(FATAL_ERROR
         "REL submodule not found at ${CMAKE_CURRENT_SOURCE_DIR}/3rd/REL. "
@@ -41,5 +41,5 @@ add_subdirectory(3rd/vendor)
 add_subdirectory(src)
 add_subdirectory(tests)
 if(ENABLE_GUI_SUPPORT)
-    add_subdirectory(proxy_demo)
+    add_subdirectory(demo)
 endif()

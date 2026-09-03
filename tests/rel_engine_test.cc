@@ -44,7 +44,7 @@ TEST(RelEngine, TestParse)
     // Parse 只接受表达式：语法校验 + 依赖提取，不做名字绑定。
     auto result = manager.Parse("a + b + c");
     EXPECT_EQ(result.status, ResultStatus::kSuccess);
-    EXPECT_THAT(result.dependencies, testing::UnorderedElementsAre("a", "b", "c"));
+    EXPECT_THAT(result.symbols, testing::UnorderedElementsAre("a", "b", "c"));
 }
 
 TEST(RelEngine, TestParseExpression)
@@ -53,7 +53,7 @@ TEST(RelEngine, TestParseExpression)
     auto result = manager.Parse("sin(x) + pi");
     EXPECT_EQ(result.status, ResultStatus::kSuccess);
     // sin 是注册函数、pi 是内置常量，都不是依赖
-    EXPECT_THAT(result.dependencies, testing::UnorderedElementsAre("x"));
+    EXPECT_THAT(result.symbols, testing::UnorderedElementsAre("x"));
 }
 
 // ---- AST 依赖提取精度（正则做不到的场景）-----------------------------
@@ -64,11 +64,11 @@ TEST(RelEngine, TestParseDepsFunctionCallVsMatrixIndex)
 
     // 单段 callee 且注册为函数 -> 函数调用，callee 不是依赖，参数是
     auto r1 = manager.Parse("sin(x) * cos(y)");
-    EXPECT_THAT(r1.dependencies, testing::UnorderedElementsAre("x", "y"));
+    EXPECT_THAT(r1.symbols, testing::UnorderedElementsAre("x", "y"));
 
     // 非注册函数的 a(...) -> 矩阵索引，a 是依赖
     auto r2 = manager.Parse("a(1, 2) + 1");
-    EXPECT_THAT(r2.dependencies, testing::UnorderedElementsAre("a"));
+    EXPECT_THAT(r2.symbols, testing::UnorderedElementsAre("a"));
 }
 
 TEST(RelEngine, TestParseDepsAttributeChain)
@@ -77,7 +77,7 @@ TEST(RelEngine, TestParseDepsAttributeChain)
     // 多段路径：收集首段（可能是 equation 名）+ 完整路径（DataArray /
     // block 引用），不收集中间前缀（a.b 不能作为依赖名存在）。
     auto result = manager.Parse("a.b.c");
-    EXPECT_THAT(result.dependencies,
+    EXPECT_THAT(result.symbols,
                 testing::UnorderedElementsAre("a", "a.b.c"));
 }
 
@@ -87,7 +87,7 @@ TEST(RelEngine, TestParseDepsSelfReference)
     // content 是表达式，读取 x 是依赖。
     auto result = manager.Parse("x + 1");
     EXPECT_EQ(result.status, ResultStatus::kSuccess);
-    EXPECT_THAT(result.dependencies, testing::UnorderedElementsAre("x"));
+    EXPECT_THAT(result.symbols, testing::UnorderedElementsAre("x"));
 }
 
 TEST(RelEngine, TestParseDepsNoStringMisdetect)
@@ -96,7 +96,7 @@ TEST(RelEngine, TestParseDepsNoStringMisdetect)
     // 字符串字面量里的标识符不应被误捕为依赖。
     auto result = manager.Parse(R"("hello world")");
     EXPECT_EQ(result.status, ResultStatus::kSuccess);
-    EXPECT_TRUE(result.dependencies.empty());
+    EXPECT_TRUE(result.symbols.empty());
 }
 
 TEST(RelEngine, TestParseDepsSweepAndIndex)
@@ -104,10 +104,10 @@ TEST(RelEngine, TestParseDepsSweepAndIndex)
     EquationManager &manager = EquationManager::GetInstance(); manager.Reset();
     // 列表/矩阵/索引结构里的引用
     auto r1 = manager.Parse("[a, b, c]");
-    EXPECT_THAT(r1.dependencies, testing::UnorderedElementsAre("a", "b", "c"));
+    EXPECT_THAT(r1.symbols, testing::UnorderedElementsAre("a", "b", "c"));
 
     auto r2 = manager.Parse("m[1, 2] * n");
-    EXPECT_THAT(r2.dependencies, testing::UnorderedElementsAre("m", "n"));
+    EXPECT_THAT(r2.symbols, testing::UnorderedElementsAre("m", "n"));
 }
 
 TEST(RelEngine, TestParseDepsComparison)
@@ -116,7 +116,7 @@ TEST(RelEngine, TestParseDepsComparison)
     // == 是表达式运算符：两侧的引用都是依赖
     auto result = manager.Parse("a == b");
     EXPECT_EQ(result.status, ResultStatus::kSuccess);
-    EXPECT_THAT(result.dependencies, testing::UnorderedElementsAre("a", "b"));
+    EXPECT_THAT(result.symbols, testing::UnorderedElementsAre("a", "b"));
 }
 
 TEST(RelEngine, TestParseInvalid)

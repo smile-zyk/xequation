@@ -1,9 +1,9 @@
 #include <QApplication>
 #include <QtGlobal>
 
-#include "proxy_demo_widget.h"
+#include "demo_widget.h"
 
-#ifdef PROXY_HAS_PYTHON
+#ifdef DEMO_HAS_PYTHON
 #include <exception>
 #include "environment.h"     // rel::Environment::CleanupPythonState
 #include "python_manager.h"  // python_manager::PyEnvManager
@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
 
-#ifdef PROXY_HAS_PYTHON
+#ifdef DEMO_HAS_PYTHON
     // REL 嵌入式 Python：解释器生命周期归宿主所有（rel 只执行插件，从不
     // 自行创建/销毁解释器，见 python_loader.cc）。与上游 REL main.cc 一致：
     // 先用 CMake 注入的编译期路径（py_home + stdlib / lib-dynload /
@@ -30,12 +30,12 @@ int main(int argc, char *argv[])
     }
 #endif
 
-    xresults::gui::ProxyDemoWidget widget;
+    xresults::gui::DemoWidget widget;
     widget.show();
 
     const int result = app.exec();
 
-#ifdef PROXY_HAS_PYTHON
+#ifdef DEMO_HAS_PYTHON
     // 逆序清理：先释放 pybind11 持有的回调（解释器必须还活着），再销毁解释器。
     if (python_manager::PyEnvManager::IsInitialized())
     {

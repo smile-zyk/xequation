@@ -228,7 +228,7 @@ ParseResult ParseRelExpression(const std::string &code)
             RelDependencyVisitor visitor(deps);
             expr->accept(visitor);
         }
-        result.dependencies = Dedupe(deps);
+        result.symbols = Dedupe(deps);
     }
     catch (const std::exception &e)
     {
@@ -285,12 +285,37 @@ EquationValue EquationManager::GetEquationValue(const std::string &equation_name
     return GetVariable(equation_name);
 }
 
-std::vector<std::string> EquationManager::GetEquationDependencies(const std::string &equation_name) const
+std::string EquationManager::GraphNodeNameForObjectId(const ObjectId &object_id) const
 {
-    // User-facing dependencies: other equation names this one reads.
-    // Registered-expression graph nodes ("expr_<uuid>") are filtered out.
+    // Registered expression -> its internal "expr_<uuid>" graph slot.
+    const auto expr_it = expression_id_to_name_map_.find(object_id);
+    if (expr_it != expression_id_to_name_map_.end())
+    {
+        return expr_it->second;
+    }
+    // Equation -> its name (the graph node is keyed by the equation name).
+    for (const auto &entry : equation_map_)
+    {
+        if (entry.second->id == object_id)
+        {
+            return entry.first;
+        }
+    }
+    return std::string();
+}
+
+std::vector<std::string> EquationManager::GetDependencies(const ObjectId &object_id) const
+{
+    // User-facing dependencies of an object (Equation or registered
+    // Expression): the names it reads (active graph edges).  Internal
+    // registered-expression graph nodes ("expr_<uuid>") are filtered out.
     std::vector<std::string> result;
-    const DependencyGraph::Node *node = graph_->GetNode(equation_name);
+    const std::string node_name = GraphNodeNameForObjectId(object_id);
+    if (node_name.empty())
+    {
+        return result;
+    }
+    const DependencyGraph::Node *node = graph_->GetNode(node_name);
     if (!node)
     {
         return result;
@@ -305,12 +330,18 @@ std::vector<std::string> EquationManager::GetEquationDependencies(const std::str
     return result;
 }
 
-std::vector<std::string> EquationManager::GetEquationDependents(const std::string &equation_name) const
+std::vector<std::string> EquationManager::GetDependents(const ObjectId &object_id) const
 {
-    // User-facing dependents: other equation names that read this one.
-    // Registered-expression graph nodes ("expr_<uuid>") are filtered out.
+    // User-facing dependents of an object (Equation or registered Expression):
+    // other names that read it (active graph edges).  Internal
+    // registered-expression graph nodes ("expr_<uuid>") are filtered out.
     std::vector<std::string> result;
-    const DependencyGraph::Node *node = graph_->GetNode(equation_name);
+    const std::string node_name = GraphNodeNameForObjectId(object_id);
+    if (node_name.empty())
+    {
+        return result;
+    }
+    const DependencyGraph::Node *node = graph_->GetNode(node_name);
     if (!node)
     {
         return result;
@@ -435,7 +466,7 @@ ObjectId EquationManager::AddEquation(const std::string &equation_name, const st
     std::vector<std::string> dependent_updated_equation;
     ScopedConnection dependent_connection = ConnectGraphDependentUpdated(dependent_updated_equation);
 
-    AddNodeToGraph(equation_name, res.dependencies);
+    AddNodeToGraph(equation_name, res.symbols);
     graph_->InvalidateNode(equation_name);
 
     const ObjectId id = boost::uuids::random_generator()();
@@ -444,8 +475,8 @@ ObjectId EquationManager::AddEquation(const std::string &equation_name, const st
     equation->name = equation_name;
     equation->content = expression;
     equation->status = ResultStatus::kPending;
-    equation->dependencies = res.dependencies;
-    equation->tag = tag.empty() ? kEquationTagDefault : tag;
+    equation->parse_symbols = res.symbols;
+    equation->tag = tag;   // opaque; empty stays empty (UI chooses defaults)
 
     Equation *equation_ptr = equation.get();
     equation_map_.insert({equation_name, std::move(equation)});
@@ -511,14 +542,14 @@ ObjectId EquationManager::EditEquation(const ObjectId &id, const std::string &ex
     {
         graph_->InvalidateNode(it->from());
     }
-    AddNodeToGraph(equation_name, res.dependencies);
+    AddNodeToGraph(equation_name, res.symbols);
     graph_->InvalidateNode(equation_name);
 
     equation = GetEquationInternal(equation_name);
     equation->content = expression;
     equation->status = ResultStatus::kPending;
     equation->message.clear();
-    equation->dependencies = res.dependencies;
+    equation->parse_symbols = res.symbols;
     env_->Remove(equation_name);
     signals_manager_->Emit<EquationEvent::kEquationUpdated>(
         equation, EquationUpdateFlag::kContent | EquationUpdateFlag::kStatus | EquationUpdateFlag::kMessage
@@ -587,7 +618,7 @@ ObjectId EquationManager::RenameEquation(const ObjectId &id, const std::string &
     {
         graph_->InvalidateNode(it->from());
     }
-    AddNodeToGraph(new_name, res.dependencies);
+    AddNodeToGraph(new_name, res.symbols);
     graph_->InvalidateNode(new_name);
 
     // Move the equation to its new name (same id: a rename, not a recreate).
@@ -596,7 +627,7 @@ ObjectId EquationManager::RenameEquation(const ObjectId &id, const std::string &
     equation_map_.erase(old_name);
     moved->name = new_name;
     moved->status = ResultStatus::kPending;
-    moved->dependencies = res.dependencies;
+    moved->parse_symbols = res.symbols;
     env_->Remove(old_name);
     equation_map_.insert({new_name, std::move(holder)});
 
@@ -845,17 +876,17 @@ ObjectId EquationManager::AddExpression(const std::string &expression, const std
     expr.id = rgen();
     const std::string name = "expr_" + boost::uuids::to_string(expr.id);
     expr.content = expression;
-    expr.tag = tag.empty() ? kWatchTagDefault : tag;
+    expr.tag = tag;   // opaque; empty stays empty (UI chooses defaults)
     // Register even on syntax errors: status/message are recorded on the
     // expression, and Update recomputes (and keeps it dirty) on failure.
     expr.result.status = parse_result.status;
     expr.result.message = parse_result.message;
-    expr.dependencies = parse_result.dependencies;
+    expr.parse_symbols = parse_result.symbols;
 
     // The expression node + its dependency edges (dependencies may not have graph
     // nodes yet -- e.g. an equation defined by a later AddEquation; edges stay
     // inactive until both endpoints exist).
-    AddNodeToGraph(name, expr.dependencies);
+    AddNodeToGraph(name, expr.parse_symbols);
     // Dirty the expression so it is computed on the next Update/UpdateExpression.
     graph_->InvalidateNode(name);
 

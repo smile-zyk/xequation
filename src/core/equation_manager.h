@@ -76,17 +76,21 @@ class EquationManager
     /// computed, or its name is not bound).
     EquationValue GetEquationValue(const std::string &equation_name) const;
 
-    /// User-facing dependencies of an equation: other equation names it reads.
-    /// Registered-expression graph nodes ("expr_<uuid>") are filtered out.
-    std::vector<std::string> GetEquationDependencies(const std::string &equation_name) const;
+    /// User-facing dependencies of an object (an Equation or a registered
+    /// Expression, identified by id): the names it reads (active graph
+    /// edges).  Registered-expression graph nodes ("expr_<uuid>") are filtered
+    /// out.  Empty when the id is unknown.
+    std::vector<std::string> GetDependencies(const ObjectId &object_id) const;
 
-    /// User-facing dependents of an equation: other equation names that read it.
-    /// Registered-expression graph nodes ("expr_<uuid>") are filtered out.
-    std::vector<std::string> GetEquationDependents(const std::string &equation_name) const;
+    /// User-facing dependents of an object (an Equation or a registered
+    /// Expression, identified by id): other names that read it (active graph
+    /// edges).  Registered-expression graph nodes ("expr_<uuid>") are filtered
+    /// out.  Empty when the id is unknown.
+    std::vector<std::string> GetDependents(const ObjectId &object_id) const;
 
     /// Adds a single equation "name = expression".  Returns its id.
     ObjectId AddEquation(const std::string &equation_name, const std::string &expression,
-                         const std::string &tag = kEquationTagDefault);
+                         const std::string &tag = std::string());
 
     /// Replaces the content of an existing equation (name unchanged).
     /// Throws when the name is not found.
@@ -148,7 +152,7 @@ class EquationManager
 
     // Registers an expression; returns its id.
     ObjectId AddExpression(const std::string &expression,
-                           const std::string &tag = kWatchTagDefault);
+                           const std::string &tag = std::string());
 
     // Removes a registered expression (and its graph node).
     void RemoveExpression(const ObjectId &id);
@@ -220,6 +224,11 @@ class EquationManager
     Equation *GetEquationInternal(const ObjectId &id);
     void UpdateEquationInternal(const std::string &equation_name);
     void UpdateExpressionInternal(const ObjectId &id);
+
+    /// The graph node name backing an object id: the equation name for an
+    /// Equation, or the internal "expr_<uuid>" slot for a registered
+    /// Expression.  Empty when the id is unknown.
+    std::string GraphNodeNameForObjectId(const ObjectId &object_id) const;
 
     void AddNodeToGraph(const std::string &node_name, const std::vector<std::string> &dependencies);
     void RemoveNodeInGraph(const std::string &node_name);

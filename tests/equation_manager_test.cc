@@ -84,13 +84,13 @@ TEST_F(EquationManagerTest, EquationAddRemoveEditGet)
 
 TEST_F(EquationManagerTest, EquationTagDefaultsAndCustom)
 {
-    // Default tag is the "Equation" identity.
+    // No tag supplied -> empty tag (identity defaults are a UI concern).
     manager_.AddEquation("A", "1");
-    EXPECT_EQ(manager_.GetEquation("A")->tag, kEquationTagDefault);
+    EXPECT_EQ(manager_.GetEquation("A")->tag, "");
 
     // A Marker identity can be supplied at creation time.
-    manager_.AddEquation("B", "2", kMarkerTagDefault);
-    EXPECT_EQ(manager_.GetEquation("B")->tag, kMarkerTagDefault);
+    manager_.AddEquation("B", "2", "Marker");
+    EXPECT_EQ(manager_.GetEquation("B")->tag, "Marker");
 
     // A custom free-form tag is also accepted.
     manager_.AddEquation("C", "3", "SimulationResult");
@@ -105,13 +105,13 @@ TEST_F(EquationManagerTest, EquationTagDefaultsAndCustom)
 
 TEST_F(EquationManagerTest, ExpressionTagDefaultsAndCustom)
 {
-    // Default tag is the "Watch" identity.
+    // No tag supplied -> empty tag (identity defaults are a UI concern).
     const ObjectId watch = manager_.AddExpression("1+1");
-    EXPECT_EQ(manager_.GetExpression(watch)->tag, kWatchTagDefault);
+    EXPECT_EQ(manager_.GetExpression(watch)->tag, "");
 
     // Graph identity at creation time.
-    const ObjectId graph = manager_.AddExpression("1+2", kGraphTagDefault);
-    EXPECT_EQ(manager_.GetExpression(graph)->tag, kGraphTagDefault);
+    const ObjectId graph = manager_.AddExpression("1+2", "Graph");
+    EXPECT_EQ(manager_.GetExpression(graph)->tag, "Graph");
 
     // Custom free-form tag.
     const ObjectId custom = manager_.AddExpression("1+3", "Plotted");
@@ -131,7 +131,7 @@ TEST_F(EquationManagerTest, ExpressionAddRemoveSignals)
     ScopedConnection c_removed = mgr.signals_manager().ConnectScoped<EquationEvent::kExpressionRemoved>(
         [&](const std::string &id) { removed_id = id; });
 
-    const ObjectId expr_id = manager_.AddExpression("x*2", kGraphTagDefault);
+    const ObjectId expr_id = manager_.AddExpression("x*2", "Graph");
     EXPECT_EQ(added, 1);
 
     manager_.RemoveExpression(expr_id);
@@ -387,7 +387,7 @@ TEST_F(EquationManagerTest, ExpressionRegisterAndEvaluate)
     const Expression *expr = manager_.GetExpression(expr_id);
     ASSERT_NE(expr, nullptr);
     EXPECT_EQ(expr->content, "A+B");
-    EXPECT_THAT(expr->dependencies, testing::UnorderedElementsAre("A", "B"));
+    EXPECT_THAT(expr->parse_symbols, testing::UnorderedElementsAre("A", "B"));
 
     // Not evaluated yet.
     EXPECT_FALSE(manager_.GetExpressionValue(expr_id).HasValue());

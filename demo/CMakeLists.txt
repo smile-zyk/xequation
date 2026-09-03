@@ -2,40 +2,70 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(xequation_demo_SRC
+set(demo_SRC
 demo_widget.h
 demo_widget.cc
-mock_equation_group_list_widget.h
-mock_equation_group_list_widget.cc
-message_widget.h
-message_widget.cc
+expression_property_widget.h
+expression_property_widget.cc
+expression_data_frame_model.h
+expression_data_frame_model.cc
+expression_data_frame_view.h
+expression_data_frame_view.cc
+expression_data_frame_tab_widget.h
+expression_data_frame_tab_widget.cc
+equation_manager_tree_view.h
+equation_manager_tree_view.cc
+tree_view_tag.h
 main.cc
+task/task.h
+task/task.cc
+task/task_manager.h
+task/task_manager.cc
+task/toast_task_manager.h
+task/toast_task_manager.cc
+toast/toast_manager.h
+toast/toast_manager.cc
+toast/toast_progress_bar.h
+toast/toast_progress_bar.cc
 )
 
-add_executable(xequation_demo ${xequation_demo_SRC})
+add_executable(demo ${demo_SRC})
 
-target_link_libraries(xequation_demo PUBLIC qt_config)
-target_link_libraries(xequation_demo PUBLIC xequation_core)
-target_link_libraries(xequation_demo PUBLIC xequation_gui)
+target_include_directories(demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(demo PUBLIC qt_config)
+# REL EquationManager 单例由 xequation_core 提供（equation_manager.h 的 RelEquationManager）。
+target_link_libraries(demo PUBLIC xequation_core)
+
+# 嵌入式 Python：宿主（demo）通过 python_manager 初始化/销毁解释器，
+# rel 只对已初始化的解释器执行 env.json 的 python_plugins（BUILD_PYTHON=ON）。
+if(BUILD_PYTHON)
+  target_link_libraries(demo PUBLIC python_manager)
+  target_compile_definitions(demo PRIVATE DEMO_HAS_PYTHON)
+endif()
 
 if(WIN32)
   get_target_property(QT_QMAKE_EXECUTABLE Qt5::qmake IMPORTED_LOCATION)
   get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" DIRECTORY)
   find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${QT_BIN_DIR}")
   add_custom_command(TARGET
-    xequation_demo POST_BUILD
-    COMMAND ${WINDEPLOYQT_EXECUTABLE} $<TARGET_FILE:xequation_demo>
+    demo POST_BUILD
+    COMMAND ${WINDEPLOYQT_EXECUTABLE} $<TARGET_FILE:demo>
     COMMENT "run windeployqt")
 endif()
 
-# windeployqt 只拷贝 Qt DLL；REL 的运行时 DLL（rel / xdataset）
-# 需要显式拷贝到可执行文件目录，否则运行时找不到（MSYS2 报
-# "error while loading shared libraries: libxdataset.dll"）。
-add_custom_command(TARGET xequation_demo POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "$<TARGET_FILE:rel>"
-      "$<TARGET_FILE_DIR:xequation_demo>"
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "$<TARGET_FILE:xdataset>"
-      "$<TARGET_FILE_DIR:xequation_demo>"
-  COMMENT "Copy REL runtime DLLs next to xequation_demo")
+# windeployqt only copies Qt DLLs; REL / xdataset runtime DLLs and their
+# transitive deps (e.g. HDF5: libhdf5-320.dll -> libaws-*.dll / libsz-2.dll /
+# libz-ng2.dll) are resolved and copied by copy_runtime_deps.cmake (excluding
+# system and Qt DLLs).
+if(WIN32)
+  get_filename_component(RUNTIME_DEP_COMPILER_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
+  set(RUNTIME_DEP_EXTRA_DIRS "${QT_BIN_DIR};${RUNTIME_DEP_COMPILER_BIN}")
+  add_custom_command(TARGET demo POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+        -DEXE=$<TARGET_FILE:demo>
+        -DDEST=$<TARGET_FILE_DIR:demo>
+        "-DEXTRA_DIRS=${RUNTIME_DEP_EXTRA_DIRS}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/copy_runtime_deps.cmake"
+    COMMENT "Copy full runtime dependency DLLs next to demo")
+endif()

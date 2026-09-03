@@ -2,6 +2,10 @@
 
 #include <QTreeView>
 
+#include <map>
+#include <tuple>
+#include <vector>
+
 #include "core/equation_manager.h"
 
 class QStandardItemModel;
@@ -52,7 +56,7 @@ class EquationManagerTreeView : public QTreeView
         QString data_array;   // data-array name (kDataArray)
         QString tag;          // tag string (kTag / kEquation / kExpression)
         QString name;         // equation name / expression display text
-        QString object_id;    // uuid string (kEquation / kExpression)
+        xequation::ObjectId object_id = xequation::NilObjectId();  // kEquation/kExpression; kDataArray after first access
     };
 
     static constexpr int kRoleKind = Qt::UserRole + 1;
@@ -73,21 +77,52 @@ class EquationManagerTreeView : public QTreeView
     /// Payload of the current (selected) item.
     SelectionInfo CurrentSelection() const;
 
+    /// Payloads of every selected item, in tree order (top to bottom).  With
+    /// multi-select enabled this is the full set a host should act on.
+    std::vector<SelectionInfo> SelectedInfos() const;
+
     /// Payload of an arbitrary item.
     static SelectionInfo ItemInfo(const QStandardItem *item);
 
-    /// Highlight + reveal the item for an equation name (used after rename
-    /// etc.); -1 when the equation is not listed.
-    void SelectEquation(const QString &equation_name);
+    /// Replace the entire tree selection with exactly the given equation
+    /// leaves (multi-select friendly; tag groups of selected leaves are
+    /// expanded).  Used when the equation LIST is the last-clicked panel: the
+    /// tree then mirrors only the list's equation selection, so any stale
+    /// dataset / data-array selection is dropped.
+    void SetEquationSelection(const std::vector<QString> &equation_names);
+
+    /// Returns (creating + registering on first use, then caching on the node)
+    /// the hidden "DataArray access" expression id for a DataArray.  The
+    /// expression content is the REL access path (`ds.block…array`); its tag is
+    /// hidden so the tree never lists it under a tag group.  Later clicks on
+    /// the same array reuse the cached id.  Nil when registration fails.
+    xequation::ObjectId EnsureDataArrayExpression(const QString &dataset,
+                                                  const QString &block_path,
+                                                  const QString &data_array);
 
   private:
     QStandardItem *AddGroupChild(QStandardItem *parent, NodeKind kind,
                                  const QString &text);
     void AddTaggedItems();
+    /// Find the DataArray node for (dataset, block path, data array), if shown.
+    QStandardItem *FindDataArrayItem(const QString &dataset,
+                                     const QString &block_path,
+                                     const QString &data_array) const;
+    /// Drop cached DataArray-access expressions whose (dataset, block, array)
+    /// no longer exists in the registry (env reload / removal).  Called from
+    /// Refresh(); the expression is removed from the manager.
+    void PruneDataArrayExpressions();
 
   private:
     xequation::EquationManager &manager_;
     QStandardItemModel *model_ = nullptr;
+
+    /// (dataset, block path, data array) -> lazily-created hidden access
+    /// expression id.  Survives tree rebuilds; PruneDataArrayExpressions()
+    /// removes entries whose array is gone (env reload / dataset removal).
+    std::map<std::tuple<QString, QString, QString>, xequation::ObjectId>
+        data_array_exprs_;
+    bool refreshing_ = false;  // nested-Refresh guard (prune triggers expr-removed)
 
     // Scoped manager signal subscriptions (auto-disconnect on destruction).
     xequation::ScopedConnection eq_added_conn_;
