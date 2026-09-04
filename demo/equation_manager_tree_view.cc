@@ -50,6 +50,16 @@ QStandardItem *MakeItem(EquationManagerTreeView::NodeKind kind, const QString &t
     item->setEditable(false);
     return item;
 }
+
+/// True when a tree node may be deleted by the user.  Only an Equation or
+/// Expression leaf under a tag group is deletable; Datasets (and its Block /
+/// DataArray nodes) and the Tag group nodes themselves are structural &
+/// read-only and are never offered for deletion.
+bool IsDeletableNodeKind(EquationManagerTreeView::NodeKind kind)
+{
+    return kind == EquationManagerTreeView::NodeKind::kEquation ||
+           kind == EquationManagerTreeView::NodeKind::kExpression;
+}
 } // namespace
 
 EquationManagerTreeView::EquationManagerTreeView(EquationManager &manager, QWidget *parent)
@@ -109,7 +119,9 @@ EquationManagerTreeView::EquationManagerTreeView(EquationManager &manager, QWidg
     expr_removed_conn_ = manager_.signals_manager().ConnectScoped<EquationEvent::kExpressionRemoved>(
         [refresh](const std::string &) { refresh(); });
 
-    // Right-click on a leaf: delete the visible (watch/graph) expression.
+    // Right-click on an Equation / Expression leaf: delete it.  Dataset /
+    // Block / DataArray and Tag group nodes are structural & read-only -- they
+    // are never offered for deletion.
     setContextMenuPolicy(Qt::CustomContextMenu);
     connect(this, &QWidget::customContextMenuRequested,
             this, [this](const QPoint &pos) {
@@ -117,20 +129,40 @@ EquationManagerTreeView::EquationManagerTreeView(EquationManager &manager, QWidg
                 const QStandardItem *item = index.isValid()
                     ? model_->itemFromIndex(index)
                     : nullptr;
-                if (!item || ItemInfo(item).kind != NodeKind::kExpression)
+                if (!item)
                 {
                     return;
                 }
-                const ObjectId id = ItemInfo(item).object_id;
+                const SelectionInfo info = ItemInfo(item);
+                if (!IsDeletableNodeKind(info.kind))
+                {
+                    return;
+                }
+                const ObjectId id = info.object_id;
                 if (id.is_nil())
                 {
                     return;
                 }
                 QMenu menu(this);
-                QAction *remove = menu.addAction(tr("Delete Expression"));
+                QAction *remove = nullptr;
+                if (info.kind == NodeKind::kEquation)
+                {
+                    remove = menu.addAction(tr("Delete Equation"));
+                }
+                else
+                {
+                    remove = menu.addAction(tr("Delete Expression"));
+                }
                 if (menu.exec(viewport()->mapToGlobal(pos)) == remove)
                 {
-                    manager_.RemoveExpression(id);
+                    if (info.kind == NodeKind::kEquation)
+                    {
+                        manager_.RemoveEquation(id);
+                    }
+                    else
+                    {
+                        manager_.RemoveExpression(id);
+                    }
                 }
             });
 

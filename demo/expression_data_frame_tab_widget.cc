@@ -882,35 +882,42 @@ void ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked(int index)
     EditTab(index);
 }
 
-void ExpressionDataFrameTabWidget::EditTab(int index)
+bool ExpressionDataFrameTabWidget::IsTabEditable(int index) const
 {
     if (index < 0 || index >= static_cast<int>(tabs_.size()))
+    {
+        return false;
+    }
+
+    const TabData &tab = tabs_[static_cast<std::size_t>(index)];
+
+    // Only "Watch"-tagged expressions are user-editable.  Equations, Blocks
+    // and any internal / host-only expressions (e.g. DataArray access) are
+    // read-only views of the environment.
+    if (tab.kind == ObjectKind::kExpression)
+    {
+        const Expression *cur = manager_.GetExpression(tab.object_id);
+        if (cur && cur->tag == kWatchTagDefault)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ExpressionDataFrameTabWidget::EditTab(int index)
+{
+    if (!IsTabEditable(index))
     {
         return;
     }
 
     TabData &tab = tabs_[static_cast<std::size_t>(index)];
 
-    // Block tabs are read-only views of the environment.
-    if (tab.kind == ObjectKind::kBlock)
-    {
-        return;
-    }
-
-    // DataArray access expressions are fixed access paths bound to their tree
-    // node -- they are not user-editable.
-    if (tab.kind == ObjectKind::kExpression)
-    {
-        const Expression *cur = manager_.GetExpression(tab.object_id);
-        if (cur && IsDataArrayAccessTag(cur->tag))
-        {
-            return;
-        }
-    }
-
-    // Both Equation and Expression tabs are editable.  Editing an Equation
-    // tab turns it into a registered watch Expression (the equation itself is
-    // left untouched in the manager).
+    // Only "Watch"-tagged expression tabs are editable; the tab is guaranteed
+    // to be an Expression tab here (see IsTabEditable).  Editing it turns it
+    // into a re-registered watch Expression (its original object is released
+    // after the new expression registers successfully).
     bool ok = false;
     const QString new_expression = QInputDialog::getText(
         this, QStringLiteral("Edit Expression"),
@@ -927,11 +934,12 @@ void ExpressionDataFrameTabWidget::EditTab(int index)
     }
 
     // Register the new expression first; only on success release the old one,
-    // so a failed parse leaves the tab (and its old object) intact.
+    // so a failed parse leaves the tab (and its old object) intact.  The new
+    // expression keeps the "Watch" tag so it stays editable.
     ObjectId new_id;
     try
     {
-        new_id = manager_.AddExpression(trimmed);
+        new_id = manager_.AddExpression(trimmed, kWatchTagDefault);
     }
     catch (const std::exception &)
     {
@@ -990,6 +998,9 @@ void ExpressionDataFrameTabWidget::OnTabContextMenu(const QPoint &pos)
 
     QMenu menu(this);
     QAction *edit_action = menu.addAction(QStringLiteral("Edit"));
+    // Only "Watch"-tagged expression tabs are editable; all other tabs
+    // (Equation / Block / DataArray access) are read-only views.
+    edit_action->setEnabled(IsTabEditable(index));
     QAction *delete_action = menu.addAction(QStringLiteral("Delete"));
     menu.addSeparator();
     QAction *add_watch_action = menu.addAction(QStringLiteral("Add Watch Expression"));
@@ -1025,7 +1036,7 @@ void ExpressionDataFrameTabWidget::AddWatchExpression(const std::string &express
     ObjectId id;
     try
     {
-        id = manager_.AddExpression(expression);
+        id = manager_.AddExpression(expression, kWatchTagDefault);
     }
     catch (const std::exception &)
     {

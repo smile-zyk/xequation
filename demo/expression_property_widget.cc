@@ -280,18 +280,14 @@ void ExpressionPropertyWidget::ShowDataset(const xdataset::Dataset *dataset, boo
 
     AddField("Default Dataset", is_default ? "Yes" : "No");
 
-    // ---- 2. Dataset path ----------------------------------------------------
+    const std::vector<std::string> block_paths = dataset->GetAllBlockPaths();
+    AddListField("Variable Blocks", block_paths);
+
     const std::string &source_path = dataset->source_path();
     if (!source_path.empty())
     {
         AddField("Dataset Path", QString::fromStdString(source_path));
     }
-
-    // ---- 3. Variable Blocks (path list, expandable) -------------------------
-    // The REL form replaces '/' with '.' ("Tran1.TRAN"); the tree lists the
-    // '/' path.  Both are shown so the value matches the REL reference.
-    const std::vector<std::string> block_paths = dataset->GetAllBlockPaths();
-    AddListField("Variable Blocks", block_paths);
 }
 
 void ExpressionPropertyWidget::ShowBlock(const xdataset::Block *block)
@@ -304,6 +300,7 @@ void ExpressionPropertyWidget::ShowBlock(const xdataset::Block *block)
     // ---- 2. Independents / dependents ---------------------------------------
     AddListField("Independents", block->independents());
     AddListField("Dependents", block->dependents());
+    AddField("In Dataset", QString::fromStdString(block->dataset_name()));
 }
 
 void ExpressionPropertyWidget::OnEquationRemoving(const Equation *equation)

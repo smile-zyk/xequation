@@ -113,6 +113,13 @@ class DemoWidget : public QWidget
     /// decides which tabs to clear / refresh.
     xequation::ScopedConnection removing_rel_connection_;
     xequation::ScopedConnection updated_rel_connection_;
+
+    /// Connection to the REL manager's kEquationRemoved signal: an equation
+    /// left the manager (Delete button, or the manager-tree context menu
+    /// which calls RemoveEquation directly) -- refresh the equation list so
+    /// the middle-left panel stays in sync.
+    xequation::ScopedConnection equation_removed_rel_connection_;
+
     /// Connection to the REL manager's kExpressionUpdated signal, for
     /// auto-refresh of watch-expression tabs / property on value-ready.
     xequation::ScopedConnection expression_updated_rel_connection_;

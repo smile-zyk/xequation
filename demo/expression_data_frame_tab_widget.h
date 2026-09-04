@@ -185,9 +185,13 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     // ---- label editing ----
     void OnTabLabelDoubleClicked(int index);
     void OnTabContextMenu(const QPoint &pos);
-    /// Edit a tab's text; an Equation tab becomes a watch Expression (its
-    /// equation is kept as-is).  Hidden-tag expressions (DataArray access)
-    /// are not editable.
+    /// Whether the tab may be edited.  Only "Watch"-tagged expressions are
+    /// user-editable: Equation, Block, and DataArray-access (and any other
+    /// internal / host-only tagged) expressions are read-only.
+    bool IsTabEditable(int index) const;
+    /// Edit a tab's text; only a "Watch"-tagged expression tab is editable.
+    /// Editing turns the tab into a re-registered watch Expression (its
+    /// original object, if any, is kept as-is / released as appropriate).
     void EditTab(int index);
 
     /// Show / hide an unpinned pin button on hover (pinned buttons stay

@@ -237,6 +237,22 @@ void DemoWidget::SetupConnections()
                 }
             );
 
+    // kEquationRemoved: an equation left the manager (Delete button, or the
+    // manager-tree context menu which calls RemoveEquation directly).  The
+    // equation list (middle-left) must be refreshed -- the Delete-button path
+    // did this manually, but the tree path bypasses it.  Connecting here keeps
+    // the list in sync for every removal source.
+    equation_removed_rel_connection_ =
+        EquationManager::GetInstance()
+            .signals_manager()
+            .ConnectScoped<EquationEvent::kEquationRemoved>(
+                [this](const std::string &equation_name)
+                {
+                    Q_UNUSED(equation_name);
+                    RefreshEquationList();
+                }
+            );
+
     // kEquationUpdated: on value-ready (kValue) each tab decides to refresh.
     updated_rel_connection_ =
         EquationManager::GetInstance()
