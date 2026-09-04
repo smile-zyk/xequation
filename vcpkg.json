@@ -8,8 +8,9 @@
     "boost-bimap",
     "boost-graph",
     "boost-variant",
+    "boost-filesystem",
+    "boost-json",
     "eigen3",
-    "rapidjson",
     "tsl-ordered-map"
   ],
   "overrides": [

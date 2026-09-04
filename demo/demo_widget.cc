@@ -1,8 +1,8 @@
 ﻿#include "demo_widget.h"
 
-#include "equation_manager_tree_view.h"
-#include "expression_data_frame_tab_widget.h"
-#include "expression_property_widget.h"
+#include "explorer_view.h"
+#include "data_frame_tab_widget.h"
+#include "property_widget.h"
 #include "tree_view_tag.h"  // UI-layer tag definitions
 
 #include "core/equation_manager.h"
@@ -43,19 +43,19 @@ using namespace xequation;
 namespace
 {
 // ---------------------------------------------------------------------
-// Dataset (env.json) helpers
+// Project file helpers
 // ---------------------------------------------------------------------
 
-// Absolute path of the bundled sample config <repo>/3rd/REL/case/test_env.json.
+// Absolute path of the bundled sample project <repo>/demo/demo_project.json.
 // The exe usually lives in <repo>/build/bin/<config>/, so walk up from the
 // executable directory and also check the working directory.  Empty when no
 // such file is found.
-QString SampleEnvJsonPath()
+QString SampleProjectPath()
 {
     QDir dir(QCoreApplication::applicationDirPath());
     for (int depth = 0; depth < 6; ++depth)
     {
-        const QString candidate = dir.filePath("3rd/REL/case/test_env.json");
+        const QString candidate = dir.filePath("demo/demo_project.json");
         if (QFileInfo::exists(candidate))
         {
             return QFileInfo(candidate).absoluteFilePath();
@@ -67,7 +67,7 @@ QString SampleEnvJsonPath()
     }
 
     const QString cwd_candidate =
-        QDir::current().filePath("3rd/REL/case/test_env.json");
+        QDir::current().filePath("demo/demo_project.json");
     if (QFileInfo::exists(cwd_candidate))
     {
         return QFileInfo(cwd_candidate).absoluteFilePath();
@@ -91,24 +91,30 @@ void DemoWidget::SetupUI()
     setWindowTitle("XEquation Demo");
     setMinimumSize(900, 600);
 
-    // ---- top: dataset row (env.json + current-dataset switch) ---------
+    // ---- top: dataset row (project file + current-dataset switch) -----
     QLabel *dataset_label = new QLabel("Dataset:", this);
     dataset_combo_ = new QComboBox(this);
     dataset_combo_->setEnabled(false);  // enabled once datasets are loaded
     dataset_combo_->setToolTip(
-        "Datasets loaded from an environment JSON.  Selecting one makes it "
+        "Datasets loaded from a project file.  Selecting one makes it "
         "the REL default dataset (bare DataArray names resolve against it)."
     );
-    open_env_button_ = new QPushButton("Open env.json\u2026", this);
+    open_env_button_ = new QPushButton("Open Project\u2026", this);
     open_env_button_->setToolTip(
-        "Open an environment JSON listing datasets + the default dataset "
-        "(sample: 3rd/REL/case/test_env.json)."
+        "Open a project file (datasets + equations + expressions)\n"
+        "(sample: demo/demo_project.json)."
+    );
+    save_project_button_ = new QPushButton("Save Project\u2026", this);
+    save_project_button_->setToolTip(
+        "Save the current equations / expressions / dataset references\n"
+        "to a project file."
     );
 
     QHBoxLayout *dataset_layout = new QHBoxLayout();
     dataset_layout->addWidget(dataset_label);
     dataset_layout->addWidget(dataset_combo_, 1);
     dataset_layout->addWidget(open_env_button_);
+    dataset_layout->addWidget(save_project_button_);
 
     // ---- top: statement input ------------------------------------------
     statement_edit_ = new QLineEdit(this);
@@ -135,19 +141,19 @@ void DemoWidget::SetupUI()
     // ---- middle: manager tree + equation list + dataframe/property -----
     EquationManager &mgr = EquationManager::GetInstance();
 
-    manager_tree_ = new EquationManagerTreeView(mgr, this);
+    manager_tree_ = new ExplorerView(mgr, this);
     manager_tree_->setMinimumWidth(220);
 
     equation_list_ = new QListWidget(this);
     equation_list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
-    data_frame_view_ = new ExpressionDataFrameTabWidget(
+    data_frame_view_ = new DataFrameTabWidget(
         // Pass the REL manager directly (DataFrames come only from REL); the
         // tab widget needs the manager's query/register APIs.
         mgr,
         this
     );
-    property_widget_ = new ExpressionPropertyWidget(mgr, this);
+    property_widget_ = new PropertyWidget(mgr, this);
     property_widget_->setMinimumHeight(180);
 
     // Right side: vertical splitter with the table on top, property window below.
@@ -191,7 +197,10 @@ void DemoWidget::SetupConnections()
     connect(delete_button_, &QPushButton::clicked, this, &DemoWidget::OnDeleteEquation);
     connect(watch_button_, &QPushButton::clicked, this, &DemoWidget::OnAddWatchExpression);
     connect(
-        open_env_button_, &QPushButton::clicked, this, &DemoWidget::OnOpenEnvJson
+        open_env_button_, &QPushButton::clicked, this, &DemoWidget::OnOpenProject
+    );
+    connect(
+        save_project_button_, &QPushButton::clicked, this, &DemoWidget::OnSaveProject
     );
     connect(
         dataset_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -221,8 +230,8 @@ void DemoWidget::SetupConnections()
     // The REL manager's signals are routed to the tab widget / property widget:
     // each decides which tabs to clear / re-evaluate (self-contained judgment;
     // this widget only dispatches).
-    ExpressionDataFrameTabWidget *tabs = data_frame_view_;
-    ExpressionPropertyWidget *property = property_widget_;
+    DataFrameTabWidget *tabs = data_frame_view_;
+    PropertyWidget *property = property_widget_;
 
     // kEquationRemoving: value is about to disappear; equation tabs showing it
     // are cleared, property widget clears its selection.
@@ -678,73 +687,88 @@ void DemoWidget::OnAddWatchExpression()
 }
 
 // =========================================================================
-// Dataset (env.json) support
+// Project file support
 // =========================================================================
 
-void DemoWidget::OnOpenEnvJson()
+void DemoWidget::OnOpenProject()
 {
-    // Suggest the bundled sample (<repo>/3rd/REL/case/test_env.json) when it
-    // can be located next to the executable / in the working directory.
-    const QString sample = SampleEnvJsonPath();
+    // Suggest the bundled sample (<repo>/demo/demo_project.json) when it can
+    // be located next to the executable / in the working directory.
+    const QString sample = SampleProjectPath();
     const QString start_dir = !sample.isEmpty()
         ? QFileInfo(sample).absolutePath()
         : QDir::currentPath();
 
     const QString path = QFileDialog::getOpenFileName(
-        this, "Open Environment JSON", start_dir,
-        "Environment JSON (*.json);;All Files (*)"
+        this, "Open Project", start_dir,
+        "Project (*.json);;All Files (*)"
     );
     if (path.isEmpty())
     {
         return;
     }
-    LoadEnvJson(path);
+    LoadProject(path);
 }
 
-void DemoWidget::LoadEnvJson(const QString &path)
+void DemoWidget::OnSaveProject()
+{
+    // Default to the currently loaded project (if any), else the sample dir.
+    QString start_dir = !project_path_.isEmpty()
+        ? QFileInfo(project_path_).absolutePath()
+        : QDir::currentPath();
+
+    const QString path = QFileDialog::getSaveFileName(
+        this, "Save Project", start_dir,
+        "Project (*.json);;All Files (*)"
+    );
+    if (path.isEmpty())
+    {
+        return;
+    }
+
+    try
+    {
+        EquationManager::GetInstance().SaveToFile(path.toStdString());
+        project_path_ = path;
+        status_label_->setText(
+            QString("Saved project to %1").arg(path)
+        );
+    }
+    catch (const std::exception &e)
+    {
+        QMessageBox::warning(
+            this, "Save Project Failed",
+            QString("Failed to save project:\n%1\n\n%2").arg(path, e.what())
+        );
+    }
+}
+
+void DemoWidget::LoadProject(const QString &path)
 {
     try
     {
-        // Parse/validate first: throws on JSON syntax / IO errors BEFORE any
-        // global state is touched.
-        const rel::EnvironmentConfig cfg =
-            rel::EnvironmentConfig::Load(path.toStdString());
-
-        // Drop the datasets of a previously loaded env so re-opening an
-        // env.json REPLACES the active set (rel::Environment::LoadFromConfig
-        // itself preserves existing registries).  A Block tab's frame is owned
-        // and cached by the Block, which RemoveDataset destroys -- close any
-        // open block tabs first so they do not dangle.
-        if (!env_json_path_.isEmpty())
+        // Drop the datasets of a previously loaded project so re-opening
+        // REPLACES the active set (rel::Environment::LoadFromConfig itself
+        // preserves existing registries).  A Block tab's frame is owned and
+        // cached by the Block, which RemoveDataset destroys -- close any open
+        // block tabs first so they do not dangle.
+        data_frame_view_->ClearBlockTabs();
+        for (const std::string &name : rel::Environment::DatasetNames())
         {
-            data_frame_view_->ClearBlockTabs();
-            for (const std::string &name : rel::Environment::DatasetNames())
-            {
-                rel::Environment::RemoveDataset(name);
-            }
+            rel::Environment::RemoveDataset(name);
         }
 
-        // REL owns the real load: dataset files (relative dataset paths are
-        // resolved against the config file's directory), default dataset
-        // ("default_dataset" or the first entry) and python_plugins
-        // (BUILD_PYTHON=ON: loaded against the interpreter that main.cc
-        // initialized).
-        rel::Environment::LoadFromConfig(path.toStdString());
+        // EquationManager::LoadFromFile clears equations/expressions, loads
+        // the referenced datasets (relative dataset paths are resolved against
+        // the project file's directory), restores equations/expressions, then
+        // Update()s to recompute all values.  Host signal connections survive
+        // (LoadFromFile does not disconnect external observers).
+        EquationManager::GetInstance().LoadFromFile(path.toStdString());
 
-        env_json_path_ = path;
+        project_path_ = path;
         RefreshDatasetCombo();
+        RefreshEquationList();
         manager_tree_->Refresh();   // dataset tree changed
-
-        // Equations / watch expressions referencing dataset DataArrays (bare
-        // names resolve against the default dataset) follow the new data.
-        try
-        {
-            EquationManager::GetInstance().Update();
-        }
-        catch (const std::exception &e)
-        {
-            (void)e;  // per-node failures surface on the equation / expression
-        }
 
         const std::vector<std::string> names = rel::Environment::DatasetNames();
         QString status = QString("Loaded %1: %2 dataset(s)")
@@ -755,7 +779,8 @@ void DemoWidget::LoadEnvJson(const QString &path)
             status += QString(", default: %1")
                           .arg(QString::fromStdString(default_ds->name()));
         }
-        if (!cfg.python_plugins.empty() && !rel::Environment::IsPythonAvailable())
+        if (!rel::Environment::PythonPlugins().empty() &&
+            !rel::Environment::IsPythonAvailable())
         {
             status += "  (python_plugins ignored: no Python support in this build)";
         }
@@ -764,8 +789,8 @@ void DemoWidget::LoadEnvJson(const QString &path)
     catch (const std::exception &e)
     {
         QMessageBox::warning(
-            this, "Load Environment Failed",
-            QString("Failed to load environment:\n%1\n\n%2").arg(path, e.what())
+            this, "Load Project Failed",
+            QString("Failed to load project:\n%1\n\n%2").arg(path, e.what())
         );
     }
 }
@@ -1000,8 +1025,8 @@ void DemoWidget::OnManagerTreeClicked()
 
 void DemoWidget::OnManagerTreeSelectionChanged()
 {
-    using SelectionInfo = EquationManagerTreeView::SelectionInfo;
-    using NodeKind = EquationManagerTreeView::NodeKind;
+    using SelectionInfo = ExplorerView::SelectionInfo;
+    using NodeKind = ExplorerView::NodeKind;
 
     // The manager TREE is the last-clicked panel (mirrors from the list block
     // this widget's signals).  Per the rules:
@@ -1172,7 +1197,12 @@ void DemoWidget::OnManagerTreeSelectionChanged()
         }
         // Registration failed: nothing with an ObjectId to show.
         property_widget_->SetObject(xequation::ObjectId());
+        return;
     }
+
+    // Non-displayable nodes (Datasets group, Tag group) have nothing to show
+    // in the property panel -- clear it.
+    property_widget_->SetObject(xequation::ObjectId());
 }
 
 } // namespace gui

@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 
+#include <tsl/ordered_map.h>
 #include <tsl/ordered_set.h>
 
 #include "dependency_graph.h"
@@ -213,6 +214,24 @@ class EquationManager
         return *signals_manager_;
     }
 
+    // =========================================================================
+    // Persistence
+    // =========================================================================
+
+    /// Serialize the manager's source state to a project file (JSON):
+    /// dataset references (name/format/path, pointing at the dataset files),
+    /// python plugins, equations (name/content/tag), registered expressions
+    /// (content/tag).  Derived state (status/message/result/parse_symbols) and
+    /// dataset contents are NOT persisted — they are recomputed / reloaded by
+    /// LoadFromFile.  Throws std::runtime_error on write failure.
+    void SaveToFile(const std::string &path) const;
+
+    /// Restore state previously written by SaveToFile.  Clears current state
+    /// first, loads the referenced datasets into the REL environment, then
+    /// restores equations and expressions, then Update()s to recompute all
+    /// values.  Throws on read/parse failure.
+    void LoadFromFile(const std::string &path);
+
   private:
     EquationManager();  // Only GetInstance() may construct.
     EquationManager(const EquationManager &) = delete;
@@ -224,6 +243,12 @@ class EquationManager
     Equation *GetEquationInternal(const ObjectId &id);
     void UpdateEquationInternal(const std::string &equation_name);
     void UpdateExpressionInternal(const ObjectId &id);
+
+    /// Clears all manager state (graph, equations, expressions, external
+    /// inputs, environment variables) and emits removal signals, WITHOUT
+    /// disconnecting external signal observers.  Used by in-place reload
+    /// (LoadFromFile) so host connections survive; Reset() = this + disconnect.
+    void ClearState();
 
     /// The graph node name backing an object id: the equation name for an
     /// Equation, or the internal "expr_<uuid>" slot for a registered
@@ -252,8 +277,9 @@ class EquationManager
     // own ObjectId; there is no separate group layer any more.
     EquationPtrOrderedMap equation_map_;
 
-    // Registered expressions.  Keyed by name (same slot as equations).
-    std::unordered_map<std::string, Expression> expression_map_;
+    // Registered expressions.  Keyed by name (same slot as equations),
+    // insertion order preserved for stable serialization.
+    tsl::ordered_map<std::string, Expression> expression_map_;
     // Expression id -> internal graph/name slot.
     std::unordered_map<ObjectId, std::string> expression_id_to_name_map_;
 

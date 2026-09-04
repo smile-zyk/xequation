@@ -13,7 +13,7 @@
 
 # ---- 第三方依赖发现（原本由上游 CMakeLists 完成） -------------------------
 find_package(Eigen3 3.3 CONFIG REQUIRED)
-find_package(Boost 1.72 CONFIG REQUIRED)
+find_package(Boost 1.72 CONFIG REQUIRED COMPONENTS filesystem json)
 find_package(tsl-ordered-map CONFIG REQUIRED)
 
 # HDF5：优先 HDF5_ROOT / $ENV{HDF5_ROOT}，否则回退 FindHDF5
@@ -77,6 +77,7 @@ set(XDATASET_SOURCES
   ${XDATASET_DIR}/src/multi_index_selector.cc
   ${XDATASET_DIR}/src/data_array.cc
   ${XDATASET_DIR}/src/block.cc
+  ${XDATASET_DIR}/src/data_array_set.cc
   ${XDATASET_DIR}/src/data_frame.cc
   ${XDATASET_DIR}/src/data_series.cc
   ${XDATASET_DIR}/src/measurement.cc
@@ -199,6 +200,7 @@ target_include_directories(rel PUBLIC
   ${REL_DIR}/src/runtime # internal headers (hosts / tests)
 )
 target_link_libraries(rel PUBLIC xdataset)
+target_link_libraries(rel PUBLIC Boost::filesystem Boost::json)
 
 if(BUILD_PYTHON)
   if(NOT pybind11_FOUND)

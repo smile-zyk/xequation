@@ -1,4 +1,4 @@
-#include "expression_data_frame_model.h"
+#include "data_frame_model.h"
 
 #include "block.h"        // xdataset::Block::GetOrCreateDataFrame
 #include "data_frame.h"
@@ -12,14 +12,14 @@ namespace gui
 
 using namespace xequation;
 
-ExpressionDataFrameModel::ExpressionDataFrameModel(const EquationManager &manager, QObject *parent)
+DataFrameModel::DataFrameModel(const EquationManager &manager, QObject *parent)
     : QAbstractTableModel(parent), manager_(manager)
 {
 }
 
-ExpressionDataFrameModel::~ExpressionDataFrameModel() = default;
+DataFrameModel::~DataFrameModel() = default;
 
-const xdataset::DataFrame &ExpressionDataFrameModel::frame() const
+const xdataset::DataFrame &DataFrameModel::frame() const
 {
     // Only valid when there is a value (caller checks HasDataFrame() first).
     if (block_frame_)
@@ -29,7 +29,7 @@ const xdataset::DataFrame &ExpressionDataFrameModel::frame() const
     return equation_value_.Value().data_frame();
 }
 
-void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
+void DataFrameModel::SetObject(const ObjectId &object_id)
 {
     block_frame_ = nullptr;  // a Block view is replaced by an ObjectId view
     // A registered expression wins over an equation with the same id (the two
@@ -86,7 +86,7 @@ void ExpressionDataFrameModel::SetObject(const ObjectId &object_id)
     endResetModel();
 }
 
-void ExpressionDataFrameModel::SetValue(const EquationValue &value)
+void DataFrameModel::SetValue(const EquationValue &value)
 {
     block_frame_ = nullptr;  // a Block view is replaced by a bare value
     if (!value.HasValue())
@@ -103,7 +103,7 @@ void ExpressionDataFrameModel::SetValue(const EquationValue &value)
     endResetModel();
 }
 
-void ExpressionDataFrameModel::SetBlock(const xdataset::Block *block)
+void DataFrameModel::SetBlock(const xdataset::Block *block)
 {
     beginResetModel();
     equation_value_ = EquationValue();   // release any value-side owner
@@ -117,7 +117,7 @@ void ExpressionDataFrameModel::SetBlock(const xdataset::Block *block)
     endResetModel();
 }
 
-void ExpressionDataFrameModel::Clear()
+void DataFrameModel::Clear()
 {
     beginResetModel();
     equation_value_ = EquationValue();
@@ -126,17 +126,17 @@ void ExpressionDataFrameModel::Clear()
     endResetModel();
 }
 
-bool ExpressionDataFrameModel::HasDataFrame() const
+bool DataFrameModel::HasDataFrame() const
 {
     return equation_value_.HasValue() || block_frame_ != nullptr;
 }
 
-std::size_t ExpressionDataFrameModel::total_row_count() const
+std::size_t DataFrameModel::total_row_count() const
 {
     return HasDataFrame() ? frame().row_count() : 0;
 }
 
-int ExpressionDataFrameModel::rowCount(const QModelIndex &parent) const
+int DataFrameModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid() || !HasDataFrame())
     {
@@ -145,7 +145,7 @@ int ExpressionDataFrameModel::rowCount(const QModelIndex &parent) const
     return static_cast<int>(loaded_rows_);
 }
 
-int ExpressionDataFrameModel::columnCount(const QModelIndex &parent) const
+int DataFrameModel::columnCount(const QModelIndex &parent) const
 {
     if (parent.isValid() || !HasDataFrame())
     {
@@ -155,7 +155,7 @@ int ExpressionDataFrameModel::columnCount(const QModelIndex &parent) const
     return static_cast<int>(frame().headers().size()) + 1;
 }
 
-QVariant ExpressionDataFrameModel::data(const QModelIndex &index, int role) const
+QVariant DataFrameModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || !HasDataFrame())
     {
@@ -189,7 +189,7 @@ QVariant ExpressionDataFrameModel::data(const QModelIndex &index, int role) cons
     return QString::fromStdString(row.fields[static_cast<std::size_t>(field_index)].to_string());
 }
 
-QVariant ExpressionDataFrameModel::headerData(
+QVariant DataFrameModel::headerData(
     int section, Qt::Orientation orientation, int role
 ) const
 {
@@ -213,7 +213,7 @@ QVariant ExpressionDataFrameModel::headerData(
     return QString::fromStdString(headers[static_cast<std::size_t>(header_index)]);
 }
 
-bool ExpressionDataFrameModel::canFetchMore(const QModelIndex &parent) const
+bool DataFrameModel::canFetchMore(const QModelIndex &parent) const
 {
     if (parent.isValid() || !HasDataFrame())
     {
@@ -222,7 +222,7 @@ bool ExpressionDataFrameModel::canFetchMore(const QModelIndex &parent) const
     return loaded_rows_ < frame().row_count();
 }
 
-void ExpressionDataFrameModel::fetchMore(const QModelIndex &parent)
+void DataFrameModel::fetchMore(const QModelIndex &parent)
 {
     if (parent.isValid() || !HasDataFrame() || !canFetchMore(parent))
     {

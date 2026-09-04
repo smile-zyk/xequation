@@ -12,6 +12,7 @@
 #include "core/equation_manager.h"
 
 class QMenu;
+class QAction;
 class QToolButton;
 
 namespace xdataset
@@ -24,10 +25,10 @@ namespace xresults
 namespace gui
 {
 
-class ExpressionDataFrameView;
+class DataFrameView;
 
 // =========================================================================
-// ExpressionDataFrameTabWidget -- a QTabWidget of DataFrame views, one tab per
+// DataFrameTabWidget -- a QTabWidget of DataFrame views, one tab per
 // watched object (an Equation or a registered Expression), identified by an
 // ObjectId and an explicit kind (kEquation / kExpression -- the kind is only
 // a display/eval hint; the object identity is the ObjectId).
@@ -42,7 +43,7 @@ class ExpressionDataFrameView;
 //
 // Tab content is purely a VIEW of a manager object: closing a tab never
 // unregisters the object.  Expression lifetime is owned by the manager-tree
-// item that created it (see EquationManagerTreeView); when an expression is
+// item that created it (see ExplorerView); when an expression is
 // removed from the manager (tree right-click Delete / env reload), the host
 // routes kExpressionRemoving here and the tab closes via OnExpressionRemoving.
 //
@@ -53,13 +54,13 @@ class ExpressionDataFrameView;
 // only from REL).
 // =========================================================================
 
-class ExpressionDataFrameTabWidget : public QTabWidget
+class DataFrameTabWidget : public QTabWidget
 {
     Q_OBJECT
   public:
-    explicit ExpressionDataFrameTabWidget(xequation::EquationManager &manager,
-                                        QWidget *parent = nullptr);
-    ~ExpressionDataFrameTabWidget() override;
+    explicit DataFrameTabWidget(xequation::EquationManager &manager,
+                                QWidget *parent = nullptr);
+    ~DataFrameTabWidget() override;
 
     /// Open (or focus) a tab that shows an Equation's value.  The id is the
     /// Equation's id; the value is read directly from the manager -- no Eval
@@ -145,7 +146,7 @@ class ExpressionDataFrameTabWidget : public QTabWidget
         QString block_dataset;
         QString block_path;
         std::string expression;              // display text + edit source
-        ExpressionDataFrameView *view = nullptr;
+        DataFrameView *view = nullptr;
         bool pinned = false;                 // pinned tabs survive deselection
         QToolButton *pin_button = nullptr;
         QToolButton *close_button = nullptr;
@@ -165,7 +166,7 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     int FindTabIndex(const xequation::ObjectId &object_id) const;
     int OpenTab();
     void CloseTabInternal(int index);
-    void FillTab(ExpressionDataFrameView *view, const xequation::EquationValue &value);
+    void FillTab(DataFrameView *view, const xequation::EquationValue &value);
 
     // ---- evaluation ----
     void EvaluateTab(int index);
@@ -184,6 +185,9 @@ class ExpressionDataFrameTabWidget : public QTabWidget
 
     // ---- label editing ----
     void OnTabLabelDoubleClicked(int index);
+    /// Show the shared context menu for the tab at the given tab-bar position.
+    /// One menu (built once) is reused for every tab; the Edit / Delete
+    /// actions are enabled only for the applicable tab.
     void OnTabContextMenu(const QPoint &pos);
     /// Whether the tab may be edited.  Only "Watch"-tagged expressions are
     /// user-editable: Equation, Block, and DataArray-access (and any other
@@ -202,6 +206,18 @@ class ExpressionDataFrameTabWidget : public QTabWidget
     /// REL manager used for resolve / register / unregister (host-provided;
     /// must outlive this widget -- the proxy singleton does).
     xequation::EquationManager &manager_;
+
+    /// The tab index the menu was opened for (the right-clicked tab).  The
+    /// Edit / Delete actions act on this precise tab.
+    int context_target_index_ = -1;
+
+    // Shared context menu: built once, shown for every tab.  The Edit / Delete
+    // actions' enabled state is updated per tab before showing.
+    QMenu *context_menu_ = nullptr;
+    QAction *edit_action_ = nullptr;
+    QAction *delete_action_ = nullptr;
+    QAction *add_watch_action_ = nullptr;
+
     std::vector<TabData> tabs_;
     std::unordered_map<xequation::ObjectId, int> object_to_index_;
     /// Block tabs are keyed by (dataset, block_path) -- a Block has no

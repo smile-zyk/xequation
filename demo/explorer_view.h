@@ -10,6 +10,8 @@
 
 class QStandardItemModel;
 class QStandardItem;
+class QMenu;
+class QAction;
 
 namespace xresults
 {
@@ -17,8 +19,8 @@ namespace gui
 {
 
 // =========================================================================
-// EquationManagerTreeView -- live tree over an EquationManager + the REL
-// dataset registry.
+// ExplorerView -- live explorer over the REL dataset registry + an
+// EquationManager (equations/expressions by tag).
 //
 // Root children (in order):
 //   1. "Datasets" node
@@ -32,7 +34,7 @@ namespace gui
 // path, data-array name, tag, equation name, expression id).
 // =========================================================================
 
-class EquationManagerTreeView : public QTreeView
+class ExplorerView : public QTreeView
 {
     Q_OBJECT
 
@@ -67,9 +69,9 @@ class EquationManagerTreeView : public QTreeView
     static constexpr int kRoleName = Qt::UserRole + 6;
     static constexpr int kRoleObjectId = Qt::UserRole + 7;
 
-    explicit EquationManagerTreeView(xequation::EquationManager &manager,
-                                     QWidget *parent = nullptr);
-    ~EquationManagerTreeView() override;
+    explicit ExplorerView(xequation::EquationManager &manager,
+                          QWidget *parent = nullptr);
+    ~ExplorerView() override;
 
     /// Rebuild the tree from the manager + dataset registry.
     void Refresh();
@@ -113,6 +115,11 @@ class EquationManagerTreeView : public QTreeView
     /// Refresh(); the expression is removed from the manager.
     void CleanupDataArrayExpressions();
 
+    /// Show the shared context menu at the given viewport position.  One
+    /// menu (built once) is reused for every tree item; the Delete action is
+    /// enabled only for deletable Equation / Expression leaves.
+    void OnShowContextMenu(const QPoint &pos);
+
   private:
     xequation::EquationManager &manager_;
     QStandardItemModel *model_ = nullptr;
@@ -123,6 +130,15 @@ class EquationManagerTreeView : public QTreeView
     std::map<std::tuple<QString, QString, QString>, xequation::ObjectId>
         data_array_exprs_;
     bool refreshing_ = false;  // nested-Refresh guard (prune triggers expr-removed)
+
+    /// The item the menu was opened for (the right-clicked item).  The Delete
+    /// action acts on this precise item, not the (possibly multi-)selection.
+    SelectionInfo context_target_;
+
+    // Shared context menu: built once, shown for every tree item.  The Delete
+    // action's enabled state is updated per item before showing.
+    QMenu *context_menu_ = nullptr;
+    QAction *delete_action_ = nullptr;
 
     // Scoped manager signal subscriptions (auto-disconnect on destruction).
     xequation::ScopedConnection eq_added_conn_;

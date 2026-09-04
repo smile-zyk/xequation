@@ -24,7 +24,7 @@ namespace gui
 //     single Equation into the engine's EquationManager.
 //   + "Redefine" / "Rename" buttons act on the selected equation.
 //   - Middle-left: the engine's Equation list (QListWidget).
-//   - Middle-right: ExpressionDataFrameView, showing the selected Equation's
+//   - Middle-right: DataFrameView, showing the selected Equation's
 //     DataFrame table (lazy loading, fetchMore).
 // =========================================================================
 
@@ -56,10 +56,15 @@ class DemoWidget : public QWidget
     void OnManagerTreeSelectionChanged();
     void OnManagerTreeClicked();
 
-    // ---- dataset (env.json) support -----------------------------------
+    // ---- project file support ----------------------------------------
 
-    /// Open a file dialog for an environment JSON and load its datasets.
-    void OnOpenEnvJson();
+    /// Open a file dialog for a project file and load it (datasets +
+    /// equations + expressions).
+    void OnOpenProject();
+
+    /// Save the current state (dataset refs + equations + expressions) to a
+    /// project file via EquationManager::SaveToFile.
+    void OnSaveProject();
 
     /// User picked another dataset in the combo -> make it the REL default
     /// dataset and recompute everything (bare DataArray names resolve against
@@ -70,12 +75,11 @@ class DemoWidget : public QWidget
     /// select the REL default dataset.
     void RefreshDatasetCombo();
 
-    /// Loads the datasets of an env.json into the REL environment.  Reuses
-    /// rel::Environment::LoadFromConfig (dataset files + default dataset +
-    /// python_plugins); datasets of a previously loaded env are dropped first
-    /// so re-opening replaces the active set.  Also refreshes the combo and
-    /// re-evaluates all equations.  Shows a warning box on failure.
-    void LoadEnvJson(const QString &path);
+    /// Loads a project file via EquationManager::LoadFromFile (referenced
+    /// datasets + equations + expressions).  Datasets of a previously loaded
+    /// project are dropped first so re-opening replaces the active set.  Also
+    /// refreshes the combo / list / tree.  Shows a warning box on failure.
+    void LoadProject(const QString &path);
 
     /// Name of the currently selected list item (item text is "name  [N row(s)]").
     QString CurrentSelectedEquationName() const;
@@ -98,15 +102,17 @@ class DemoWidget : public QWidget
     QPushButton *delete_button_ = nullptr;
     QPushButton *watch_button_ = nullptr;
     QPushButton *open_env_button_ = nullptr;
+    QPushButton *save_project_button_ = nullptr;
     QComboBox *dataset_combo_ = nullptr;
     QLabel *status_label_ = nullptr;
     QListWidget *equation_list_ = nullptr;
-    class EquationManagerTreeView *manager_tree_ = nullptr;
-    class ExpressionDataFrameTabWidget *data_frame_view_ = nullptr;
-    class ExpressionPropertyWidget *property_widget_ = nullptr;
+    class ExplorerView *manager_tree_ = nullptr;
+    class DataFrameTabWidget *data_frame_view_ = nullptr;
+    class PropertyWidget *property_widget_ = nullptr;
 
-    /// Absolute path of the last successfully loaded env.json (empty = none).
-    QString env_json_path_;
+    /// Absolute path of the last successfully loaded project file (empty =
+    /// none).
+    QString project_path_;
 
     /// Connections to the REL manager's kEquationRemoving / kEquationUpdated
     /// signals (auto disconnected on widget destruction); the tab widget

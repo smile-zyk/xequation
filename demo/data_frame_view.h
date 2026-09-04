@@ -16,14 +16,14 @@ namespace xresults
 namespace gui
 {
 
-class ExpressionDataFrameModel;
+class DataFrameModel;
 
 // =========================================================================
-// ExpressionDataFrameView -- a QTableView for displaying a DataFrame table.
+// DataFrameView -- a QTableView for displaying a DataFrame table.
 //
 // SetObject() passes the ObjectId of an Equation or a registered Expression
 // (currently supports only REL values; it is turned into a DataFrame table via
-// ExpressionDataFrameModel) and supports Qt's fetchMore lazy loading:
+// DataFrameModel) and supports Qt's fetchMore lazy loading:
 // requesting the next batch of rows when scrolled to the bottom.  Errors are
 // rendered as an overlay label centered on the table viewport (SetError),
 // replacing the table content visually.
@@ -33,13 +33,13 @@ class ExpressionDataFrameModel;
 // the underlying Block::GetOrCreateDataFrame() cache.
 // =========================================================================
 
-class ExpressionDataFrameView : public QTableView
+class DataFrameView : public QTableView
 {
     Q_OBJECT
   public:
-    explicit ExpressionDataFrameView(const xequation::EquationManager &manager,
-                                     QWidget *parent = nullptr);
-    ~ExpressionDataFrameView() override;
+    explicit DataFrameView(const xequation::EquationManager &manager,
+                           QWidget *parent = nullptr);
+    ~DataFrameView() override;
 
     /// Display the DataFrame view of an Equation or registered Expression
     /// (identified by ObjectId).  Supports only REL values (Measurement /
@@ -65,7 +65,7 @@ class ExpressionDataFrameView : public QTableView
     /// cleared underneath); pass an empty message to hide the overlay.
     void SetError(const QString &message);
 
-    ExpressionDataFrameModel *table_model() const { return table_model_; }
+    DataFrameModel *table_model() const { return table_model_; }
 
   protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -79,7 +79,7 @@ class ExpressionDataFrameView : public QTableView
     void CenterErrorLabel();
 
   private:
-    ExpressionDataFrameModel *table_model_ = nullptr;
+    DataFrameModel *table_model_ = nullptr;
     QLabel *error_label_ = nullptr;
 };
 

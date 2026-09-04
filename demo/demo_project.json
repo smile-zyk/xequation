@@ -1,0 +1,21 @@
+{
+    "version": 1,
+    "datasets": [
+        { "name": "LNA", "format": "hdf5",       "path": "../3rd/REL/case/LNA.h5" },
+        { "name": "LQ",  "format": "touchstone", "path": "../3rd/REL/case/LQ.s2p" }
+    ],
+    "default_dataset": "LNA",
+    "python_plugins": [
+        "../3rd/REL/case/plugins/snr.py",
+        "../3rd/REL/case/plugins/rf.py"
+    ],
+    "equations": [
+        { "name": "id",    "content": "LNA.amplifier.DC.bias.Id.i", "tag": "Equation" },
+        { "name": "gm",    "content": "LNA.amplifier.DC.bias.gm",   "tag": "Equation" },
+        { "name": "gain",  "content": "LNA.amplifier.HB1.HB.Gain",  "tag": "Equation" },
+        { "name": "nfmin", "content": "LNA..NFmin",                 "tag": "Equation" }
+    ],
+    "expressions": [
+        { "content": "LNA.amplifier.HB1.HB.Pout", "tag": "Watch" }
+    ]
+}

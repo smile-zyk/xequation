@@ -1,10 +1,13 @@
 #include "equation_manager.h"
 
 #include <algorithm>
+#include <fstream>
 #include <regex>
 #include <set>
 #include <sstream>
 
+#include <boost/filesystem.hpp>
+#include <boost/json.hpp>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
@@ -723,6 +726,12 @@ InterpretResult EquationManager::Eval(const std::string &expression) const
 
 void EquationManager::Reset()
 {
+    ClearState();
+    signals_manager_->DisconnectAllEvent();
+}
+
+void EquationManager::ClearState()
+{
     graph_->Reset();
 
     for (const auto &equation_entry : equation_map_)
@@ -738,7 +747,6 @@ void EquationManager::Reset()
     expression_id_to_name_map_.clear();
     external_input_names_.clear();
     env_->Clear();
-    signals_manager_->DisconnectAllEvent();
 }
 
 void EquationManager::ResetContext()
@@ -1236,6 +1244,263 @@ bool EquationManager::WriteDependencyGraphToDotFile(const std::string &file_path
     return graph_->WriteDotFile(file_path, [this](const std::string &node_name) {
         return GenerateEquationDotNodeLabel(node_name);
     });
+}
+
+// =========================================================================
+//  Persistence
+// =========================================================================
+
+namespace
+{
+
+// Escape a string for inclusion in a JSON string literal.
+std::string JsonEscape(const std::string &s)
+{
+    std::ostringstream oss;
+    for (unsigned char c : s)
+    {
+        switch (c)
+        {
+        case '"':  oss << "\\\""; break;
+        case '\\': oss << "\\\\"; break;
+        case '\b': oss << "\\b";  break;
+        case '\f': oss << "\\f";  break;
+        case '\n': oss << "\\n";  break;
+        case '\r': oss << "\\r";  break;
+        case '\t': oss << "\\t";  break;
+        default:
+            if (c < 0x20)
+            {
+                char buf[8];
+                std::snprintf(buf, sizeof(buf), "\\u%04x", c);
+                oss << buf;
+            }
+            else
+            {
+                oss << static_cast<char>(c);
+            }
+        }
+    }
+    return oss.str();
+}
+
+// Minimal pretty-printer (boost::json::serialize is compact only).
+std::string PrettyJson(const boost::json::value &v, int indent)
+{
+    const std::string pad(indent * 2, ' ');
+    const std::string pad_next((indent + 1) * 2, ' ');
+
+    if (v.is_object())
+    {
+        const boost::json::object &obj = v.as_object();
+        if (obj.empty())
+            return "{}";
+        std::ostringstream oss;
+        oss << "{\n";
+        bool first = true;
+        for (const auto &kv : obj)
+        {
+            if (!first)
+                oss << ",\n";
+            first = false;
+            boost::json::string_view key = kv.key();
+            oss << pad_next << "\"" << std::string(key.data(), key.size()) << "\": "
+                << PrettyJson(kv.value(), indent + 1);
+        }
+        oss << "\n" << pad << "}";
+        return oss.str();
+    }
+    if (v.is_array())
+    {
+        const boost::json::array &arr = v.as_array();
+        if (arr.empty())
+            return "[]";
+        std::ostringstream oss;
+        oss << "[\n";
+        bool first = true;
+        for (const auto &item : arr)
+        {
+            if (!first)
+                oss << ",\n";
+            first = false;
+            oss << pad_next << PrettyJson(item, indent + 1);
+        }
+        oss << "\n" << pad << "]";
+        return oss.str();
+    }
+    if (v.is_string())
+    {
+        const boost::json::string& s = v.as_string();
+        return "\"" + JsonEscape(std::string(s.data(), s.size())) + "\"";
+    }
+    if (v.is_int64())
+        return std::to_string(v.as_int64());
+    if (v.is_uint64())
+        return std::to_string(v.as_uint64());
+    if (v.is_double())
+    {
+        std::ostringstream oss;
+        oss << v.as_double();
+        return oss.str();
+    }
+    if (v.is_bool())
+        return v.as_bool() ? "true" : "false";
+    return "null";
+}
+
+// Read a string member if present and a string, else return `def`.
+std::string GetString(const boost::json::object &o, const char *key,
+                      const std::string &def = std::string())
+{
+    auto it = o.find(key);
+    if (it == o.end() || !it->value().is_string())
+        return def;
+    const boost::json::string& s = it->value().as_string();
+    return std::string(s.data(), s.size());
+}
+
+} // anonymous namespace
+
+void EquationManager::SaveToFile(const std::string &path) const
+{
+    namespace json = boost::json;
+
+    json::object doc;
+    doc["version"] = 1;
+
+    // ---- datasets (references to dataset files, not their data) ----
+    {
+        json::array datasets;
+        for (const auto &ds : rel::Environment::DatasetConfigs())
+        {
+            json::object o;
+            o["name"]   = json::string(ds.name);
+            o["format"] = json::string(ds.format);
+            o["path"]   = json::string(ds.path);
+            datasets.push_back(std::move(o));
+        }
+        doc["datasets"] = std::move(datasets);
+
+        const std::string default_ds = rel::Environment::DefaultDatasetName();
+        if (!default_ds.empty())
+            doc["default_dataset"] = json::string(default_ds);
+
+        const std::vector<std::string> plugins = rel::Environment::PythonPlugins();
+        if (!plugins.empty())
+        {
+            json::array pj;
+            for (const auto &p : plugins)
+                pj.push_back(json::string(p));
+            doc["python_plugins"] = std::move(pj);
+        }
+    }
+
+    // ---- equations (insertion order) ----
+    {
+        json::array equations;
+        for (const auto &entry : equation_map_)
+        {
+            const Equation &e = *entry.second;
+            json::object o;
+            o["name"]    = json::string(e.name);
+            o["content"] = json::string(e.content);
+            o["tag"]     = json::string(e.tag);
+            equations.push_back(std::move(o));
+        }
+        doc["equations"] = std::move(equations);
+    }
+
+    // ---- registered expressions (source only; id is regenerated on load) ----
+    {
+        json::array expressions;
+        for (const auto &entry : expression_map_)
+        {
+            const Expression &e = entry.second;
+            json::object o;
+            o["content"] = json::string(e.content);
+            o["tag"]     = json::string(e.tag);
+            expressions.push_back(std::move(o));
+        }
+        doc["expressions"] = std::move(expressions);
+    }
+
+    std::ofstream out(path);
+    if (!out)
+        throw std::runtime_error("cannot write equation state file: " + path);
+    out << PrettyJson(doc, 0);
+    out.close();
+}
+
+void EquationManager::LoadFromFile(const std::string &path)
+{
+    std::ifstream in(path);
+    if (!in)
+        throw std::runtime_error("cannot open equation state file: " + path);
+
+    std::stringstream buf;
+    buf << in.rdbuf();
+
+    boost::json::value parsed;
+    try
+    {
+        parsed = boost::json::parse(buf.str());
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("JSON parse error in " + path +
+                                 ": " + e.what());
+    }
+    if (!parsed.is_object())
+        throw std::runtime_error("project file root must be a JSON object: " + path);
+
+    const boost::json::object &doc = parsed.as_object();
+
+    // Clear current state (equations / expressions / external inputs / env),
+    // preserving external signal observers so the host UI stays connected.
+    ClearState();
+
+    // ---- load datasets from the project file's "datasets" section ----
+    // The project file references dataset files (not their data).  Reuse
+    // Environment's in-memory LoadFromConfig, resolving relative paths
+    // against the project file's directory.
+    auto datasets_it = doc.find("datasets");
+    if (datasets_it != doc.end() && datasets_it->value().is_array())
+    {
+        rel::EnvironmentConfig env_cfg = rel::EnvironmentConfig::Parse(doc);
+        const std::string base_dir =
+            boost::filesystem::path(path).parent_path().string();
+        rel::Environment::LoadFromConfig(env_cfg, base_dir);
+    }
+
+    // ---- equations ----
+    auto equations_it = doc.find("equations");
+    if (equations_it != doc.end() && equations_it->value().is_array())
+    {
+        for (const auto &v : equations_it->value().as_array())
+        {
+            if (!v.is_object())
+                continue;
+            const boost::json::object &o = v.as_object();
+            AddEquation(GetString(o, "name"), GetString(o, "content"),
+                        GetString(o, "tag"));
+        }
+    }
+
+    // ---- expressions ----
+    auto expressions_it = doc.find("expressions");
+    if (expressions_it != doc.end() && expressions_it->value().is_array())
+    {
+        for (const auto &v : expressions_it->value().as_array())
+        {
+            if (!v.is_object())
+                continue;
+            const boost::json::object &o = v.as_object();
+            AddExpression(GetString(o, "content"), GetString(o, "tag"));
+        }
+    }
+
+    // Recompute all values (equations bound to env; expressions computed).
+    Update();
 }
 
 EquationManager &EquationManager::GetInstance()

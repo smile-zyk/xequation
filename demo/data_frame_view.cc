@@ -1,6 +1,6 @@
-#include "expression_data_frame_view.h"
+#include "data_frame_view.h"
 
-#include "expression_data_frame_model.h"
+#include "data_frame_model.h"
 
 #include <QHeaderView>
 #include <QLabel>
@@ -14,18 +14,18 @@ namespace gui
 
 using namespace xequation;
 
-ExpressionDataFrameView::ExpressionDataFrameView(const EquationManager &manager, QWidget *parent)
+DataFrameView::DataFrameView(const EquationManager &manager, QWidget *parent)
     : QTableView(parent)
 {
-    table_model_ = new ExpressionDataFrameModel(manager, this);
+    table_model_ = new DataFrameModel(manager, this);
     setModel(table_model_);
     SetupUI();
     SetupConnections();
 }
 
-ExpressionDataFrameView::~ExpressionDataFrameView() = default;
+DataFrameView::~DataFrameView() = default;
 
-void ExpressionDataFrameView::SetupUI()
+void DataFrameView::SetupUI()
 {
     setAlternatingRowColors(true);
     setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -54,15 +54,15 @@ void ExpressionDataFrameView::SetupUI()
     error_label_->setVisible(false);
 }
 
-void ExpressionDataFrameView::SetupConnections()
+void DataFrameView::SetupConnections()
 {
     connect(
         verticalScrollBar(), &QScrollBar::valueChanged, this,
-        &ExpressionDataFrameView::OnVerticalScrollbarValueChanged
+        &DataFrameView::OnVerticalScrollbarValueChanged
     );
 }
 
-void ExpressionDataFrameView::SetObject(const ObjectId &object_id)
+void DataFrameView::SetObject(const ObjectId &object_id)
 {
     table_model_->SetObject(object_id);
     // After the model resets, ensure the first screen is loaded (the Qt view
@@ -71,24 +71,24 @@ void ExpressionDataFrameView::SetObject(const ObjectId &object_id)
     FetchMoreIfNeeded();
 }
 
-void ExpressionDataFrameView::SetValue(const EquationValue &value)
+void DataFrameView::SetValue(const EquationValue &value)
 {
     table_model_->SetValue(value);
     FetchMoreIfNeeded();
 }
 
-void ExpressionDataFrameView::SetBlock(const xdataset::Block *block)
+void DataFrameView::SetBlock(const xdataset::Block *block)
 {
     table_model_->SetBlock(block);
     FetchMoreIfNeeded();
 }
 
-void ExpressionDataFrameView::Clear()
+void DataFrameView::Clear()
 {
     table_model_->Clear();
 }
 
-void ExpressionDataFrameView::SetError(const QString &message)
+void DataFrameView::SetError(const QString &message)
 {
     if (!error_label_)
     {
@@ -106,7 +106,7 @@ void ExpressionDataFrameView::SetError(const QString &message)
     CenterErrorLabel();
 }
 
-void ExpressionDataFrameView::CenterErrorLabel()
+void DataFrameView::CenterErrorLabel()
 {
     if (!error_label_ || !error_label_->isVisible())
     {
@@ -121,26 +121,26 @@ void ExpressionDataFrameView::CenterErrorLabel()
     error_label_->raise();
 }
 
-void ExpressionDataFrameView::resizeEvent(QResizeEvent *event)
+void DataFrameView::resizeEvent(QResizeEvent *event)
 {
     QTableView::resizeEvent(event);
     CenterErrorLabel();
     FetchMoreIfNeeded();
 }
 
-void ExpressionDataFrameView::showEvent(QShowEvent *event)
+void DataFrameView::showEvent(QShowEvent *event)
 {
     QTableView::showEvent(event);
     CenterErrorLabel();
     FetchMoreIfNeeded();
 }
 
-void ExpressionDataFrameView::OnVerticalScrollbarValueChanged(int /*value*/)
+void DataFrameView::OnVerticalScrollbarValueChanged(int /*value*/)
 {
     FetchMoreIfNeeded();
 }
 
-void ExpressionDataFrameView::FetchMoreIfNeeded()
+void DataFrameView::FetchMoreIfNeeded()
 {
     if (!table_model_)
     {

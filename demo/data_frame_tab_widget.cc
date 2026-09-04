@@ -1,6 +1,6 @@
-#include "expression_data_frame_tab_widget.h"
+#include "data_frame_tab_widget.h"
 
-#include "expression_data_frame_view.h"
+#include "data_frame_view.h"
 #include "environment.h"   // rel::Environment (dataset registry)
 #include "dataset.h"       // xdataset::Dataset::GetBlock
 #include "block.h"         // xdataset::Block::GetOrCreateDataFrame
@@ -111,10 +111,10 @@ QToolButton *MakeTabBarButton(QWidget *parent, const QIcon &icon, const QString 
 } // namespace
 
 // =========================================================================
-// ExpressionDataFrameTabWidget
+// DataFrameTabWidget
 // =========================================================================
 
-ExpressionDataFrameTabWidget::ExpressionDataFrameTabWidget(
+DataFrameTabWidget::DataFrameTabWidget(
     EquationManager &manager, QWidget *parent)
     : QTabWidget(parent), manager_(manager)
 {
@@ -123,14 +123,50 @@ ExpressionDataFrameTabWidget::ExpressionDataFrameTabWidget(
     setTabsClosable(false);
     setDocumentMode(true);
     connect(tabBar(), &QTabBar::tabBarDoubleClicked,
-            this, &ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked);
+            this, &DataFrameTabWidget::OnTabLabelDoubleClicked);
+
+    // Shared context menu: one menu is reused for every tab.  The Edit action
+    // is enabled only for "Watch"-tagged expression tabs; Delete is enabled
+    // for every tab (closing a tab is always allowed); Add Watch Expression is
+    // always enabled.
+    context_menu_ = new QMenu(this);
+    edit_action_ = context_menu_->addAction(QStringLiteral("Edit"));
+    delete_action_ = context_menu_->addAction(QStringLiteral("Delete"));
+    context_menu_->addSeparator();
+    add_watch_action_ = context_menu_->addAction(QStringLiteral("Add Watch Expression"));
+
+    connect(edit_action_, &QAction::triggered, this, [this]() {
+        const int index = context_target_index_;
+        if (index >= 0)
+        {
+            EditTab(index);
+        }
+    });
+    connect(delete_action_, &QAction::triggered, this, [this]() {
+        const int index = context_target_index_;
+        if (index >= 0)
+        {
+            CloseTab(index);
+        }
+    });
+    connect(add_watch_action_, &QAction::triggered, this, [this]() {
+        bool ok = false;
+        const QString expression = QInputDialog::getText(
+            this, QStringLiteral("Add Watch Expression"),
+            QStringLiteral("Expression:"), QLineEdit::Normal, QString(), &ok);
+        if (ok)
+        {
+            AddWatchExpression(expression.trimmed().toStdString());
+        }
+    });
+
     // Right-click on a tab: Edit / Delete / Add Watch Expression.
     tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tabBar(), &QTabBar::customContextMenuRequested,
-            this, &ExpressionDataFrameTabWidget::OnTabContextMenu);
+            this, &DataFrameTabWidget::OnTabContextMenu);
 }
 
-ExpressionDataFrameTabWidget::~ExpressionDataFrameTabWidget()
+DataFrameTabWidget::~DataFrameTabWidget()
 {
     // Expressions are owned by the manager-tree items that created them, NOT
     // by the tabs: nothing is unregistered here (the view widgets are children
@@ -139,7 +175,7 @@ ExpressionDataFrameTabWidget::~ExpressionDataFrameTabWidget()
 
 // ---- tab lifecycle ------------------------------------------------------
 
-int ExpressionDataFrameTabWidget::FindTabIndex(const ObjectId &object_id) const
+int DataFrameTabWidget::FindTabIndex(const ObjectId &object_id) const
 {
     const auto it = object_to_index_.find(object_id);
     if (it == object_to_index_.end())
@@ -149,11 +185,11 @@ int ExpressionDataFrameTabWidget::FindTabIndex(const ObjectId &object_id) const
     return it->second;
 }
 
-int ExpressionDataFrameTabWidget::OpenTab()
+int DataFrameTabWidget::OpenTab()
 {
     // Tab contents: a single table view; errors are rendered as an overlay
-    // inside the view itself (ExpressionDataFrameView::SetError).
-    auto *view = new ExpressionDataFrameView(manager_, this);
+    // inside the view itself (DataFrameView::SetError).
+    auto *view = new DataFrameView(manager_, this);
 
     const int index = addTab(view, QString());
     tabs_.emplace_back();
@@ -221,7 +257,7 @@ int ExpressionDataFrameTabWidget::OpenTab()
     return static_cast<int>(tabs_.size()) - 1;
 }
 
-void ExpressionDataFrameTabWidget::CloseTabInternal(int index)
+void DataFrameTabWidget::CloseTabInternal(int index)
 {
     if (index < 0 || index >= static_cast<int>(tabs_.size()))
     {
@@ -242,7 +278,7 @@ void ExpressionDataFrameTabWidget::CloseTabInternal(int index)
     RebuildKeyToIndex();
 }
 
-void ExpressionDataFrameTabWidget::CloseTab(int index)
+void DataFrameTabWidget::CloseTab(int index)
 {
     if (tabs_.size() <= 1)
     {
@@ -253,7 +289,7 @@ void ExpressionDataFrameTabWidget::CloseTab(int index)
     CloseTabInternal(index);
 }
 
-void ExpressionDataFrameTabWidget::ClearAll()
+void DataFrameTabWidget::ClearAll()
 {
     // Remove all tabs; leave a single empty one.
     while (tabs_.size() > 1)
@@ -266,7 +302,7 @@ void ExpressionDataFrameTabWidget::ClearAll()
     }
 }
 
-int ExpressionDataFrameTabWidget::FindBlockTabIndex(const QString &dataset,
+int DataFrameTabWidget::FindBlockTabIndex(const QString &dataset,
                                                      const QString &block_path) const
 {
     const auto it = block_to_index_.find(std::make_pair(dataset, block_path));
@@ -277,7 +313,7 @@ int ExpressionDataFrameTabWidget::FindBlockTabIndex(const QString &dataset,
     return it->second;
 }
 
-void ExpressionDataFrameTabWidget::AddBlockTab(const QString &dataset,
+void DataFrameTabWidget::AddBlockTab(const QString &dataset,
                                                 const QString &block_path,
                                                 bool auto_pin)
 {
@@ -337,7 +373,7 @@ void ExpressionDataFrameTabWidget::AddBlockTab(const QString &dataset,
     }
 }
 
-void ExpressionDataFrameTabWidget::FillTab(ExpressionDataFrameView *view,
+void DataFrameTabWidget::FillTab(DataFrameView *view,
                                          const EquationValue &value)
 {
     view->SetValue(value);
@@ -346,7 +382,7 @@ void ExpressionDataFrameTabWidget::FillTab(ExpressionDataFrameView *view,
 // ---- pinning / ordering ---------------------------------------------------
 
 /// Find the tab index owning the given pin button (by identity); -1 if none.
-int ExpressionDataFrameTabWidget::IndexOfPinButton(const QToolButton *pin) const
+int DataFrameTabWidget::IndexOfPinButton(const QToolButton *pin) const
 {
     for (std::size_t i = 0; i < tabs_.size(); ++i)
     {
@@ -358,7 +394,7 @@ int ExpressionDataFrameTabWidget::IndexOfPinButton(const QToolButton *pin) const
     return -1;
 }
 
-void ExpressionDataFrameTabWidget::MoveTab(int from, int to)
+void DataFrameTabWidget::MoveTab(int from, int to)
 {
     if (from == to || from < 0 || from >= static_cast<int>(tabs_.size()) ||
         to < 0 || to >= static_cast<int>(tabs_.size()))
@@ -372,7 +408,7 @@ void ExpressionDataFrameTabWidget::MoveTab(int from, int to)
     RebuildKeyToIndex();
 }
 
-void ExpressionDataFrameTabWidget::RebuildKeyToIndex()
+void DataFrameTabWidget::RebuildKeyToIndex()
 {
     object_to_index_.clear();
     block_to_index_.clear();
@@ -388,7 +424,7 @@ void ExpressionDataFrameTabWidget::RebuildKeyToIndex()
     }
 }
 
-void ExpressionDataFrameTabWidget::UpdatePinButton(int index)
+void DataFrameTabWidget::UpdatePinButton(int index)
 {
     if (index < 0 || index >= static_cast<int>(tabs_.size()))
     {
@@ -407,7 +443,7 @@ void ExpressionDataFrameTabWidget::UpdatePinButton(int index)
                                     : MakeBlankIcon());
 }
 
-void ExpressionDataFrameTabWidget::SetTabPinned(int index, bool pinned)
+void DataFrameTabWidget::SetTabPinned(int index, bool pinned)
 {
     if (index < 0 || index >= static_cast<int>(tabs_.size()))
     {
@@ -447,7 +483,7 @@ void ExpressionDataFrameTabWidget::SetTabPinned(int index, bool pinned)
     }
 }
 
-void ExpressionDataFrameTabWidget::SetTabError(int index, const QString &message)
+void DataFrameTabWidget::SetTabError(int index, const QString &message)
 {
     if (index < 0 || index >= static_cast<int>(tabs_.size()))
     {
@@ -462,7 +498,7 @@ void ExpressionDataFrameTabWidget::SetTabError(int index, const QString &message
     tab.view->SetError(message);
 }
 
-bool ExpressionDataFrameTabWidget::eventFilter(QObject *obj, QEvent *event)
+bool DataFrameTabWidget::eventFilter(QObject *obj, QEvent *event)
 {
     // Pin buttons are visible (empty icon) and installed with this filter:
     // on Enter, draw the lying pin (if unpinned); on Leave, blank it back.
@@ -496,7 +532,7 @@ bool ExpressionDataFrameTabWidget::eventFilter(QObject *obj, QEvent *event)
 }
 // ---- evaluation ----------------------------------------------------------
 
-void ExpressionDataFrameTabWidget::EvaluateTab(int index)
+void DataFrameTabWidget::EvaluateTab(int index)
 {
     if (index < 0 || index >= static_cast<int>(tabs_.size()))
     {
@@ -585,7 +621,7 @@ void ExpressionDataFrameTabWidget::EvaluateTab(int index)
 
 // ---- change routing ------------------------------------------------------
 
-void ExpressionDataFrameTabWidget::OnEquationRemoving(const Equation *equation)
+void DataFrameTabWidget::OnEquationRemoving(const Equation *equation)
 {
     if (!equation)
     {
@@ -604,7 +640,7 @@ void ExpressionDataFrameTabWidget::OnEquationRemoving(const Equation *equation)
     }
 }
 
-void ExpressionDataFrameTabWidget::OnEquationUpdated(
+void DataFrameTabWidget::OnEquationUpdated(
     const Equation *equation, bitmask::bitmask<EquationUpdateFlag> flags
 )
 {
@@ -629,7 +665,7 @@ void ExpressionDataFrameTabWidget::OnEquationUpdated(
     }
 }
 
-void ExpressionDataFrameTabWidget::OnExpressionUpdated(
+void DataFrameTabWidget::OnExpressionUpdated(
     const Expression *expression, bitmask::bitmask<ExpressionUpdateFlag> flags
 )
 {
@@ -655,7 +691,7 @@ void ExpressionDataFrameTabWidget::OnExpressionUpdated(
 
 // ---- tabs: Add -----------------------------------------------------------
 
-void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &equation_id, bool auto_pin)
+void DataFrameTabWidget::AddEquation(const ObjectId &equation_id, bool auto_pin)
 {
     if (equation_id.is_nil())
     {
@@ -697,7 +733,7 @@ void ExpressionDataFrameTabWidget::AddEquation(const ObjectId &equation_id, bool
     }
 }
 
-void ExpressionDataFrameTabWidget::AddExpression(const ObjectId &expression_id,
+void DataFrameTabWidget::AddExpression(const ObjectId &expression_id,
                                                bool auto_pin)
 {
     if (expression_id.is_nil())
@@ -763,7 +799,7 @@ void ExpressionDataFrameTabWidget::AddExpression(const ObjectId &expression_id,
     }
 }
 
-void ExpressionDataFrameTabWidget::SyncTabs(
+void DataFrameTabWidget::SyncTabs(
     const std::vector<ObjectId> &visible_ids)
 {
     // Close unpinned tabs whose object is no longer visible.  Pinned tabs
@@ -811,7 +847,7 @@ void ExpressionDataFrameTabWidget::SyncTabs(
     }
 }
 
-void ExpressionDataFrameTabWidget::SyncBlockTabs(
+void DataFrameTabWidget::SyncBlockTabs(
     const std::vector<std::pair<QString, QString>> &visible_blocks)
 {
     // Close unpinned block tabs whose block is no longer selected.  Pinned
@@ -849,7 +885,7 @@ void ExpressionDataFrameTabWidget::SyncBlockTabs(
     }
 }
 
-void ExpressionDataFrameTabWidget::ClearBlockTabs()
+void DataFrameTabWidget::ClearBlockTabs()
 {
     // Close every block tab, even pinned ones.  Iterate from the back and let
     // CloseTabInternal update block_to_index_ (tabs_ shrinks each round).
@@ -862,7 +898,7 @@ void ExpressionDataFrameTabWidget::ClearBlockTabs()
     }
 }
 
-void ExpressionDataFrameTabWidget::OnExpressionRemoving(const Expression *expression)
+void DataFrameTabWidget::OnExpressionRemoving(const Expression *expression)
 {
     if (!expression)
     {
@@ -877,12 +913,12 @@ void ExpressionDataFrameTabWidget::OnExpressionRemoving(const Expression *expres
     }
 }
 
-void ExpressionDataFrameTabWidget::OnTabLabelDoubleClicked(int index)
+void DataFrameTabWidget::OnTabLabelDoubleClicked(int index)
 {
     EditTab(index);
 }
 
-bool ExpressionDataFrameTabWidget::IsTabEditable(int index) const
+bool DataFrameTabWidget::IsTabEditable(int index) const
 {
     if (index < 0 || index >= static_cast<int>(tabs_.size()))
     {
@@ -905,7 +941,7 @@ bool ExpressionDataFrameTabWidget::IsTabEditable(int index) const
     return false;
 }
 
-void ExpressionDataFrameTabWidget::EditTab(int index)
+void DataFrameTabWidget::EditTab(int index)
 {
     if (!IsTabEditable(index))
     {
@@ -988,7 +1024,7 @@ void ExpressionDataFrameTabWidget::EditTab(int index)
     SetTabPinned(pinned_index, true);
 }
 
-void ExpressionDataFrameTabWidget::OnTabContextMenu(const QPoint &pos)
+void DataFrameTabWidget::OnTabContextMenu(const QPoint &pos)
 {
     const int index = tabBar()->tabAt(pos);
     if (index < 0)
@@ -996,38 +1032,20 @@ void ExpressionDataFrameTabWidget::OnTabContextMenu(const QPoint &pos)
         return;
     }
 
-    QMenu menu(this);
-    QAction *edit_action = menu.addAction(QStringLiteral("Edit"));
-    // Only "Watch"-tagged expression tabs are editable; all other tabs
-    // (Equation / Block / DataArray access) are read-only views.
-    edit_action->setEnabled(IsTabEditable(index));
-    QAction *delete_action = menu.addAction(QStringLiteral("Delete"));
-    menu.addSeparator();
-    QAction *add_watch_action = menu.addAction(QStringLiteral("Add Watch Expression"));
+    // Remember the precise right-clicked tab (not the current index) so the
+    // Edit / Delete actions act on exactly what the user right-clicked.
+    context_target_index_ = index;
 
-    QAction *chosen = menu.exec(tabBar()->mapToGlobal(pos));
-    if (chosen == edit_action)
-    {
-        EditTab(index);
-    }
-    else if (chosen == delete_action)
-    {
-        CloseTab(index);
-    }
-    else if (chosen == add_watch_action)
-    {
-        bool ok = false;
-        const QString expression = QInputDialog::getText(
-            this, QStringLiteral("Add Watch Expression"),
-            QStringLiteral("Expression:"), QLineEdit::Normal, QString(), &ok);
-        if (ok)
-        {
-            AddWatchExpression(expression.trimmed().toStdString());
-        }
-    }
+    // Every tab shares the same menu; the Edit action's enabled state reflects
+    // whether the tab is a "Watch"-tagged expression (read-only otherwise).
+    edit_action_->setEnabled(IsTabEditable(index));
+    // Delete (close) is always allowed for any tab.
+    delete_action_->setEnabled(true);
+
+    context_menu_->exec(tabBar()->mapToGlobal(pos));
 }
 
-void ExpressionDataFrameTabWidget::AddWatchExpression(const std::string &expression)
+void DataFrameTabWidget::AddWatchExpression(const std::string &expression)
 {
     if (expression.empty())
     {

@@ -1,4 +1,4 @@
-#include "expression_property_widget.h"
+#include "property_widget.h"
 
 #include "core/equation_common.h"
 #include "core/equation_manager.h"
@@ -29,7 +29,7 @@ namespace gui
 
 using namespace xequation;
 
-ExpressionPropertyWidget::ExpressionPropertyWidget(const EquationManager &manager,
+PropertyWidget::PropertyWidget(const EquationManager &manager,
                                                    QWidget *parent)
     : QWidget(parent), manager_(manager)
 {
@@ -66,9 +66,9 @@ ExpressionPropertyWidget::ExpressionPropertyWidget(const EquationManager &manage
     SetObject(ObjectId());
 }
 
-ExpressionPropertyWidget::~ExpressionPropertyWidget() = default;
+PropertyWidget::~PropertyWidget() = default;
 
-void ExpressionPropertyWidget::SetObject(const ObjectId &object_id)
+void PropertyWidget::SetObject(const ObjectId &object_id)
 {
     object_id_ = object_id;
 
@@ -103,7 +103,7 @@ void ExpressionPropertyWidget::SetObject(const ObjectId &object_id)
     ShowEquation(equation);
 }
 
-void ExpressionPropertyWidget::ShowDatasetNode(const QString &dataset_name)
+void PropertyWidget::ShowDatasetNode(const QString &dataset_name)
 {
     object_id_ = ObjectId();  // no ObjectId behind a Dataset node
 
@@ -129,7 +129,7 @@ void ExpressionPropertyWidget::ShowDatasetNode(const QString &dataset_name)
     ShowDataset(dataset, is_default);
 }
 
-void ExpressionPropertyWidget::ShowBlockNode(const QString &dataset_name,
+void PropertyWidget::ShowBlockNode(const QString &dataset_name,
                                              const QString &block_path)
 {
     object_id_ = ObjectId();  // no ObjectId behind a Block node
@@ -169,7 +169,7 @@ void ExpressionPropertyWidget::ShowBlockNode(const QString &dataset_name,
     ShowBlock(block);
 }
 
-void ExpressionPropertyWidget::AddRelValueInfo(const rel::Value &rel_value)
+void PropertyWidget::AddRelValueInfo(const rel::Value &rel_value)
 {
     // ---- REL value: mirrors builtin_library's what(x) output ----
     AddListField("Indep", rel_value.indep_names());
@@ -189,7 +189,7 @@ void ExpressionPropertyWidget::AddRelValueInfo(const rel::Value &rel_value)
     }
 }
 
-void ExpressionPropertyWidget::ShowEquation(const Equation *equation)
+void PropertyWidget::ShowEquation(const Equation *equation)
 {
     if (!equation)
     {
@@ -230,7 +230,7 @@ void ExpressionPropertyWidget::ShowEquation(const Equation *equation)
     // Compute failure: value unavailable (already shown as red Message above); nothing here.
 }
 
-void ExpressionPropertyWidget::ShowExpression(const Expression *expression)
+void PropertyWidget::ShowExpression(const Expression *expression)
 {
     if (!expression)
     {
@@ -270,7 +270,7 @@ void ExpressionPropertyWidget::ShowExpression(const Expression *expression)
     // Compute failure: value unavailable (already shown as red Message above); nothing here.
 }
 
-void ExpressionPropertyWidget::ShowDataset(const xdataset::Dataset *dataset, bool is_default)
+void PropertyWidget::ShowDataset(const xdataset::Dataset *dataset, bool is_default)
 {
     if (!dataset)
     {
@@ -290,7 +290,7 @@ void ExpressionPropertyWidget::ShowDataset(const xdataset::Dataset *dataset, boo
     }
 }
 
-void ExpressionPropertyWidget::ShowBlock(const xdataset::Block *block)
+void PropertyWidget::ShowBlock(const xdataset::Block *block)
 {
     if (!block)
     {
@@ -303,7 +303,7 @@ void ExpressionPropertyWidget::ShowBlock(const xdataset::Block *block)
     AddField("In Dataset", QString::fromStdString(block->dataset_name()));
 }
 
-void ExpressionPropertyWidget::OnEquationRemoving(const Equation *equation)
+void PropertyWidget::OnEquationRemoving(const Equation *equation)
 {
     // kEquationRemoving is fired before erase; the Equation* is still valid here.
     if (!equation || object_id_.is_nil())
@@ -317,7 +317,7 @@ void ExpressionPropertyWidget::OnEquationRemoving(const Equation *equation)
     SetObject(ObjectId());
 }
 
-void ExpressionPropertyWidget::OnEquationUpdated(const Equation *equation,
+void PropertyWidget::OnEquationUpdated(const Equation *equation,
                                                bitmask::bitmask<EquationUpdateFlag> /*flags*/)
 {
     if (!equation || object_id_.is_nil())
@@ -334,7 +334,7 @@ void ExpressionPropertyWidget::OnEquationUpdated(const Equation *equation,
     SetObject(object_id_);
 }
 
-void ExpressionPropertyWidget::OnExpressionUpdated(const Expression *expression,
+void PropertyWidget::OnExpressionUpdated(const Expression *expression,
                                                  bitmask::bitmask<ExpressionUpdateFlag> /*flags*/)
 {
     if (!expression || object_id_.is_nil())
@@ -349,7 +349,7 @@ void ExpressionPropertyWidget::OnExpressionUpdated(const Expression *expression,
     SetObject(object_id_);
 }
 
-void ExpressionPropertyWidget::OnExpressionRemoving(const Expression *expression)
+void PropertyWidget::OnExpressionRemoving(const Expression *expression)
 {
     // kExpressionRemoving is fired before erase; the Expression* is valid here.
     if (!expression || object_id_.is_nil())
@@ -363,7 +363,7 @@ void ExpressionPropertyWidget::OnExpressionRemoving(const Expression *expression
     SetObject(ObjectId());
 }
 
-QTreeWidgetItem *ExpressionPropertyWidget::AddField(const QString &field,
+QTreeWidgetItem *PropertyWidget::AddField(const QString &field,
                                                     const QString &value, bool red)
 {
     auto *item = new QTreeWidgetItem(tree_);
@@ -384,7 +384,7 @@ QTreeWidgetItem *ExpressionPropertyWidget::AddField(const QString &field,
     return item;
 }
 
-void ExpressionPropertyWidget::AddListField(const QString &field,
+void PropertyWidget::AddListField(const QString &field,
                                             const std::vector<std::string> &items)
 {
     // A parent row shows the count; each entry is an expandable child row.

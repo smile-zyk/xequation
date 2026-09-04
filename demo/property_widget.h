@@ -19,7 +19,7 @@ namespace gui
 {
 
 // =========================================================================
-// ExpressionPropertyWidget -- property display widget for a single Equation
+// PropertyWidget -- property display widget for a single Equation
 // or registered Expression, identified by an ObjectId (resident; refreshable).
 //
 // An ObjectId denotes one object in the manager:
@@ -40,14 +40,14 @@ namespace gui
 // it displays that object.
 // =========================================================================
 
-class ExpressionPropertyWidget : public QWidget
+class PropertyWidget : public QWidget
 {
     Q_OBJECT
 
   public:
-    explicit ExpressionPropertyWidget(const xequation::EquationManager &manager,
-                                      QWidget *parent = nullptr);
-    ~ExpressionPropertyWidget() override;
+    explicit PropertyWidget(const xequation::EquationManager &manager,
+                            QWidget *parent = nullptr);
+    ~PropertyWidget() override;
 
     /// Set the object to display (refresh).  A default-constructed (nil) id
     /// clears the tree and shows a placeholder.

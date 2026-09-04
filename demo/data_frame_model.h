@@ -19,7 +19,7 @@ namespace gui
 {
 
 // =========================================================================
-// ExpressionDataFrameModel -- presents the DataFrame view of an
+// DataFrameModel -- presents the DataFrame view of an
 // EquationValue(REL) as a two-dimensional table model with Qt's fetchMore
 // lazy-loading.
 //
@@ -38,21 +38,21 @@ namespace gui
 //   fetchMore() appends kLoadBatchSize rows at a time, triggered when the
 //   QTableView scrolls to the bottom (Qt built-in + view-layer complement).
 //
-// Live refresh is NOT handled here: the owning ExpressionDataFrameTabWidget
+// Live refresh is NOT handled here: the owning DataFrameTabWidget
 // receives the manager signals and re-calls SetObject/SetValue on each tab
 // view, so this model stays a passive value renderer.
 // =========================================================================
 
-class ExpressionDataFrameModel : public QAbstractTableModel
+class DataFrameModel : public QAbstractTableModel
 {
     Q_OBJECT
   public:
     /// Rows appended per fetchMore (an integer multiple of xdataset chunks).
     static constexpr int kLoadBatchSize = 256;
 
-    explicit ExpressionDataFrameModel(const xequation::EquationManager &manager,
-                                      QObject *parent = nullptr);
-    ~ExpressionDataFrameModel() override;
+    explicit DataFrameModel(const xequation::EquationManager &manager,
+                            QObject *parent = nullptr);
+    ~DataFrameModel() override;
 
     /// Set the object (equation or registered expression) to display.
     /// The id is resolved through the manager; only REL values

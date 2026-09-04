@@ -1,4 +1,4 @@
-#include "equation_manager_tree_view.h"
+#include "explorer_view.h"
 
 #include <QContextMenuEvent>
 #include <QDateTime>
@@ -31,7 +31,7 @@ using namespace xequation;
 
 namespace
 {
-QStandardItem *MakeItem(EquationManagerTreeView::NodeKind kind, const QString &text,
+QStandardItem *MakeItem(ExplorerView::NodeKind kind, const QString &text,
                         const QString &dataset = QString(),
                         const QString &block = QString(),
                         const QString &array = QString(),
@@ -40,13 +40,13 @@ QStandardItem *MakeItem(EquationManagerTreeView::NodeKind kind, const QString &t
                         const xequation::ObjectId &object_id = xequation::ObjectId())
 {
     auto *item = new QStandardItem(text);
-    item->setData(static_cast<int>(kind), EquationManagerTreeView::kRoleKind);
-    item->setData(dataset, EquationManagerTreeView::kRoleDataset);
-    item->setData(block, EquationManagerTreeView::kRoleBlock);
-    item->setData(array, EquationManagerTreeView::kRoleDataArray);
-    item->setData(tag, EquationManagerTreeView::kRoleTag);
-    item->setData(name, EquationManagerTreeView::kRoleName);
-    item->setData(QVariant::fromValue(object_id), EquationManagerTreeView::kRoleObjectId);
+    item->setData(static_cast<int>(kind), ExplorerView::kRoleKind);
+    item->setData(dataset, ExplorerView::kRoleDataset);
+    item->setData(block, ExplorerView::kRoleBlock);
+    item->setData(array, ExplorerView::kRoleDataArray);
+    item->setData(tag, ExplorerView::kRoleTag);
+    item->setData(name, ExplorerView::kRoleName);
+    item->setData(QVariant::fromValue(object_id), ExplorerView::kRoleObjectId);
     item->setEditable(false);
     return item;
 }
@@ -55,14 +55,14 @@ QStandardItem *MakeItem(EquationManagerTreeView::NodeKind kind, const QString &t
 /// Expression leaf under a tag group is deletable; Datasets (and its Block /
 /// DataArray nodes) and the Tag group nodes themselves are structural &
 /// read-only and are never offered for deletion.
-bool IsDeletableNodeKind(EquationManagerTreeView::NodeKind kind)
+bool IsDeletableNodeKind(ExplorerView::NodeKind kind)
 {
-    return kind == EquationManagerTreeView::NodeKind::kEquation ||
-           kind == EquationManagerTreeView::NodeKind::kExpression;
+    return kind == ExplorerView::NodeKind::kEquation ||
+           kind == ExplorerView::NodeKind::kExpression;
 }
 } // namespace
 
-EquationManagerTreeView::EquationManagerTreeView(EquationManager &manager, QWidget *parent)
+ExplorerView::ExplorerView(EquationManager &manager, QWidget *parent)
     : QTreeView(parent), manager_(manager)
 {
     model_ = new QStandardItemModel(this);
@@ -119,59 +119,64 @@ EquationManagerTreeView::EquationManagerTreeView(EquationManager &manager, QWidg
     expr_removed_conn_ = manager_.signals_manager().ConnectScoped<EquationEvent::kExpressionRemoved>(
         [refresh](const std::string &) { refresh(); });
 
-    // Right-click on an Equation / Expression leaf: delete it.  Dataset /
-    // Block / DataArray and Tag group nodes are structural & read-only -- they
-    // are never offered for deletion.
+    // Shared context menu: one menu is reused for every tree item.  A single
+    // "Delete" action is enabled only when the right-clicked item is a
+    // deletable Equation / Expression leaf; all other menu entries are common
+    // (they act on whatever is selected).  Dataset / Block / DataArray and Tag
+    // group nodes are structural & read-only, so Delete is greyed out there.
+    context_menu_ = new QMenu(this);
+    delete_action_ = context_menu_->addAction(tr("Delete"));
+    connect(delete_action_, &QAction::triggered, this, [this]() {
+        const SelectionInfo info = context_target_;
+        if (info.object_id.is_nil())
+        {
+            return;
+        }
+        if (info.kind == NodeKind::kEquation)
+        {
+            manager_.RemoveEquation(info.object_id);
+        }
+        else if (info.kind == NodeKind::kExpression)
+        {
+            manager_.RemoveExpression(info.object_id);
+        }
+    });
+
     setContextMenuPolicy(Qt::CustomContextMenu);
     connect(this, &QWidget::customContextMenuRequested,
-            this, [this](const QPoint &pos) {
-                const QModelIndex index = indexAt(pos);
-                const QStandardItem *item = index.isValid()
-                    ? model_->itemFromIndex(index)
-                    : nullptr;
-                if (!item)
-                {
-                    return;
-                }
-                const SelectionInfo info = ItemInfo(item);
-                if (!IsDeletableNodeKind(info.kind))
-                {
-                    return;
-                }
-                const ObjectId id = info.object_id;
-                if (id.is_nil())
-                {
-                    return;
-                }
-                QMenu menu(this);
-                QAction *remove = nullptr;
-                if (info.kind == NodeKind::kEquation)
-                {
-                    remove = menu.addAction(tr("Delete Equation"));
-                }
-                else
-                {
-                    remove = menu.addAction(tr("Delete Expression"));
-                }
-                if (menu.exec(viewport()->mapToGlobal(pos)) == remove)
-                {
-                    if (info.kind == NodeKind::kEquation)
-                    {
-                        manager_.RemoveEquation(id);
-                    }
-                    else
-                    {
-                        manager_.RemoveExpression(id);
-                    }
-                }
-            });
+            this, &ExplorerView::OnShowContextMenu);
 
     Refresh();
 }
 
-EquationManagerTreeView::~EquationManagerTreeView() = default;
+ExplorerView::~ExplorerView() = default;
 
-void EquationManagerTreeView::Refresh()
+void ExplorerView::OnShowContextMenu(const QPoint &pos)
+{
+    const QModelIndex index = indexAt(pos);
+    const QStandardItem *item = index.isValid()
+        ? model_->itemFromIndex(index)
+        : nullptr;
+
+    // Remember the precise right-clicked item (not the multi-selection) so the
+    // Delete action deletes exactly what the user right-clicked.
+    if (item)
+    {
+        context_target_ = ItemInfo(item);
+        delete_action_->setEnabled(
+            IsDeletableNodeKind(context_target_.kind) &&
+            !context_target_.object_id.is_nil());
+    }
+    else
+    {
+        context_target_ = SelectionInfo();
+        delete_action_->setEnabled(false);
+    }
+
+    context_menu_->exec(viewport()->mapToGlobal(pos));
+}
+
+void ExplorerView::Refresh()
 {
     if (refreshing_)
     {
@@ -179,10 +184,20 @@ void EquationManagerTreeView::Refresh()
     }
     refreshing_ = true;
 
-    // Preserve the expanded path of the datasets group across refreshes.
-    const bool datasets_expanded = model_->invisibleRootItem()->hasChildren()
-        ? isExpanded(model_->invisibleRootItem()->child(0)->index())
-        : true;
+    // Preserve the expanded path of the datasets group across refreshes (only
+    // meaningful when a datasets group is currently present).
+    bool datasets_expanded = true;
+    {
+        QStandardItem *root = model_->invisibleRootItem();
+        if (root->hasChildren())
+        {
+            QStandardItem *first = root->child(0);
+            if (first && ItemInfo(first).kind == NodeKind::kGroupDatasets)
+            {
+                datasets_expanded = isExpanded(first->index());
+            }
+        }
+    }
 
     // Rebuilding the model clears the selection; that is a programmatic reset
     // (manager change / env reload), NOT a user deselection -- suppress the
@@ -192,9 +207,8 @@ void EquationManagerTreeView::Refresh()
     blocker.unblock();
 
     // ---- 1. Datasets subtree ----------------------------------------------
-    QStandardItem *datasets_group = MakeItem(NodeKind::kGroupDatasets, tr("Datasets"));
-    model_->appendRow(datasets_group);
-
+    // Like a tag group, the "Datasets" group node is hidden when it holds no
+    // datasets (only shown once at least one dataset exists).
     std::vector<std::string> dataset_names = rel::Environment::DatasetNames();
     std::sort(dataset_names.begin(), dataset_names.end());
 
@@ -202,6 +216,13 @@ void EquationManagerTreeView::Refresh()
     if (rel::Environment::DefaultDataset())
     {
         default_name = rel::Environment::DefaultDataset()->name();
+    }
+
+    QStandardItem *datasets_group = nullptr;
+    if (!dataset_names.empty())
+    {
+        datasets_group = MakeItem(NodeKind::kGroupDatasets, tr("Datasets"));
+        model_->appendRow(datasets_group);
     }
 
     for (const std::string &ds_name : dataset_names)
@@ -249,15 +270,18 @@ void EquationManagerTreeView::Refresh()
     // drop (unregister) entries whose array no longer exists in the env.
     CleanupDataArrayExpressions();
 
-    expand(datasets_group->index());
-    if (!datasets_expanded)
+    if (datasets_group)
     {
-        collapse(datasets_group->index());
+        expand(datasets_group->index());
+        if (!datasets_expanded)
+        {
+            collapse(datasets_group->index());
+        }
     }
     refreshing_ = false;
 }
 
-void EquationManagerTreeView::AddTaggedItems()
+void ExplorerView::AddTaggedItems()
 {
     // Collect per tag, keeping the two types separate (Equation / Expression
     // have no common base) and equations before expressions inside each group.
@@ -334,7 +358,7 @@ void EquationManagerTreeView::AddTaggedItems()
     }
 }
 
-QStandardItem *EquationManagerTreeView::AddGroupChild(QStandardItem *parent,
+QStandardItem *ExplorerView::AddGroupChild(QStandardItem *parent,
                                                       NodeKind kind,
                                                       const QString &text)
 {
@@ -350,7 +374,7 @@ QStandardItem *EquationManagerTreeView::AddGroupChild(QStandardItem *parent,
     return item;
 }
 
-EquationManagerTreeView::SelectionInfo EquationManagerTreeView::CurrentSelection() const
+ExplorerView::SelectionInfo ExplorerView::CurrentSelection() const
 {
     const QModelIndex index = currentIndex();
     if (!index.isValid())
@@ -360,7 +384,7 @@ EquationManagerTreeView::SelectionInfo EquationManagerTreeView::CurrentSelection
     return ItemInfo(model_->itemFromIndex(index));
 }
 
-std::vector<EquationManagerTreeView::SelectionInfo> EquationManagerTreeView::SelectedInfos() const
+std::vector<ExplorerView::SelectionInfo> ExplorerView::SelectedInfos() const
 {
     std::vector<SelectionInfo> infos;
 
@@ -397,7 +421,7 @@ std::vector<EquationManagerTreeView::SelectionInfo> EquationManagerTreeView::Sel
     return infos;
 }
 
-EquationManagerTreeView::SelectionInfo EquationManagerTreeView::ItemInfo(const QStandardItem *item)
+ExplorerView::SelectionInfo ExplorerView::ItemInfo(const QStandardItem *item)
 {
     SelectionInfo info;
     if (!item)
@@ -414,7 +438,7 @@ EquationManagerTreeView::SelectionInfo EquationManagerTreeView::ItemInfo(const Q
     return info;
 }
 
-void EquationManagerTreeView::SetEquationSelection(
+void ExplorerView::SetEquationSelection(
     const std::vector<QString> &equation_names)
 {    // Desired equation leaves (search the tag groups).
     QItemSelection eq_selection;
@@ -508,7 +532,7 @@ bool HasArrayInEnvironment(const QString &dataset, const QString &block_path,
 }
 } // namespace
 
-ObjectId EquationManagerTreeView::GetDataArrayExpression(
+ObjectId ExplorerView::GetDataArrayExpression(
     const QString &dataset, const QString &block_path, const QString &data_array)
 {
     const auto key = std::make_tuple(dataset, block_path, data_array);
@@ -555,7 +579,7 @@ ObjectId EquationManagerTreeView::GetDataArrayExpression(
     return id;
 }
 
-QStandardItem *EquationManagerTreeView::FindDataArrayItem(
+QStandardItem *ExplorerView::FindDataArrayItem(
     const QString &dataset, const QString &block_path,
     const QString &data_array) const
 {
@@ -593,7 +617,7 @@ QStandardItem *EquationManagerTreeView::FindDataArrayItem(
     return nullptr;
 }
 
-void EquationManagerTreeView::CleanupDataArrayExpressions()
+void ExplorerView::CleanupDataArrayExpressions()
 {
     std::vector<std::tuple<QString, QString, QString>> gone;
     for (const auto &entry : data_array_exprs_)
