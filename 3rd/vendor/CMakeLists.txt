@@ -84,6 +84,7 @@ set(XDATASET_SOURCES
   ${XDATASET_DIR}/src/unit.cc
   ${XDATASET_DIR}/src/unit_registry.cc
   ${XDATASET_DIR}/src/dataset.cc
+  ${XDATASET_DIR}/src/dataset_io.cc
   ${XDATASET_DIR}/src/hdf5_io.cc
   ${XDATASET_DIR}/src/touchstone_io.cc
   ${XDATASET_DIR}/src/data_array_io.cc
@@ -101,6 +102,10 @@ target_include_directories(xdataset PUBLIC
 target_link_libraries(xdataset PUBLIC
   Eigen3::Eigen
   Boost::headers
+  # touchstone_io.cc / hdf5_io.cc use boost::filesystem::path (stem(),
+  # string(), path assignment), which needs the compiled library -- the
+  # header-only Boost::headers target leaves those symbols undefined.
+  Boost::filesystem
   tsl::ordered_map
   ${HDF5_TARGET}
 )
