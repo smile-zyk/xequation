@@ -206,8 +206,9 @@ void ExplorerView::Refresh()
     // ---- 1. Datasets subtree ----------------------------------------------
     // Like a tag group, the "Datasets" group node is hidden when it holds no
     // datasets (only shown once at least one dataset exists).
+    // Registration order is preserved (no sort): a newly added dataset
+    // appears last, matching the order in the project file / AddDataset calls.
     std::vector<std::string> dataset_names = rel::Environment::DatasetNames();
-    std::sort(dataset_names.begin(), dataset_names.end());
 
     std::string default_name;
     if (rel::Environment::DefaultDataset())

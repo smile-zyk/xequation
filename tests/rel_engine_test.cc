@@ -19,11 +19,12 @@ using namespace xequation;
 namespace
 {
 
-// 构造一个最小 Dataset：block "sim/SP"，独立变量 freq，依赖变量 Vout。
+// 构造一个最小 Dataset：block "sim.SP"，独立变量 freq，依赖变量 Vout。
+// Dataset 的名字在构造时固定（不可变），路径分隔符是 '.'（'/' 不是合法
+// 标识符字符，AddBlock 会拒绝）。
 xdataset::Dataset MakeSampleDataset(const std::string &name = "noise")
 {
-    xdataset::Dataset ds;
-    ds.set_name(name);
+    xdataset::Dataset ds(name);
 
     xdataset::BlockCreateInfo info;
     info.independent_specs.push_back(
@@ -32,7 +33,7 @@ xdataset::Dataset MakeSampleDataset(const std::string &name = "noise")
     info.dependent_specs.push_back(
         xdataset::DependentSpec{"Vout", xdataset::DataSeries::CreateScalar<double>(2)});
 
-    ds.AddBlock("sim/SP", std::move(info));
+    ds.AddBlock("sim.SP", std::move(info));
     return ds;
 }
 

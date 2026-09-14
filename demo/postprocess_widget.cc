@@ -1026,9 +1026,8 @@ void PostprocessWidget::SetDefaultDataset(const QString &name)
 
 std::vector<std::string> PostprocessWidget::DatasetNames() const
 {
-    std::vector<std::string> names = rel::Environment::DatasetNames();
-    std::sort(names.begin(), names.end());
-    return names;
+    // Registration order (no sort): newest dataset last.
+    return rel::Environment::DatasetNames();
 }
 
 QString PostprocessWidget::DefaultDatasetName() const
@@ -1074,8 +1073,8 @@ void PostprocessWidget::RefreshDatasetCombo()
     dataset_combo_->blockSignals(true);
     dataset_combo_->clear();
 
-    std::vector<std::string> names = rel::Environment::DatasetNames();
-    std::sort(names.begin(), names.end());
+    // Registration order (no sort): newest dataset last, matching the tree.
+    const std::vector<std::string> names = rel::Environment::DatasetNames();
     for (const std::string &name : names)
     {
         dataset_combo_->addItem(QString::fromStdString(name));
