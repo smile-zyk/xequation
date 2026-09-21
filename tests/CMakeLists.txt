@@ -43,3 +43,50 @@ add_gtest_executable(dependency_graph_test "DependencyGraph" dependency_graph_te
 add_gtest_executable(equation_manager_test "EquationManager" equation_manager_test.cc)
 add_gtest_executable(equation_signals_manager_test "EquationSignalsManager" equation_signals_manager_test.cc)
 add_gtest_executable(embed_proxy_test "EmbedProxy" embed_proxy_test.cc)
+
+# =========================================================================
+#  xdataset unit tests
+#
+#  3rd/vendor/CMakeLists.txt rewrites the upstream build (it does NOT
+#  add_subdirectory 3rd/xdataset), so the upstream xdataset_test target is
+#  never created here.  Build the sources directly against our xdataset
+#  target so the data-structure layer is covered by this project's CTest too.
+# =========================================================================
+
+set(XDATASET_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../3rd/xdataset")
+
+add_executable(xdataset_test
+    ${XDATASET_TEST_DIR}/tests/measurement_test.cc
+    ${XDATASET_TEST_DIR}/tests/unit_test.cc
+    ${XDATASET_TEST_DIR}/tests/data_frame_test.cc
+    ${XDATASET_TEST_DIR}/tests/data_series_test.cc
+    ${XDATASET_TEST_DIR}/tests/block_test.cc
+    ${XDATASET_TEST_DIR}/tests/data_array_test.cc
+    ${XDATASET_TEST_DIR}/tests/dataset_test.cc
+    ${XDATASET_TEST_DIR}/tests/multi_dimension_test.cc
+    ${XDATASET_TEST_DIR}/tests/xdataset_predefine_test.cc
+)
+
+target_include_directories(xdataset_test PRIVATE
+    ${XDATASET_TEST_DIR}/include
+    ${XDATASET_TEST_DIR}
+)
+
+target_link_libraries(xdataset_test PRIVATE
+    xdataset
+    GTest::gtest
+    GTest::gtest_main
+)
+
+# The xdataset DLL must sit next to the test binary (MSYS2 otherwise reports
+# "error while loading shared libraries").
+add_custom_command(TARGET xdataset_test POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:xdataset>"
+        "$<TARGET_FILE_DIR:xdataset_test>"
+    COMMENT "Copy xdataset runtime DLL next to xdataset_test")
+
+gtest_discover_tests(xdataset_test
+    PROPERTIES LABELS XDataset
+    DISCOVERY_TIMEOUT 60
+)

@@ -1,20 +1,29 @@
 #include "data_frame_tab_widget.h"
 
 #include "data_frame_view.h"
+#include "format_options_widget.h"
 #include "environment.h"   // rel::Environment (dataset registry)
 #include "dataset.h"       // xdataset::Dataset::GetBlock
 #include "block.h"         // xdataset::Block::GetOrCreateDataFrame
 #include "tree_view_tag.h"  // UI-layer tag definitions
 
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QEvent>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QInputDialog>
 #include <QMenu>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPolygonF>
 #include <QTabBar>
 #include <QToolButton>
+#include <QVBoxLayout>
+#include <QtMath>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace xresults
@@ -108,6 +117,100 @@ QToolButton *MakeTabBarButton(QWidget *parent, const QIcon &icon, const QString 
     button->setToolTip(tooltip);
     return button;
 }
+
+/// 16x16 gear: the "set the table format" icon.
+///
+/// Qt ships no gear among its QStyle::StandardPixmap values, and Windows has no
+/// icon theme for QIcon::fromTheme() to find one in, so the gear is drawn here
+/// in the same 16x16 / palette-driven style as the pin and close icons.
+///
+/// It is SOLID rather than outlined: eight teeth stroked with the 1.4-1.5px pen
+/// the other icons use read as noise at this size, whereas a filled body stays
+/// legible.  The hub is punched out with an OddEven fill so the hole shows the
+/// background instead of being painted over.
+QIcon MakeSettingsIcon(const QPalette &pal)
+{
+    const QColor fg = pal.color(QPalette::Foreground);
+
+    QPixmap pm(16, 16);
+    pm.fill(Qt::transparent);
+    QPainter painter(&pm);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    const QPointF center(8.0, 8.0);
+
+    // Tooth profile.  One step of 2*pi/teeth is spent as
+    //     flank | flat top | flank | valley
+    // i.e. the flat top and the valley each take 0.32 of a step and the two
+    // sloped flanks share the remaining 0.36.  Eight teeth keep the silhouette
+    // readable at 16px (twelve would smear into a circle).
+    const int teeth = 8;
+    const double step = 2.0 * M_PI / teeth;
+    const double outer_r = 6.4;   // tooth tip
+    const double inner_r = 4.4;   // valley between teeth
+    const double half_top = step * 0.16;      // half the flat top
+    const double half_valley = step * 0.16;   // half the valley
+    const double valley_center = step * 0.5;
+
+    QPolygonF gear;
+    for (int i = 0; i < teeth; ++i)
+    {
+        const double base = i * step;
+        const double angles[4] = {
+            base - half_top,
+            base + half_top,
+            base + valley_center - half_valley,
+            base + valley_center + half_valley,
+        };
+        const double radii[4] = {outer_r, outer_r, inner_r, inner_r};
+        for (int k = 0; k < 4; ++k)
+        {
+            gear << QPointF(center.x() + radii[k] * std::cos(angles[k]),
+                            center.y() + radii[k] * std::sin(angles[k]));
+        }
+    }
+
+    QPainterPath path;
+    path.setFillRule(Qt::OddEvenFill);
+    path.addPolygon(gear);
+    path.addEllipse(center, 1.7, 1.7);   // hub hole
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QBrush(fg));
+    painter.drawPath(path);
+
+    return QIcon(pm);
+}
+
+/// Prompt for a set of FormatOptions by wrapping the reusable
+/// FormatOptionsWidget in a modal OK / Cancel dialog (the widget itself has no
+/// dialog chrome, so it can also be embedded in a panel instead).  Returns
+/// false when the user cancelled.
+bool AskFormatOptions(QWidget *parent, const xdataset::FormatOptions &current,
+                      xdataset::FormatOptions *chosen)
+{
+    QDialog dialog(parent);
+    dialog.setWindowTitle(QStringLiteral("Format"));
+
+    auto *editor = new FormatOptionsWidget(current, &dialog);
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    QObject::connect(buttons, &QDialogButtonBox::accepted,
+                     &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected,
+                     &dialog, &QDialog::reject);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->addWidget(editor);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted)
+    {
+        return false;
+    }
+    *chosen = editor->format_options();
+    return true;
+}
 } // namespace
 
 // =========================================================================
@@ -140,6 +243,8 @@ void DataFrameTabWidget::SetupUI()
     delete_action_ = context_menu_->addAction(QStringLiteral("Delete"));
     context_menu_->addSeparator();
     add_watch_action_ = context_menu_->addAction(QStringLiteral("Add Watch Expression"));
+    context_menu_->addSeparator();
+    format_action_ = context_menu_->addAction(QStringLiteral("Format..."));
 
     connect(edit_action_, &QAction::triggered, this, [this]() {
         const int index = context_target_index_;
@@ -165,8 +270,26 @@ void DataFrameTabWidget::SetupUI()
             AddWatchExpression(expression.trimmed().toStdString());
         }
     });
+    connect(format_action_, &QAction::triggered,
+            this, &DataFrameTabWidget::OpenFormatOptionsDialog);
 
-    // Right-click on a tab: Edit / Delete / Add Watch Expression.
+    // ---- table format button ---------------------------------------
+    // The format is a property of the whole tab widget (it applies to every
+    // tab at once), so its entry point belongs to the widget rather than to a
+    // single tab: a corner tool button, always reachable even when no tab is
+    // open.  The context-menu action above is the same entry point for
+    // discoverability when right-clicking a tab.
+    auto *format_button = new QToolButton(this);
+    format_button->setIcon(MakeSettingsIcon(format_button->palette()));
+    format_button->setIconSize(QSize(16, 16));
+    format_button->setAutoRaise(true);
+    format_button->setToolTip(
+        QStringLiteral("Set the number / complex format for every table in this widget"));
+    connect(format_button, &QToolButton::clicked,
+            this, &DataFrameTabWidget::OpenFormatOptionsDialog);
+    setCornerWidget(format_button, Qt::TopRightCorner);
+
+    // Right-click on a tab: Edit / Delete / Add Watch Expression / Format.
     tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tabBar(), &QTabBar::customContextMenuRequested,
             this, &DataFrameTabWidget::OnTabContextMenu);
@@ -218,6 +341,10 @@ int DataFrameTabWidget::OpenTab()
     // Tab contents: a single table view; errors are rendered as an overlay
     // inside the view itself (DataFrameView::SetError).
     auto *view = new DataFrameView(manager_, this);
+
+    // A new tab starts with the widget's current format, so opening a tab after
+    // a Format change does not silently revert to the xdataset defaults.
+    view->SetFormatOptions(format_options_);
 
     const int index = addTab(view, QString());
     tabs_.emplace_back();
@@ -770,20 +897,13 @@ void DataFrameTabWidget::AddExpression(const ObjectId &expression_id,
     }
 
     // Duplicate object: focus existing tab instead of stacking a new one.
+    // NO recomputation here -- the DependencyGraph owns updates (the
+    // manager's Update() pass recomputes dirty nodes and kExpressionUpdated
+    // refreshes the tab), so re-clicking an expression only focuses its tab.
     const int existing_index = FindTabIndex(expression_id);
     if (existing_index >= 0)
     {
         setCurrentIndex(existing_index);
-        // Re-evaluate then re-read so a re-opened tab (e.g. after an env
-        // reload re-created the underlying dataset arrays) shows fresh data.
-        try
-        {
-            manager_.UpdateExpression(expression_id);
-        }
-        catch (const std::exception &)
-        {
-            // Expression was removed underneath us; EvaluateTab renders it.
-        }
         EvaluateTab(existing_index);
         return;
     }
@@ -803,18 +923,24 @@ void DataFrameTabWidget::AddExpression(const ObjectId &expression_id,
 
     RebuildKeyToIndex();
 
-    // Trigger the first computation synchronously so the tab shows a value
-    // immediately (AddExpression only registered + marked the graph node
-    // dirty; the actual Eval happens here).  Afterwards the kExpressionUpdated
-    // signal keeps the tab fresh -- EvaluateTab reads the cached value without
-    // re-evaluating (no feedback loop).
-    try
+    // Recomputation is owned by the DependencyGraph: the manager's Update()
+    // pass recomputes the dirty nodes and the kExpressionUpdated(kValue)
+    // signal keeps this tab fresh, so opening a tab must NOT force an Eval.
+    // The one exception is a never-computed expression (status kPending):
+    // it is computed once here so the tab shows a value immediately.  That
+    // covers a freshly registered watch expression and the lazy "DataArray
+    // access" expressions created under a Dataset Block (they are registered
+    // on the first click and would otherwise stay empty forever).
+    if (expr->result.status == ResultStatus::kPending)
     {
-        manager_.UpdateExpression(expression_id);
-    }
-    catch (const std::exception &)
-    {
-        // Keep the tab open; EvaluateTab renders the error state.
+        try
+        {
+            manager_.UpdateExpression(expression_id);
+        }
+        catch (const std::exception &)
+        {
+            // Keep the tab open; EvaluateTab renders the error state.
+        }
     }
 
     EvaluateTab(index);
@@ -926,6 +1052,34 @@ void DataFrameTabWidget::ClearBlockTabs()
     }
 }
 
+// ---- table display formatting -------------------------------------------
+
+void DataFrameTabWidget::SetFormatOptions(const xdataset::FormatOptions &options)
+{
+    format_options_ = options;
+    ApplyFormatOptionsToTabs();
+}
+
+void DataFrameTabWidget::ApplyFormatOptionsToTabs()
+{
+    for (TabData &tab : tabs_)
+    {
+        if (tab.view)
+        {
+            tab.view->SetFormatOptions(format_options_);
+        }
+    }
+}
+
+void DataFrameTabWidget::OpenFormatOptionsDialog()
+{
+    xdataset::FormatOptions chosen;
+    if (AskFormatOptions(this, format_options_, &chosen))
+    {
+        SetFormatOptions(chosen);
+    }
+}
+
 void DataFrameTabWidget::OnExpressionRemoving(const Expression *expression)
 {
     if (!expression)
@@ -1018,14 +1172,21 @@ void DataFrameTabWidget::EditTab(int index)
     object_to_index_[edited_id] = index;
     setTabText(index, QString::fromStdString(trimmed));
 
-    // Trigger the first computation of the edited expression synchronously.
-    try
+    // Same rule as AddExpression: the graph owns recomputation, but an edit
+    // clears the cached value and leaves the expression kPending, so compute
+    // it once here.  A detached expression (kError: parse error / cycle) is
+    // left alone -- EvaluateTab already shows why it is detached.
+    const Expression *edited = manager_.GetExpression(edited_id);
+    if (edited && edited->result.status == ResultStatus::kPending)
     {
-        manager_.UpdateExpression(edited_id);
-    }
-    catch (const std::exception &)
-    {
-        // Keep the tab open; EvaluateTab renders the error state.
+        try
+        {
+            manager_.UpdateExpression(edited_id);
+        }
+        catch (const std::exception &)
+        {
+            // Keep the tab open; EvaluateTab renders the error state.
+        }
     }
 
     EvaluateTab(index);

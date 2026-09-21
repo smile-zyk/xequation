@@ -1477,7 +1477,7 @@ std::vector<std::string> EquationManager::GetExternalInputNames() const
 
 void EquationManager::InvalidateExternalInputs(const std::vector<std::string> &symbol_names)
 {
-    // ① invalidate every input first: dirty flags propagate to all graph dependents.
+    // [1] invalidate every input first: dirty flags propagate to all graph dependents.
     for (const auto &name : symbol_names)
     {
         if (graph_->IsNodeExist(name))
@@ -1485,7 +1485,7 @@ void EquationManager::InvalidateExternalInputs(const std::vector<std::string> &s
             graph_->InvalidateNode(name);
         }
     }
-    // ② merge the update scopes: TopologicalSort(vector) builds one relevant set,
+    // [2] merge the update scopes: TopologicalSort(vector) builds one relevant set,
     // so a dependent of several inputs appears exactly once.
     std::vector<std::string> update_names;
     for (const auto &name : symbol_names)
@@ -1493,7 +1493,7 @@ void EquationManager::InvalidateExternalInputs(const std::vector<std::string> &s
         auto scope = graph_->TopologicalSort(name);
         update_names.insert(update_names.end(), scope.begin(), scope.end());
     }
-    // ③ collect dirty nodes (renames/removals may have left unreachable dirty
+    // [3] collect dirty nodes (renames/removals may have left unreachable dirty
     // nodes that TopologicalSort from the inputs cannot reach).
     CollectDirtyNodes(update_names);
 

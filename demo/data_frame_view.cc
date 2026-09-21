@@ -33,11 +33,26 @@ void DataFrameView::SetupUI()
     setEditTriggers(QAbstractItemView::NoEditTriggers);
     setSortingEnabled(false);
 
-    // Every column sizes to its content; no column is stretched to fill the
-    // remaining viewport width.
+    // Every column sizes to its content on load; no column is stretched to
+    // fill the remaining viewport width.
     horizontalHeader()->setStretchLastSection(false);
-    horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    // Interactive (not ResizeToContents) so the user can drag a section
+    // divider to resize a column, and double-click a divider to auto-fit that
+    // one column.  The initial widths are fitted to the content by
+    // SyncColumnWidths() once data arrives -- ResizeToContents as the section
+    // mode would re-fit on every single change and fight the user's drag.
+    horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    horizontalHeader()->setSectionsClickable(true);
+    horizontalHeader()->setHighlightSections(false);
+    // resizeSections(ResizeToContents) measures a column by asking data() for
+    // EVERY loaded row (up to resizeContentsPrecision, default 1000).  With
+    // many columns that is O(rows x columns) renders -- e.g. 50 columns x 1000
+    // rows = 50k Measurement::to_string() calls for a single header layout.
+    // Sampling the first 32 rows is visually indistinguishable and cuts it by
+    // ~30x.
+    horizontalHeader()->setResizeContentsPrecision(32);
     horizontalHeader()->setMinimumSectionSize(40);
+    horizontalHeader()->setDefaultSectionSize(90);
     verticalHeader()->setVisible(true);
     verticalHeader()->setDefaultSectionSize(24);
 
@@ -60,6 +75,48 @@ void DataFrameView::SetupConnections()
         verticalScrollBar(), &QScrollBar::valueChanged, this,
         &DataFrameView::OnVerticalScrollbarValueChanged
     );
+    // A reset means "new table / new values": re-fit the columns when the
+    // header set changed (see SyncColumnWidths).
+    connect(
+        table_model_, &QAbstractItemModel::modelReset, this,
+        &DataFrameView::SyncColumnWidths
+    );
+}
+
+void DataFrameView::SyncColumnWidths()
+{
+    if (!table_model_)
+    {
+        return;
+    }
+
+    const int columns = table_model_->columnCount();
+    if (columns <= 0)
+    {
+        fitted_headers_.clear();
+        return;
+    }
+
+    // Collect the current column headers.  headerData() for a column header is
+    // a plain string read from the frame's header list, so this is cheap even
+    // for a 66-column S-parameter table (unlike the cell data() it avoids).
+    QStringList headers;
+    headers.reserve(columns);
+    for (int column = 0; column < columns; ++column)
+    {
+        headers.append(
+            table_model_->headerData(column, Qt::Horizontal, Qt::DisplayRole)
+                .toString()
+        );
+    }
+
+    // Same table, new values -> keep whatever widths the user chose.
+    if (headers == fitted_headers_)
+    {
+        return;
+    }
+    fitted_headers_ = headers;
+    horizontalHeader()->resizeSections(QHeaderView::ResizeToContents);
 }
 
 void DataFrameView::SetObject(const ObjectId &object_id)
@@ -106,6 +163,20 @@ void DataFrameView::SetError(const QString &message)
     CenterErrorLabel();
 }
 
+void DataFrameView::SetFormatOptions(const xdataset::FormatOptions &options)
+{
+    table_model_->SetFormatOptions(options);
+    // The rendered text changed width ("1 KHz" vs "1000 Hz"), so force a
+    // re-fit by dropping the cached header signature first.
+    fitted_headers_.clear();
+    SyncColumnWidths();
+}
+
+const xdataset::FormatOptions &DataFrameView::format_options() const
+{
+    return table_model_->format_options();
+}
+
 void DataFrameView::CenterErrorLabel()
 {
     if (!error_label_ || !error_label_->isVisible())
@@ -140,6 +211,28 @@ void DataFrameView::OnVerticalScrollbarValueChanged(int /*value*/)
     FetchMoreIfNeeded();
 }
 
+void DataFrameView::EnsureViewportFilled()
+{
+    if (!table_model_)
+    {
+        return;
+    }
+
+    // Rows that fit in the viewport, rounded up.  Row heights are uniform
+    // (verticalHeader()->setDefaultSectionSize in SetupUI), so one section
+    // size is representative.
+    const int row_height = verticalHeader()->defaultSectionSize();
+    const int viewport_height = viewport()->height();
+    if (row_height <= 0 || viewport_height <= 0)
+    {
+        return;
+    }
+    const int visible_rows = viewport_height / row_height + 1;
+
+    table_model_->EnsureLoadedRows(
+        static_cast<std::size_t>(visible_rows + kViewportOverscanRows));
+}
+
 void DataFrameView::FetchMoreIfNeeded()
 {
     if (!table_model_)
@@ -150,7 +243,7 @@ void DataFrameView::FetchMoreIfNeeded()
     // When scrolled to the bottom (or the first screen is not full), request
     // more rows if the model still has them.  Matches QTreeView's lazy-load
     // pattern: check whether the visible area bottom is the current last row;
-    // if so and canFetchMore() is true, call fetchMore().
+    // if so and canFetchMore() is true, request more.
     const int viewport_height = viewport()->height();
     if (viewport_height <= 0)
     {
@@ -160,19 +253,20 @@ void DataFrameView::FetchMoreIfNeeded()
     const QModelIndex bottom_index = indexAt(QPoint(1, viewport_height - 1));
     if (!bottom_index.isValid())
     {
-        // No rows in the viewport (first screen not filled or model empty). If
-        // the model still has more data, request a batch directly so there is
-        // something to show.
-        if (table_model_->canFetchMore(QModelIndex()))
-        {
-            table_model_->fetchMore(QModelIndex());
-        }
+        // The first screen is not filled (or the model is empty).  Load just
+        // enough rows to fill the viewport rather than a whole scroll batch:
+        // the model's initial load (DataFrameModel::kInitialLoadRows) is
+        // deliberately small, so a tall viewport has to top it up, and asking
+        // for a 256-row batch here would defeat that.
+        EnsureViewportFilled();
         return;
     }
 
     if (bottom_index.row() == table_model_->rowCount() - 1 &&
         table_model_->canFetchMore(QModelIndex()))
     {
+        // The user reached the bottom: pull in a generous scroll batch so
+        // dragging the scrollbar does not cause a storm of small insertions.
         table_model_->fetchMore(QModelIndex());
     }
 }

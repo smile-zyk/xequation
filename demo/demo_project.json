@@ -2,7 +2,8 @@
     "version": 1,
     "datasets": [
         { "name": "LNA", "format": "hdf5",       "path": "../3rd/REL/case/LNA.h5" },
-        { "name": "LQ",  "format": "touchstone", "path": "../3rd/REL/case/LQ.s2p" }
+        { "name": "LQ",  "format": "touchstone", "path": "../3rd/REL/case/LQ.s2p" },
+        { "name": "S8P", "format": "touchstone", "path": "../3rd/REL/case/S8P_coupled8.s8p" }
     ],
     "default_dataset": "LNA",
     "python_plugins": [

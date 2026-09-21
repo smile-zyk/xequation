@@ -18,6 +18,8 @@ data_frame_view.h
 data_frame_view.cc
 data_frame_tab_widget.h
 data_frame_tab_widget.cc
+format_options_widget.h
+format_options_widget.cc
 explorer_view.h
 explorer_view.cc
 tree_view_tag.h

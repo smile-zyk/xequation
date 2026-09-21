@@ -10,6 +10,7 @@
 
 #include "core/equation_common.h"
 #include "core/equation_manager.h"
+#include "measurement.h"
 
 class QMenu;
 class QAction;
@@ -74,9 +75,15 @@ class DataFrameTabWidget : public QTabWidget
     /// Open (or focus) a tab that shows a registered Expression's cached
     /// value.  The id is the Expression::id returned by
     /// EquationManager::AddExpression() -- the host performs the registration
-    /// and passes the id here.  The tab triggers the first synchronous
-    /// computation (UpdateExpression); later refreshes are driven by the
-    /// kExpressionUpdated signal.
+    /// and passes the id here.
+    ///
+    /// Recomputation is owned by the DependencyGraph: the manager's Update()
+    /// pass recomputes the dirty nodes and the kExpressionUpdated(kValue)
+    /// signal refreshes the tab, so (re-)clicking an expression never forces
+    /// an Eval.  The single exception is a never-computed expression (status
+    /// kPending): it is computed once, when its tab is first opened.  That is
+    /// the case for a freshly registered watch expression and for the lazy
+    /// "DataArray access" expressions created under a Dataset Block.
     /// @param auto_pin  see AddEquation.
     void AddExpression(const xequation::ObjectId &expression_id, bool auto_pin = true);
 
@@ -115,6 +122,19 @@ class DataFrameTabWidget : public QTabWidget
     /// reload (datasets/blocks are dropped): a Block tab's frame is owned and
     /// cached by the Block, so once the Block is destroyed the frame dangles.
     void ClearBlockTabs();
+
+    // ---- table display formatting -------------------------------------
+
+    /// Replace the cell format used by EVERY tab in this widget (and by tabs
+    /// opened later).  This is the widget's own global format: it is stored
+    /// here and pushed into each tab's model, so it never touches the
+    /// process-wide xdataset::FormatDefaults and sibling widgets keep theirs.
+    void SetFormatOptions(const xdataset::FormatOptions &options);
+    const xdataset::FormatOptions &format_options() const { return format_options_; }
+
+    /// Open the modal Format dialog seeded with the current options and, on
+    /// accept, apply the result through SetFormatOptions().
+    void OpenFormatOptionsDialog();
 
     // ---- change routing (external code connects the engine) -----------
 
@@ -175,6 +195,11 @@ class DataFrameTabWidget : public QTabWidget
     void CloseTabInternal(int index);
     void FillTab(DataFrameView *view, const xequation::EquationValue &value);
 
+    /// Push format_options_ into every open tab's model.  Called by
+    /// SetFormatOptions() and once from OpenTab() so a new tab starts with the
+    /// widget's current format.
+    void ApplyFormatOptionsToTabs();
+
     // ---- evaluation ----
     void EvaluateTab(int index);
 
@@ -224,6 +249,13 @@ class DataFrameTabWidget : public QTabWidget
     QAction *edit_action_ = nullptr;
     QAction *delete_action_ = nullptr;
     QAction *add_watch_action_ = nullptr;
+    QAction *format_action_ = nullptr;
+
+    /// The widget-wide cell format.  Seeded with the xdataset defaults and
+    /// pushed into every tab's model (see SetFormatOptions), so changing it
+    /// re-formats all open tabs at once without touching the process-wide
+    /// FormatDefaults.
+    xdataset::FormatOptions format_options_;
 
     std::vector<TabData> tabs_;
     std::unordered_map<xequation::ObjectId, int> object_to_index_;
